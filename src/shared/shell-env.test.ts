@@ -89,6 +89,25 @@ describe("shell-env", () => {
       expect(result).toBe("unix")
     })
 
+    test("#given SHELL points to Windows PowerShell #when detectShellType is called #then returns powershell", () => {
+      process.env.PSModulePath = "C:\\Program Files\\PowerShell\\Modules"
+      process.env.SHELL = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+      Object.defineProperty(process, "platform", { value: "win32" })
+
+      const result = detectShellType()
+
+      expect(result).toBe("powershell")
+    })
+
+    test("#given SHELL points to pwsh #when detectShellType is called #then returns powershell", () => {
+      process.env.SHELL = "C:\\Program Files\\PowerShell\\7\\pwsh.exe"
+      Object.defineProperty(process, "platform", { value: "win32" })
+
+      const result = detectShellType()
+
+      expect(result).toBe("powershell")
+    })
+
     test("#given SHELL set to Git Bash on Windows with PSModulePath #when detectShellType is called #then returns unix", () => {
       process.env.PSModulePath = "C:\\Program Files\\PowerShell\\Modules"
       process.env.SHELL = "C:\\Program Files\\Git\\bin\\bash.exe"

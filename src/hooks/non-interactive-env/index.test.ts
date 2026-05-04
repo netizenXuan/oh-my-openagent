@@ -275,6 +275,28 @@ describe("non-interactive-env hook", () => {
       expect(cmd).not.toContain("export ")
     })
 
+    test("#given Windows SHELL points to PowerShell #when git command executes #then uses powershell syntax", async () => {
+      delete process.env.MSYSTEM
+      process.env.PSModulePath = "C:\\Program Files\\PowerShell\\Modules"
+      process.env.SHELL = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+      Object.defineProperty(process, "platform", { value: "win32" })
+
+      const hook = createNonInteractiveEnvHook(mockCtx)
+      const output: { args: Record<string, unknown>; message?: string } = {
+        args: { command: "git status" },
+      }
+
+      await hook["tool.execute.before"](
+        { tool: "bash", sessionID: "test", callID: "1" },
+        output
+      )
+
+      const cmd = output.args.command as string
+      expect(cmd).toStartWith("$env:")
+      expect(cmd).toContain("; git status")
+      expect(cmd).not.toContain("export ")
+    })
+
     test("#given Windows without SHELL env #when bash tool git command executes #then uses cmd syntax", async () => {
       delete process.env.PSModulePath
       delete process.env.SHELL

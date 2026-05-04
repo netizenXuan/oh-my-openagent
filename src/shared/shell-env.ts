@@ -14,7 +14,13 @@ export type ShellType = "unix" | "powershell" | "cmd" | "csh"
  */
 export function detectShellType(): ShellType {
   if (process.env.SHELL) {
-    const shell = process.env.SHELL
+    const shell = process.env.SHELL.toLowerCase()
+    if (shell.includes("powershell") || shell.includes("pwsh")) {
+      return "powershell"
+    }
+    if (shell.includes("cmd.exe") || shell.endsWith("\\cmd") || shell.endsWith("/cmd")) {
+      return "cmd"
+    }
     if (shell.includes("csh") || shell.includes("tcsh")) {
       return "csh"
     }
