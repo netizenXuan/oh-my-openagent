@@ -21,6 +21,7 @@ npx oh-my-opencode
 | `run`                         | OpenCode session runner with task completion enforcement |
 | `get-local-version`           | Display local version information and update check     |
 | `refresh-model-capabilities`  | Refresh the cached models.dev-based model capabilities |
+| `republic status`             | Summarize OMO Republic ledger and native Git audit state |
 | `version`                     | Show version information                               |
 | `mcp oauth`                   | MCP OAuth authentication management                    |
 
@@ -177,6 +178,30 @@ Shows:
 - Latest available version on npm
 - Whether you're up to date
 - Special modes (local dev, pinned version)
+
+---
+
+## republic status
+
+Summarizes the OMO Republic deliberation ledger together with native Git audit records.
+
+### Usage
+
+```bash
+bunx oh-my-opencode republic status
+bunx oh-my-opencode republic status --directory /path/to/repo
+bunx oh-my-opencode republic status --deliberation-id delib_20260504_native_git --json
+```
+
+### Options
+
+| Option                 | Description                                           |
+| ---------------------- | ----------------------------------------------------- |
+| `-d, --directory <path>` | Working directory to inspect                         |
+| `--deliberation-id <id>` | Filter Republic ledger records to one deliberation   |
+| `--json`               | Output structured JSON for scripts or dashboards      |
+
+The command reads `.git/omo/republic/ledger.jsonl` and `.git/omo/native-git/audit.jsonl`. Both files live under the Git common dir, so status reporting does not dirty the worktree.
 
 ---
 

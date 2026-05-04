@@ -527,7 +527,7 @@ Disable built-in commands via `disabled_commands`:
 { "disabled_commands": ["init-deep", "start-work"] }
 ```
 
-Available commands: `init-deep`, `ralph-loop`, `ulw-loop`, `cancel-ralph`, `refactor`, `deliberate`, `start-work`, `stop-continuation`, `handoff`
+Available commands: `init-deep`, `ralph-loop`, `ulw-loop`, `cancel-ralph`, `refactor`, `deliberate`, `republic-status`, `start-work`, `stop-continuation`, `handoff`
 
 ### Browser Automation
 
@@ -585,6 +585,42 @@ Track agent-caused Git changes without automatically committing, stashing, or cr
 | `audit_log` | `true`      | Write JSONL audit records under the Git common dir at `.git/omo/native-git/audit.jsonl`. |
 
 In `tracked` mode, write/edit/bash-style tool activity is audited when it leaves the repository dirty. When the session goes idle, OpenCode shows a reminder to use `git-master` for atomic commits. Audit files live under `.git`, so they do not dirty the worktree.
+
+### OMO Republic
+
+Configure the deliberative multi-agent workflow and ledger:
+
+```json
+{
+  "republic": {
+    "enabled": true,
+    "mode": "advisory",
+    "ledger": true,
+    "house_seats": 3,
+    "senate_seats": 2,
+    "review_bench_seats": 2,
+    "quorum": 4,
+    "supermajority": 0.67,
+    "veto_on_blocker": true,
+    "git_summary": true
+  }
+}
+```
+
+| Option               | Default      | Description                                                                 |
+| -------------------- | ------------ | --------------------------------------------------------------------------- |
+| `enabled`            | `true`       | Enable OMO Republic command helpers                                         |
+| `mode`               | `"advisory"` | `"manual"` disables workflow guidance, `"advisory"` records recommendations, `"governed"` is reserved for stronger future gates |
+| `ledger`             | `true`       | Write deliberation records under `.git/omo/republic/`                       |
+| `house_seats`        | `3`          | Fast same-role planner seats                                                |
+| `senate_seats`       | `2`          | Conservative same-role planner seats                                        |
+| `review_bench_seats` | `2`          | Reviewer seats for blocker, rollback, and test scrutiny                     |
+| `quorum`             | `4`          | Minimum seat records expected before conference synthesis                   |
+| `supermajority`      | `0.67`       | Approval ratio used for high-confidence execution recommendations           |
+| `veto_on_blocker`    | `true`       | Treat reject/blocker review votes as final-plan blockers                    |
+| `git_summary`        | `true`       | Include native-git audit information in Republic status reports             |
+
+Deliberation ledgers live under the Git common dir at `.git/omo/republic/ledger.jsonl`, while tool-caused dirty Git changes are audited separately at `.git/omo/native-git/audit.jsonl`. Use `/republic-status` or `oh-my-opencode republic status` to combine both views.
 
 ### Git Master
 
