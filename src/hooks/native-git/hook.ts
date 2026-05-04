@@ -6,6 +6,8 @@ import {
   getNativeGitStatus,
 } from "../../shared/git-worktree"
 import { log } from "../../shared/logger"
+import { getSessionAgent } from "../../features/claude-code-session-state"
+import { getAgentConfigKey } from "../../shared/agent-display-names"
 
 const TRACKED_TOOLS = new Set(["write", "edit", "multiedit", "apply_patch", "hashline_edit", "bash", "task"])
 
@@ -13,6 +15,19 @@ type NativeGitToolInput = {
   tool: string
   sessionID?: string
   callID?: string
+  agent?: string
+  model?: string
+  category?: string
+}
+
+type NativeGitChatInput = {
+  sessionID: string
+  agent?: string
+  model?: { providerID: string; modelID: string }
+  category?: string
+}
+
+type NativeGitSessionContext = {
   agent?: string
   model?: string
   category?: string
@@ -87,6 +102,22 @@ function getCallKey(input: NativeGitToolInput): string | null {
 
 function getStateKey(sessionID: string, repoRoot: string): string {
   return `${sessionID}:${repoRoot}`
+}
+
+function normalizeAgent(agent: string | undefined): string | undefined {
+  return agent ? getAgentConfigKey(agent) : undefined
+}
+
+function formatModelID(model: NativeGitChatInput["model"]): string | undefined {
+  if (!model) {
+    return undefined
+  }
+
+  if (model.modelID.includes("/")) {
+    return model.modelID
+  }
+
+  return `${model.providerID}/${model.modelID}`
 }
 
 function deleteSessionMapEntries<T>(map: Map<string, T>, sessionID: string): void {
@@ -185,6 +216,7 @@ export function createNativeGitHook(ctx: PluginInput, config: NativeGitConfig | 
   const outputReminderCallKeys = new Set<string>()
   const taskReminderCallKeys = new Set<string>()
   const initialStatusByRepo = new Map<string, string>()
+  const sessionContextBySession = new Map<string, NativeGitSessionContext>()
 
   const initialStatus = mode === "manual" ? null : getNativeGitStatus(ctx.directory)
   if (initialStatus) {
@@ -194,6 +226,7 @@ export function createNativeGitHook(ctx: PluginInput, config: NativeGitConfig | 
   function clearSessionState(sessionID: string): void {
     dirtyStateBySession.delete(sessionID)
     lastToastStatusBySession.delete(sessionID)
+    sessionContextBySession.delete(sessionID)
     deleteSessionMapEntries(lastStatusBySessionRepo, sessionID)
     deleteSessionMapEntries(baselineByCall, sessionID)
     deleteSessionMapEntries(changedResultByCall, sessionID)
@@ -204,6 +237,27 @@ export function createNativeGitHook(ctx: PluginInput, config: NativeGitConfig | 
           set.delete(key)
         }
       }
+    }
+  }
+
+  function rememberSessionContext(input: NativeGitChatInput): void {
+    sessionContextBySession.set(input.sessionID, {
+      agent: normalizeAgent(input.agent),
+      model: formatModelID(input.model),
+      category: input.category,
+    })
+  }
+
+  function enrichToolInput(input: NativeGitToolInput): NativeGitToolInput {
+    const sessionID = input.sessionID ?? "unknown"
+    const sessionContext = sessionContextBySession.get(sessionID)
+    const sessionAgent = input.sessionID ? getSessionAgent(input.sessionID) : undefined
+
+    return {
+      ...input,
+      agent: normalizeAgent(input.agent) ?? sessionContext?.agent ?? normalizeAgent(sessionAgent),
+      model: input.model ?? sessionContext?.model,
+      category: input.category ?? sessionContext?.category,
     }
   }
 
@@ -271,6 +325,7 @@ export function createNativeGitHook(ctx: PluginInput, config: NativeGitConfig | 
   }
 
   function trackNativeGitChanges(input: NativeGitToolInput): NativeGitTrackResult {
+    input = enrichToolInput(input)
     const tool = input.tool.toLowerCase()
     if (mode === "manual" || !TRACKED_TOOLS.has(tool)) {
       return { dirty: false, changedSinceLastCheck: false }
@@ -350,6 +405,11 @@ export function createNativeGitHook(ctx: PluginInput, config: NativeGitConfig | 
   }
 
   return {
+    "chat.message": async (input: NativeGitChatInput): Promise<void> => {
+      if (mode !== "manual") {
+        rememberSessionContext(input)
+      }
+    },
     event: async (input: NativeGitEventInput): Promise<void> => {
       if (mode === "manual") {
         return
@@ -399,7 +459,7 @@ export function createNativeGitHook(ctx: PluginInput, config: NativeGitConfig | 
         return
       }
 
-      const enrichedInput = mergeToolOutputMetadata(input, output.metadata)
+      const enrichedInput = enrichToolInput(mergeToolOutputMetadata(input, output.metadata))
       const result = trackNativeGitChanges(enrichedInput)
       const callKey = getCallKey(input)
       if (result.changedSinceLastCheck && result.summary && (!callKey || !outputReminderCallKeys.has(callKey))) {

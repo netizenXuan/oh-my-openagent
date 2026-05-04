@@ -99,6 +99,38 @@ describe("native git hook", () => {
     expect(git(directory, ["status", "--porcelain"])).toContain("README.md")
   })
 
+  test("tracked mode attributes changes from chat session context when tool metadata is missing", async () => {
+    const hook = createNativeGitHook({ directory } as never, { mode: "tracked", audit_log: true })
+    await hook["chat.message"]?.({
+      sessionID: "ses_context",
+      agent: "Hephaestus - Deep Agent",
+      model: { providerID: "kimi-for-coding", modelID: "k2p6" },
+    })
+    await captureToolBaseline(hook, { tool: "write", sessionID: "ses_context", callID: "call_context" })
+    writeFileSync(join(directory, "context.txt"), "created with session context\n", "utf-8")
+
+    await hook.event({
+      event: {
+        type: "message.part.updated",
+        properties: {
+          part: {
+            type: "tool",
+            tool: "write",
+            callID: "call_context",
+            sessionID: "ses_context",
+            state: { status: "completed" },
+          },
+        },
+      },
+    })
+
+    const repository = getNativeGitRepository(directory)
+    const audit = readFileSync(getNativeGitAuditPath(repository!), "utf-8")
+    expect(audit).toContain('"agent":"hephaestus"')
+    expect(audit).toContain('"model":"kimi-for-coding/k2p6"')
+    expect(audit).toContain("context.txt")
+  })
+
   test("tracked mode does not attribute pre-existing dirty state to a tracked tool", async () => {
     const hook = createNativeGitHook({ directory } as never, { mode: "tracked", audit_log: true })
     writeFileSync(join(directory, "README.md"), "already dirty\n", "utf-8")
