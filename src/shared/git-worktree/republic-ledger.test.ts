@@ -8,6 +8,7 @@ import { join } from "node:path"
 import { getNativeGitRepository } from "./native-git"
 import {
   appendRepublicLedgerRecord,
+  evaluateRepublicDecision,
   getRepublicDeliberationDir,
   getRepublicLedgerPath,
   readRepublicLedgerRecords,
@@ -147,5 +148,64 @@ describe("republic ledger", () => {
     expect(summary.averageConfidence).toBe(0.8)
     expect(summary.files).toEqual(["src/a.ts", "src/b.ts"])
     expect(summary.blocked).toBe(true)
+  })
+
+  test("evaluates quorum, blocker veto, and supermajority decisions", () => {
+    const baseSummary = summarizeRepublicLedgerRecords([
+      {
+        deliberationID: "decision",
+        phase: "seat-proposal",
+        seatID: "seat-1",
+        vote: "approve",
+      },
+    ], "decision")
+
+    expect(evaluateRepublicDecision(summarizeRepublicLedgerRecords([], "decision")).status).toBe("no-records")
+    expect(evaluateRepublicDecision(baseSummary).status).toBe("needs-quorum")
+
+    const blockedSummary = summarizeRepublicLedgerRecords([
+      {
+        deliberationID: "decision",
+        phase: "review",
+        seatID: "bench-1",
+        vote: "reject",
+        summary: "Blocker: no rollback path.",
+      },
+      {
+        deliberationID: "decision",
+        phase: "seat-proposal",
+        seatID: "seat-1",
+        vote: "approve",
+      },
+      {
+        deliberationID: "decision",
+        phase: "seat-proposal",
+        seatID: "seat-2",
+        vote: "approve",
+      },
+      {
+        deliberationID: "decision",
+        phase: "seat-proposal",
+        seatID: "seat-3",
+        vote: "approve",
+      },
+    ], "decision")
+    expect(evaluateRepublicDecision(blockedSummary).status).toBe("blocked")
+
+    const approvedSummary = summarizeRepublicLedgerRecords([
+      { deliberationID: "decision", phase: "seat-proposal", seatID: "seat-1", vote: "approve" },
+      { deliberationID: "decision", phase: "seat-proposal", seatID: "seat-2", vote: "approve" },
+      { deliberationID: "decision", phase: "seat-proposal", seatID: "seat-3", vote: "approve" },
+      { deliberationID: "decision", phase: "review", seatID: "bench-1", vote: "revise" },
+    ], "decision")
+    expect(evaluateRepublicDecision(approvedSummary).status).toBe("approved")
+
+    const reviseSummary = summarizeRepublicLedgerRecords([
+      { deliberationID: "decision", phase: "seat-proposal", seatID: "seat-1", vote: "approve" },
+      { deliberationID: "decision", phase: "seat-proposal", seatID: "seat-2", vote: "revise" },
+      { deliberationID: "decision", phase: "seat-proposal", seatID: "seat-3", vote: "revise" },
+      { deliberationID: "decision", phase: "review", seatID: "bench-1", vote: "revise" },
+    ], "decision")
+    expect(evaluateRepublicDecision(reviseSummary).status).toBe("revise")
   })
 })

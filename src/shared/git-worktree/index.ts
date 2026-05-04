@@ -22,12 +22,16 @@ export {
 } from "./native-git"
 export {
   appendRepublicLedgerRecord,
+  DEFAULT_REPUBLIC_DECISION_POLICY,
+  evaluateRepublicDecision,
   getRepublicDeliberationDir,
   getRepublicLedgerPath,
   readRepublicLedgerRecords,
   sanitizeRepublicDeliberationID,
   summarizeRepublicLedger,
   summarizeRepublicLedgerRecords,
+  type RepublicDecision,
+  type RepublicDecisionPolicy,
   type RepublicLedgerSummary,
   type RepublicLedgerRecord,
   type RepublicVoteSummary,

@@ -203,6 +203,8 @@ bunx oh-my-opencode republic status --deliberation-id delib_20260504_native_git 
 
 The command reads `.git/omo/republic/ledger.jsonl` and `.git/omo/native-git/audit.jsonl`. Both files live under the Git common dir, so status reporting does not dirty the worktree.
 
+The report includes a decision gate: `no-records`, `needs-quorum`, `blocked`, `approved`, or `revise`.
+
 ---
 
 ## version

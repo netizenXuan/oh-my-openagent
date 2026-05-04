@@ -51,6 +51,14 @@ bunx oh-my-opencode republic status --directory /path/to/repo
 bunx oh-my-opencode republic status --directory /path/to/repo --json
 ```
 
+The status report includes a governance decision:
+
+- `no-records`: no Republic ledger exists yet.
+- `needs-quorum`: not enough independent seat records exist.
+- `blocked`: at least one reject/blocker vote is present and blocker veto is enabled.
+- `approved`: approve votes meet the configured supermajority.
+- `revise`: the plan should be revised before execution.
+
 ## Configuration
 
 ```jsonc

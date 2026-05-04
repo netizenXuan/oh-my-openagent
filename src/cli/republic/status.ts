@@ -1,7 +1,9 @@
 import {
   getNativeGitRepository,
+  evaluateRepublicDecision,
   summarizeNativeGitAudit,
   summarizeRepublicLedger,
+  type RepublicDecision,
   type NativeGitAuditSummary,
   type NativeGitRepository,
   type RepublicLedgerSummary,
@@ -18,6 +20,7 @@ export interface RepublicStatusReport {
   repository: NativeGitRepository | null
   deliberationID?: string
   republic: RepublicLedgerSummary
+  decision: RepublicDecision
   nativeGit: NativeGitAuditSummary
 }
 
@@ -77,12 +80,14 @@ export function buildRepublicStatusReport(options: RepublicStatusOptions = {}): 
   const directory = options.directory ?? process.cwd()
   const repository = getNativeGitRepository(directory)
   const deliberationID = options.deliberationId
+  const republic = repository ? summarizeRepublicLedger(repository, deliberationID) : emptyRepublicSummary(deliberationID)
 
   return {
     generatedAt: new Date().toISOString(),
     repository,
     deliberationID,
-    republic: repository ? summarizeRepublicLedger(repository, deliberationID) : emptyRepublicSummary(deliberationID),
+    republic,
+    decision: evaluateRepublicDecision(republic),
     nativeGit: repository ? summarizeNativeGitAudit(repository) : emptyNativeGitSummary(),
   }
 }
@@ -93,14 +98,17 @@ export function formatRepublicStatusReport(report: RepublicStatusReport): string
   }
 
   const republic = report.republic
+  const decision = report.decision
   const nativeGit = report.nativeGit
   const voteLine = `approve=${republic.votes.approve}, revise=${republic.votes.revise}, reject=${republic.votes.reject}, abstain=${republic.votes.abstain}, other=${republic.votes.other}`
   const nextAction =
-    republic.blocked
+    decision.status === "blocked"
       ? "Revise the plan before execution; at least one reject/blocker was recorded."
+      : decision.status === "needs-quorum"
+        ? "Continue deliberation until quorum is met."
       : nativeGit.recordCount > 0
         ? "Review native-git changes and commit with git-master when the work is ready."
-        : republic.recordCount > 0
+        : decision.status === "approved"
           ? "Proceed to execution if the user accepts the recommendation."
           : "Run /deliberate <problem-or-plan> to create the first Republic ledger."
 
@@ -120,6 +128,7 @@ export function formatRepublicStatusReport(report: RepublicStatusReport): string
     `Agents: ${formatCounter(republic.agents)}`,
     `Votes: ${voteLine}`,
     `Average confidence: ${republic.averageConfidence ?? "n/a"}`,
+    `Decision: ${decision.status} (${decision.reason})`,
     `Blocked: ${republic.blocked ? "yes" : "no"}`,
     `Files: ${formatList(republic.files)}`,
     republic.latestSummary ? `Latest: ${republic.latestSummary}` : "Latest: none",

@@ -48,6 +48,25 @@ export interface RepublicLedgerSummary {
   blocked: boolean
 }
 
+export interface RepublicDecisionPolicy {
+  quorum: number
+  supermajority: number
+  vetoOnBlocker: boolean
+}
+
+export interface RepublicDecision {
+  status: "no-records" | "needs-quorum" | "blocked" | "approved" | "revise"
+  approvalRatio: number | null
+  decisiveVotes: number
+  reason: string
+}
+
+export const DEFAULT_REPUBLIC_DECISION_POLICY: RepublicDecisionPolicy = {
+  quorum: 4,
+  supermajority: 0.67,
+  vetoOnBlocker: true,
+}
+
 export function sanitizeRepublicDeliberationID(deliberationID: string): string {
   const sanitized = deliberationID.replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "")
   return sanitized || "deliberation"
@@ -178,6 +197,66 @@ export function summarizeRepublicLedger(
   deliberationID?: string,
 ): RepublicLedgerSummary {
   return summarizeRepublicLedgerRecords(readRepublicLedgerRecords(repository, deliberationID), deliberationID)
+}
+
+export function evaluateRepublicDecision(
+  summary: RepublicLedgerSummary,
+  policy: RepublicDecisionPolicy = DEFAULT_REPUBLIC_DECISION_POLICY,
+): RepublicDecision {
+  if (summary.recordCount === 0) {
+    return {
+      status: "no-records",
+      approvalRatio: null,
+      decisiveVotes: 0,
+      reason: "No Republic ledger records exist yet.",
+    }
+  }
+
+  if (summary.blocked && policy.vetoOnBlocker) {
+    return {
+      status: "blocked",
+      approvalRatio: null,
+      decisiveVotes: summary.votes.reject,
+      reason: "At least one reject/blocker was recorded and veto_on_blocker is enabled.",
+    }
+  }
+
+  const seatRecordCount = summary.seats.length
+  if (seatRecordCount < policy.quorum) {
+    return {
+      status: "needs-quorum",
+      approvalRatio: null,
+      decisiveVotes: seatRecordCount,
+      reason: `Only ${seatRecordCount} seat record${seatRecordCount === 1 ? "" : "s"} found; quorum requires ${policy.quorum}.`,
+    }
+  }
+
+  const decisiveVotes = summary.votes.approve + summary.votes.revise + summary.votes.reject
+  if (decisiveVotes === 0) {
+    return {
+      status: "revise",
+      approvalRatio: null,
+      decisiveVotes,
+      reason: "No approve/revise/reject votes were recorded.",
+    }
+  }
+
+  const approvalRatio = Number((summary.votes.approve / decisiveVotes).toFixed(3))
+  if (approvalRatio >= policy.supermajority) {
+    return {
+      status: "approved",
+      approvalRatio,
+      decisiveVotes,
+      reason: `Approval ratio ${approvalRatio} meets supermajority threshold ${policy.supermajority}.`,
+    }
+  }
+
+  return {
+    status: "revise",
+    approvalRatio,
+    decisiveVotes,
+    reason: `Approval ratio ${approvalRatio} is below supermajority threshold ${policy.supermajority}.`,
+  }
 }
 
 export function getRepublicDeliberationDir(
