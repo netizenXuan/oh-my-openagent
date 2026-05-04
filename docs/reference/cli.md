@@ -233,7 +233,7 @@ bunx oh-my-opencode republic dashboard --directory /path/to/repo --json
 | `--port <port>`        | Port for `--serve`                                    |
 | `--refresh-ms <ms>`    | Polling interval for `--serve`                        |
 
-The graph includes repository, deliberation, chamber, seat, agent, message, module, file, tool, and decision nodes, with edges for assignment, publication, targeting, references, discussed files, and code changes.
+The graph includes repository, deliberation, chamber, workgroup, seat, agent, task, message, module, file, tool, and decision nodes, with edges for assignment, supervision, dependency, publication, targeting, references, discussed files, and code changes.
 
 ---
 

@@ -68,6 +68,9 @@ describe("republic status report", () => {
       seatID: "planner-house-1",
       role: "planner",
       agent: "prometheus",
+      workgroupID: "api-workgroup",
+      module: "api",
+      taskID: "api-contract",
       vote: "approve",
       confidence: 0.75,
       files: ["README.md"],
@@ -81,6 +84,10 @@ describe("republic status report", () => {
       authorSeatID: "planner-house-2",
       authorAgent: "prometheus",
       targetSeatID: "planner-house-1",
+      workgroupID: "api-workgroup",
+      module: "api",
+      taskID: "api-review",
+      dependsOn: ["api-contract"],
       messageType: "question",
       references: ["proposal-1"],
       files: ["README.md"],
@@ -108,6 +115,9 @@ describe("republic status report", () => {
     expect(report.republic.deliberationID).toBe("native-git-republic")
     expect(report.decision.status).toBe("needs-quorum")
     expect(report.commons.messageCount).toBe(1)
+    expect(report.commons.workgroups["api-workgroup"]).toBe(1)
+    expect(report.commons.modules.api).toBe(1)
+    expect(report.commons.tasks).toEqual(["api-review"])
     expect(report.commons.targetedMessages).toBe(1)
     expect(report.commons.referencedMessages).toBe(1)
     expect(report.nativeGit.recordCount).toBe(1)
@@ -116,6 +126,8 @@ describe("republic status report", () => {
     expect(formatted).toContain("Agents: prometheus=1")
     expect(formatted).toContain("Republic Commons")
     expect(formatted).toContain("Messages: 1")
+    expect(formatted).toContain("Workgroups: api-workgroup=1")
+    expect(formatted).toContain("Tasks: api-review")
     expect(formatted).toContain("Types: question=1")
     expect(formatted).toContain("Decision: needs-quorum")
     expect(formatted).toContain("Models: kimi-for-coding/k2p6=1")

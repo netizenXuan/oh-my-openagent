@@ -109,6 +109,9 @@ describe("republic ledger", () => {
       seatID: "planner-house-1",
       role: "planner",
       agent: "prometheus",
+      workgroupID: "api-workgroup",
+      module: "api",
+      taskID: "api-contract",
       vote: "approve",
       confidence: 0.7,
       files: ["src/a.ts"],
@@ -121,6 +124,12 @@ describe("republic ledger", () => {
       seatID: "reviewer-bench-1",
       role: "reviewer",
       agent: "momus",
+      workgroupID: "api-workgroup",
+      module: "api",
+      taskID: "api-review",
+      dependsOn: ["api-contract"],
+      supervisorSeatID: "chief-reviewer",
+      status: "blocked",
       vote: "reject",
       confidence: 0.9,
       files: ["src/b.ts"],
@@ -147,6 +156,9 @@ describe("republic ledger", () => {
     expect(summary.chambers.bench).toBe(1)
     expect(summary.agents.prometheus).toBe(1)
     expect(summary.agents.momus).toBe(1)
+    expect(summary.workgroups["api-workgroup"]).toBe(2)
+    expect(summary.modules.api).toBe(2)
+    expect(summary.tasks).toEqual(["api-contract", "api-review"])
     expect(summary.seats).toEqual(["planner-house-1", "reviewer-bench-1"])
     expect(summary.votes.approve).toBe(1)
     expect(summary.votes.reject).toBe(1)
@@ -171,6 +183,10 @@ describe("republic ledger", () => {
       authorSeatID: "planner-house-1",
       authorAgent: "prometheus",
       authorRole: "planner",
+      workgroupID: "api-workgroup",
+      module: "api",
+      taskID: "api-contract",
+      status: "planned",
       messageType: "proposal",
       files: ["src/a.ts"],
       confidence: 0.8,
@@ -201,6 +217,10 @@ describe("republic ledger", () => {
       authorSeatID: "planner-house-1",
       authorAgent: "prometheus",
       authorRole: "planner",
+      workgroupID: "api-workgroup",
+      module: "api",
+      taskID: "api-contract",
+      status: "planned",
       messageType: "proposal",
       files: ["src/a.ts"],
       confidence: 0.7,
@@ -215,6 +235,12 @@ describe("republic ledger", () => {
       authorAgent: "prometheus",
       authorRole: "planner",
       targetSeatID: "planner-house-1",
+      workgroupID: "api-workgroup",
+      module: "api",
+      taskID: "api-review",
+      dependsOn: ["api-contract"],
+      supervisorSeatID: "chief-planner",
+      status: "blocked",
       messageType: "objection",
       references: ["proposal-1"],
       files: ["src/b.ts"],
@@ -243,6 +269,9 @@ describe("republic ledger", () => {
     expect(summary.authors["planner-house-1"]).toBe(1)
     expect(summary.authors["planner-house-2"]).toBe(1)
     expect(summary.agents.prometheus).toBe(2)
+    expect(summary.workgroups["api-workgroup"]).toBe(2)
+    expect(summary.modules.api).toBe(2)
+    expect(summary.tasks).toEqual(["api-contract", "api-review"])
     expect(summary.messageTypes.proposal).toBe(1)
     expect(summary.messageTypes.objection).toBe(1)
     expect(summary.targetedMessages).toBe(1)

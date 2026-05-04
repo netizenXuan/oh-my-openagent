@@ -30,12 +30,14 @@ export interface RepublicDashboardNode {
     | "repository"
     | "deliberation"
     | "chamber"
+    | "workgroup"
     | "seat"
     | "agent"
     | "message"
     | "module"
     | "file"
     | "tool"
+    | "task"
     | "decision"
   detail?: string
   status?: string
@@ -85,6 +87,107 @@ function moduleNameForFile(file: string): string {
     return "(root)"
   }
   return parts[0]
+}
+
+function addWorkgroupNode(
+  nodes: Map<string, RepublicDashboardNode>,
+  edges: Map<string, RepublicDashboardEdge>,
+  ownerID: string,
+  workgroupID: string | undefined,
+): string | undefined {
+  if (!workgroupID) {
+    return undefined
+  }
+
+  const nodeID = `workgroup:${workgroupID}`
+  addNode(nodes, {
+    id: nodeID,
+    label: workgroupID,
+    type: "workgroup",
+    detail: `Workgroup ${workgroupID}`,
+  })
+  addEdge(edges, {
+    id: `owner-workgroup:${ownerID}:${nodeID}`,
+    source: ownerID,
+    target: nodeID,
+    type: "coordinates",
+    label: "coordinates",
+  })
+  return nodeID
+}
+
+function addTaskNode(
+  nodes: Map<string, RepublicDashboardNode>,
+  edges: Map<string, RepublicDashboardEdge>,
+  ownerID: string,
+  taskID: string | undefined,
+  status: string | undefined,
+  dependsOn: string[] | undefined,
+): string | undefined {
+  if (!taskID) {
+    return undefined
+  }
+
+  const nodeID = `task:${taskID}`
+  addNode(nodes, {
+    id: nodeID,
+    label: taskID,
+    type: "task",
+    status,
+    detail: status,
+  })
+  addEdge(edges, {
+    id: `owner-task:${ownerID}:${nodeID}`,
+    source: ownerID,
+    target: nodeID,
+    type: "owns",
+    label: "owns",
+  })
+
+  for (const dependency of dependsOn ?? []) {
+    const dependencyID = `task:${dependency}`
+    addNode(nodes, {
+      id: dependencyID,
+      label: dependency,
+      type: "task",
+      detail: "Dependency task",
+    })
+    addEdge(edges, {
+      id: `task-dependency:${nodeID}:${dependencyID}`,
+      source: nodeID,
+      target: dependencyID,
+      type: "depends-on",
+      label: "depends on",
+    })
+  }
+
+  return nodeID
+}
+
+function addSupervisorEdge(
+  nodes: Map<string, RepublicDashboardNode>,
+  edges: Map<string, RepublicDashboardEdge>,
+  supervisedID: string,
+  supervisorSeatID: string | undefined,
+): void {
+  if (!supervisorSeatID) {
+    return
+  }
+
+  const supervisorID = `seat:${supervisorSeatID}`
+  addNode(nodes, {
+    id: supervisorID,
+    label: supervisorSeatID,
+    type: "seat",
+    detail: "Supervisor seat",
+  })
+  addEdge(edges, {
+    id: `supervisor:${supervisorID}:${supervisedID}`,
+    source: supervisorID,
+    target: supervisedID,
+    type: "supervises",
+    label: "supervises",
+  })
 }
 
 function resolveDeliberationIDs(
@@ -251,7 +354,35 @@ export function buildRepublicDashboardData(options: RepublicDashboardOptions = {
             label: "runs",
           })
         }
-        addFileNodes(nodes, edges, seatID, record.files, "reviews")
+        const workgroupID = addWorkgroupNode(nodes, edges, chamberID ?? deliberationNodeID, record.workgroupID)
+        if (workgroupID) {
+          addEdge(edges, {
+            id: `workgroup-seat:${workgroupID}:${seatID}`,
+            source: workgroupID,
+            target: seatID,
+            type: "assigns",
+            label: "assigns",
+          })
+        }
+        const taskNodeID = addTaskNode(nodes, edges, seatID, record.taskID, record.status, record.dependsOn)
+        addSupervisorEdge(nodes, edges, seatID, record.supervisorSeatID)
+        addFileNodes(nodes, edges, taskNodeID ?? seatID, record.files, "reviews")
+        if (record.module) {
+          const moduleID = `module:${record.module}`
+          addNode(nodes, {
+            id: moduleID,
+            label: record.module,
+            type: "module",
+            detail: `Module ${record.module}`,
+          })
+          addEdge(edges, {
+            id: `seat-module:${seatID}:${moduleID}`,
+            source: seatID,
+            target: moduleID,
+            type: "owns-module",
+            label: "owns module",
+          })
+        }
       }
     }
 
@@ -263,6 +394,7 @@ export function buildRepublicDashboardData(options: RepublicDashboardOptions = {
         id: authorSeatID,
         label: message.authorSeatID,
         type: "seat",
+        status: message.status,
         detail: message.authorRole,
       })
       addNode(nodes, {
@@ -312,6 +444,40 @@ export function buildRepublicDashboardData(options: RepublicDashboardOptions = {
         })
       }
 
+      const workgroupID = addWorkgroupNode(
+        nodes,
+        edges,
+        `deliberation:${sanitizeRepublicDeliberationID(message.deliberationID)}`,
+        message.workgroupID,
+      )
+      if (workgroupID) {
+        addEdge(edges, {
+          id: `workgroup-message:${workgroupID}:${messageNodeID}`,
+          source: workgroupID,
+          target: messageNodeID,
+          type: "contains",
+          label: "contains",
+        })
+      }
+      const taskNodeID = addTaskNode(nodes, edges, messageNodeID, message.taskID, message.status, message.dependsOn)
+      addSupervisorEdge(nodes, edges, authorSeatID, message.supervisorSeatID)
+      if (message.module) {
+        const moduleID = `module:${message.module}`
+        addNode(nodes, {
+          id: moduleID,
+          label: message.module,
+          type: "module",
+          detail: `Module ${message.module}`,
+        })
+        addEdge(edges, {
+          id: `message-module:${messageNodeID}:${moduleID}`,
+          source: messageNodeID,
+          target: moduleID,
+          type: "discusses-module",
+          label: "discusses module",
+        })
+      }
+
       for (const reference of message.references ?? []) {
         addNode(nodes, {
           id: `message:${reference}`,
@@ -328,7 +494,7 @@ export function buildRepublicDashboardData(options: RepublicDashboardOptions = {
         })
       }
 
-      addFileNodes(nodes, edges, messageNodeID, message.files, "discusses")
+      addFileNodes(nodes, edges, taskNodeID ?? messageNodeID, message.files, "discusses")
     }
 
     for (const [index, record] of nativeGitRecords.entries()) {
@@ -425,12 +591,14 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
     .repository rect { fill:#10233d; }
     .deliberation rect { fill:#152d25; }
     .chamber rect { fill:#292b15; }
+    .workgroup rect { fill:#123326; }
     .seat rect { fill:#271f3a; }
     .agent rect { fill:#1f2937; }
     .message rect { fill:#2b1d22; }
     .module rect { fill:#132f32; }
     .file rect { fill:#172033; }
     .tool rect { fill:#2b2416; }
+    .task rect { fill:#302614; }
     .decision rect { fill:#281b30; }
     .timeline { display:flex; flex-direction:column; gap:10px; }
     .item { border:1px solid var(--line); border-radius:8px; padding:10px; background:#0d1117; }
@@ -462,7 +630,7 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
     </aside>
   </main>
   <script>
-    const typeOrder = ["repository","deliberation","chamber","seat","agent","message","module","file","tool","decision"];
+    const typeOrder = ["repository","deliberation","chamber","workgroup","seat","agent","task","message","module","file","tool","decision"];
     const colors = { approved:"status-approved", blocked:"status-blocked", "needs-quorum":"status-needs-quorum", revise:"status-revise" };
     ${liveLoader}
 

@@ -39,6 +39,15 @@ This matters because parallel agents are otherwise isolated workers: the main ag
 
 Commons messages are JSONL records with a `deliberationID`, `channel`, `phase`, `round`, `authorSeatID`, `messageType`, optional `targetSeatID`, optional `references`, touched `files`, and concise `content`.
 
+For large engineering projects, Commons and ledger records can also carry organization fields:
+
+- `workgroupID`: a module workgroup such as `api-workgroup` or `ui-workgroup`
+- `module`: the module being owned or discussed
+- `taskID`: a concrete module task
+- `dependsOn`: task IDs that this seat depends on
+- `supervisorSeatID`: the coordinating seat that may interrupt or correct drift
+- `status`: `planned`, `in-progress`, `blocked`, `review`, or `done`
+
 The expected deliberation rhythm is:
 
 1. Round 0: independent proposals. Seats do not read each other first.
@@ -93,8 +102,8 @@ It also includes a Commons section with message counts, channels, phases, author
 
 The Republic dashboard converts Git-native records into a network graph:
 
-- repository, deliberation, chamber, seat, agent, message, module, file, tool, and decision nodes
-- `runs`, `published`, `targets`, `references`, `discusses`, `reviews`, and `changed` edges
+- repository, deliberation, chamber, workgroup, seat, agent, task, message, module, file, tool, and decision nodes
+- `runs`, `published`, `targets`, `references`, `coordinates`, `assigns`, `supervises`, `depends-on`, `discusses`, `reviews`, and `changed` edges
 - a Commons timeline showing recent cross-seat proposals, questions, objections, revisions, and consensus
 
 By default the static HTML is written under:

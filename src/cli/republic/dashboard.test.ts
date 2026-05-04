@@ -65,6 +65,10 @@ describe("republic dashboard", () => {
       seatID: "planner-house-1",
       role: "planner",
       agent: "prometheus",
+      workgroupID: "api-workgroup",
+      module: "api",
+      taskID: "api-contract",
+      status: "in-progress",
       vote: "approve",
       files: ["src/api/routes.ts"],
       summary: "Split API and UI modules.",
@@ -78,6 +82,10 @@ describe("republic dashboard", () => {
       authorSeatID: "planner-house-1",
       authorAgent: "prometheus",
       authorRole: "planner",
+      workgroupID: "api-workgroup",
+      module: "api",
+      taskID: "api-contract",
+      status: "in-progress",
       messageType: "proposal",
       files: ["src/api/routes.ts"],
       content: "API workgroup should own route contracts.",
@@ -91,6 +99,12 @@ describe("republic dashboard", () => {
       authorSeatID: "planner-house-2",
       authorAgent: "prometheus",
       targetSeatID: "planner-house-1",
+      workgroupID: "ui-workgroup",
+      module: "ui",
+      taskID: "ui-contract",
+      dependsOn: ["api-contract"],
+      supervisorSeatID: "chief-coordinator",
+      status: "blocked",
       messageType: "question",
       references: ["house-1-r0-proposal"],
       files: ["src/ui/page.tsx"],
@@ -110,11 +124,20 @@ describe("republic dashboard", () => {
     expect(data.report.commons.messageCount).toBe(2)
     expect(data.nodes.some((node) => node.id === "seat:planner-house-1")).toBe(true)
     expect(data.nodes.some((node) => node.id === "agent:prometheus")).toBe(true)
+    expect(data.nodes.some((node) => node.id === "workgroup:api-workgroup")).toBe(true)
+    expect(data.nodes.some((node) => node.id === "workgroup:ui-workgroup")).toBe(true)
+    expect(data.nodes.some((node) => node.id === "task:api-contract")).toBe(true)
+    expect(data.nodes.some((node) => node.id === "task:ui-contract")).toBe(true)
+    expect(data.nodes.some((node) => node.id === "seat:chief-coordinator")).toBe(true)
     expect(data.nodes.some((node) => node.id === "module:src")).toBe(true)
+    expect(data.nodes.some((node) => node.id === "module:api")).toBe(true)
+    expect(data.nodes.some((node) => node.id === "module:ui")).toBe(true)
     expect(data.nodes.some((node) => node.id === "file:src/api/routes.ts")).toBe(true)
     expect(data.edges.some((edge) => edge.type === "targets")).toBe(true)
     expect(data.edges.some((edge) => edge.type === "references")).toBe(true)
     expect(data.edges.some((edge) => edge.type === "changed")).toBe(true)
+    expect(data.edges.some((edge) => edge.type === "supervises")).toBe(true)
+    expect(data.edges.some((edge) => edge.type === "depends-on")).toBe(true)
   })
 
   test("writes a static html dashboard under git common dir without dirtying the worktree", () => {

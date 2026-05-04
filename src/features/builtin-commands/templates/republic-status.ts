@@ -34,6 +34,7 @@ Return a compact operational report:
 7. Commons summary:
    - channels and phases
    - authors and agents
+   - workgroups, modules, and task IDs
    - proposal/question/objection/revision/consensus counts
    - targeted and referenced message counts
 8. Blockers or reject votes.

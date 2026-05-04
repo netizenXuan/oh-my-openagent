@@ -15,6 +15,12 @@ export interface RepublicLedgerRecord {
   model?: string
   sessionID?: string
   callID?: string
+  workgroupID?: string
+  module?: string
+  taskID?: string
+  dependsOn?: string[]
+  supervisorSeatID?: string
+  status?: string
   promptHash?: string
   inputBriefHash?: string
   vote?: string
@@ -45,6 +51,12 @@ export interface RepublicCommonsMessage {
   authorAgent?: string
   authorRole?: string
   targetSeatID?: string
+  workgroupID?: string
+  module?: string
+  taskID?: string
+  dependsOn?: string[]
+  supervisorSeatID?: string
+  status?: string
   messageType: "proposal" | "question" | "answer" | "objection" | "revision" | "consensus" | "note"
   references?: string[]
   files?: string[]
@@ -59,6 +71,9 @@ export interface RepublicCommonsSummary {
   phases: Record<string, number>
   authors: Record<string, number>
   agents: Record<string, number>
+  workgroups: Record<string, number>
+  modules: Record<string, number>
+  tasks: string[]
   messageTypes: Record<string, number>
   targetedMessages: number
   referencedMessages: number
@@ -74,6 +89,9 @@ export interface RepublicLedgerSummary {
   phases: Record<string, number>
   chambers: Record<string, number>
   agents: Record<string, number>
+  workgroups: Record<string, number>
+  modules: Record<string, number>
+  tasks: string[]
   seats: string[]
   votes: RepublicVoteSummary
   averageConfidence: number | null
@@ -232,6 +250,9 @@ export function summarizeRepublicCommonsMessages(
   const phases: Record<string, number> = {}
   const authors: Record<string, number> = {}
   const agents: Record<string, number> = {}
+  const workgroups: Record<string, number> = {}
+  const modules: Record<string, number> = {}
+  const tasks = new Set<string>()
   const messageTypes: Record<string, number> = {}
   const files = new Set<string>()
   let targetedMessages = 0
@@ -244,6 +265,9 @@ export function summarizeRepublicCommonsMessages(
     incrementCounter(phases, message.phase)
     incrementCounter(authors, message.authorSeatID)
     incrementCounter(agents, message.authorAgent)
+    incrementCounter(workgroups, message.workgroupID)
+    incrementCounter(modules, message.module)
+    if (message.taskID) tasks.add(message.taskID)
     incrementCounter(messageTypes, message.messageType)
     if (message.targetSeatID) targetedMessages += 1
     if ((message.references?.length ?? 0) > 0) referencedMessages += 1
@@ -264,6 +288,9 @@ export function summarizeRepublicCommonsMessages(
     phases,
     authors,
     agents,
+    workgroups,
+    modules,
+    tasks: Array.from(tasks).sort(),
     messageTypes,
     targetedMessages,
     referencedMessages,
@@ -287,7 +314,10 @@ export function summarizeRepublicLedgerRecords(
   const phases: Record<string, number> = {}
   const chambers: Record<string, number> = {}
   const agents: Record<string, number> = {}
+  const workgroups: Record<string, number> = {}
+  const modules: Record<string, number> = {}
   const seats = new Set<string>()
+  const tasks = new Set<string>()
   const deliberationIDs = new Set<string>()
   const files = new Set<string>()
   const votes: RepublicVoteSummary = {
@@ -309,7 +339,10 @@ export function summarizeRepublicLedgerRecords(
     incrementCounter(phases, record.phase)
     incrementCounter(chambers, record.chamber)
     incrementCounter(agents, record.agent)
+    incrementCounter(workgroups, record.workgroupID)
+    incrementCounter(modules, record.module)
     if (record.seatID) seats.add(record.seatID)
+    if (record.taskID) tasks.add(record.taskID)
     for (const file of record.files ?? []) {
       files.add(file)
     }
@@ -349,6 +382,9 @@ export function summarizeRepublicLedgerRecords(
     phases,
     chambers,
     agents,
+    workgroups,
+    modules,
+    tasks: Array.from(tasks).sort(),
     seats: Array.from(seats).sort(),
     votes,
     averageConfidence: confidenceCount > 0 ? Number((confidenceTotal / confidenceCount).toFixed(3)) : null,

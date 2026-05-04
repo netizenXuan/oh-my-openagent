@@ -48,6 +48,12 @@ If inside a git repository, store records under the Git common dir so they do no
    - \`agent\`: selected OMO agent name when visible
    - \`model\`: selected model when visible
    - \`sessionID\` and \`callID\` when visible
+   - \`workgroupID\`: module workgroup such as api-workgroup or ui-workgroup
+   - \`module\`: owned or discussed module
+   - \`taskID\`: concrete module task
+   - \`dependsOn\`: task IDs this seat depends on
+   - \`supervisorSeatID\`: coordinating seat that may interrupt or correct this seat
+   - \`status\`: planned, in-progress, blocked, review, done
    - \`vote\`: approve, revise, reject, abstain
    - \`confidence\`: 0.0 to 1.0
    - \`files\`: relevant files, if any
@@ -78,6 +84,7 @@ Use a shared asynchronous commons for agent-to-agent communication. This is the 
    - \`authorSeatID\`
    - \`authorAgent\`, \`authorRole\`
    - \`targetSeatID\`: when asking or challenging another seat
+   - \`workgroupID\`, \`module\`, \`taskID\`, \`dependsOn\`, \`supervisorSeatID\`, \`status\`
    - \`messageType\`: proposal, question, answer, objection, revision, consensus, note
    - \`references\`: message IDs this message responds to
    - \`files\`: relevant files, if any
@@ -87,6 +94,12 @@ Use a shared asynchronous commons for agent-to-agent communication. This is the 
    - Round 0: seats must not read other seats first; publish independent proposals.
    - Round 1: each seat reads the commons and must respond to at least one other seat by \`messageID\`.
    - Round 2: each seat posts either a revision, consensus statement, or remaining objection.
+5. Engineering organization rules:
+   - Create workgroups for related modules, for example api-workgroup, ui-workgroup, storage-workgroup.
+   - Seats in the same workgroup should exchange frequent commons messages.
+   - Seats with dependent modules must cite each other's task IDs and message IDs.
+   - Assign one or two supervisor seats for coordination. A supervisor may post \`note\`, \`question\`, or \`objection\` messages to correct drift.
+   - Record every substantial coordination event in Commons before changing implementation direction.
 4. The Conference Committee must read both \`ledger.jsonl\` and \`commons.jsonl\` before writing the final recommendation.
 
 ## WORKFLOW
