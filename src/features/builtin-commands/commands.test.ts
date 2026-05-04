@@ -2,6 +2,7 @@
 
 import { afterEach, beforeEach, describe, test, expect } from "bun:test"
 import { loadBuiltinCommands } from "./commands"
+import { DELIBERATE_TEMPLATE } from "./templates/deliberate"
 import { HANDOFF_TEMPLATE } from "./templates/handoff"
 import { REMOVE_AI_SLOPS_TEMPLATE } from "./templates/remove-ai-slops"
 import type { BuiltinCommandName } from "./types"
@@ -145,6 +146,54 @@ describe("loadBuiltinCommands - remove-ai-slops", () => {
 
     //#then
     expect(commands["remove-ai-slops"].description).toContain("AI-generated code smells")
+  })
+})
+
+describe("loadBuiltinCommands - deliberate", () => {
+  test("should include deliberate command in loaded commands", () => {
+    //#given
+    const disabledCommands: BuiltinCommandName[] = []
+
+    //#when
+    const commands = loadBuiltinCommands(disabledCommands)
+
+    //#then
+    expect(commands.deliberate).toBeDefined()
+    expect(commands.deliberate.name).toBe("deliberate")
+  })
+
+  test("should exclude deliberate when disabled", () => {
+    //#given
+    const disabledCommands: BuiltinCommandName[] = ["deliberate"]
+
+    //#when
+    const commands = loadBuiltinCommands(disabledCommands)
+
+    //#then
+    expect(commands.deliberate).toBeUndefined()
+  })
+
+  test("should include deliberate template and session context variables", () => {
+    //#given - no disabled commands
+
+    //#when
+    const commands = loadBuiltinCommands()
+
+    //#then
+    expect(commands.deliberate.template).toContain(DELIBERATE_TEMPLATE)
+    expect(commands.deliberate.template).toContain("$SESSION_ID")
+    expect(commands.deliberate.template).toContain("$TIMESTAMP")
+    expect(commands.deliberate.template).toContain("$ARGUMENTS")
+  })
+
+  test("should describe the republic ledger path and multi-seat same-role design", () => {
+    //#given - the template string
+
+    //#when / #then
+    expect(DELIBERATE_TEMPLATE).toContain("House of Planners")
+    expect(DELIBERATE_TEMPLATE).toContain("Senate of Planners")
+    expect(DELIBERATE_TEMPLATE).toContain("multiple independent seats for the same role")
+    expect(DELIBERATE_TEMPLATE).toContain(".git/omo/republic/ledger.jsonl")
   })
 })
 

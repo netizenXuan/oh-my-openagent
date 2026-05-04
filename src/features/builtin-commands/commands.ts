@@ -8,6 +8,7 @@ import { REFACTOR_TEMPLATE } from "./templates/refactor"
 import { START_WORK_TEMPLATE } from "./templates/start-work"
 import { HANDOFF_TEMPLATE } from "./templates/handoff"
 import { REMOVE_AI_SLOPS_TEMPLATE } from "./templates/remove-ai-slops"
+import { DELIBERATE_TEMPLATE } from "./templates/deliberate"
 
 interface LoadBuiltinCommandsOptions {
   useRegisteredAgents?: boolean
@@ -71,6 +72,22 @@ ${CANCEL_RALPH_TEMPLATE}
 ${REFACTOR_TEMPLATE}
 </command-instruction>`,
       argumentHint: "<refactoring-target> [--scope=<file|module|project>] [--strategy=<safe|aggressive>]",
+    },
+    deliberate: {
+      description: "(builtin) Run multi-seat deliberation and record an OMO Republic ledger",
+      template: `<command-instruction>
+${DELIBERATE_TEMPLATE}
+</command-instruction>
+
+<session-context>
+Session ID: $SESSION_ID
+Timestamp: $TIMESTAMP
+</session-context>
+
+<user-request>
+$ARGUMENTS
+</user-request>`,
+      argumentHint: "<problem-or-plan>",
     },
     "start-work": {
       description: "(builtin) Start Sisyphus work session from Prometheus plan",

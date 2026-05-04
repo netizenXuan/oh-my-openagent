@@ -449,6 +449,7 @@ Commands are slash-triggered workflows that execute predefined templates.
 | `/ulw-loop`          | Start ultrawork loop - continues with ultrawork mode                                       |
 | `/cancel-ralph`      | Cancel active Ralph Loop                                                                   |
 | `/refactor`          | Intelligent refactoring with LSP, AST-grep, architecture analysis, and TDD verification    |
+| `/deliberate`        | Run multi-seat OMO Republic deliberation and write a Git common-dir ledger                  |
 | `/start-work`        | Start Sisyphus work session from Prometheus plan                                           |
 | `/stop-continuation` | Stop all continuation mechanisms (ralph loop, todo continuation, boulder) for this session |
 | `/handoff`           | Create a detailed context summary for continuing work in a new session                     |
@@ -519,6 +520,25 @@ Everything runs at maximum intensity - parallel agents, background tasks, aggres
 - Architecture analysis before changes
 - TDD verification after changes
 - Codemap generation
+
+### /deliberate
+
+**Purpose**: Run an opt-in deliberative multi-agent workflow before implementation.
+
+**Usage**:
+
+```
+/deliberate <problem-or-plan>
+```
+
+The command uses multiple independent seats for the same role rather than adding more one-off expert titles:
+
+- House of Planners: fast same-role planning seats
+- Senate of Planners: conservative same-role planning seats
+- Conference Committee: synthesis and conflict resolution
+- Review Bench: blocker and rollback review
+
+When run inside a Git repository, deliberation records are written under the Git common dir at `.git/omo/republic/ledger.jsonl` and `.git/omo/republic/deliberations/<id>/`, so the deliberation audit does not dirty the worktree. The first version is deliberation-only: it does not automatically edit source files, commit, stash, or create worktrees.
 
 ### /start-work
 

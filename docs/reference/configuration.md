@@ -527,7 +527,7 @@ Disable built-in commands via `disabled_commands`:
 { "disabled_commands": ["init-deep", "start-work"] }
 ```
 
-Available commands: `init-deep`, `ralph-loop`, `ulw-loop`, `cancel-ralph`, `refactor`, `start-work`, `stop-continuation`, `handoff`
+Available commands: `init-deep`, `ralph-loop`, `ulw-loop`, `cancel-ralph`, `refactor`, `deliberate`, `start-work`, `stop-continuation`, `handoff`
 
 ### Browser Automation
 
