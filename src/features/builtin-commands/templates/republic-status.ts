@@ -14,7 +14,9 @@ If inside a git repository:
    - \`git rev-parse --path-format=absolute --git-common-dir\`
 2. Read OMO Republic ledger if present:
    - \`.git/omo/republic/ledger.jsonl\`
-3. Read native git audit if present:
+3. Read OMO Republic commons if present:
+   - \`.git/omo/republic/commons.jsonl\`
+4. Read native git audit if present:
    - \`.git/omo/native-git/audit.jsonl\`
 
 Do not modify files, do not run commits, and do not create new ledger entries for this status command.
@@ -29,12 +31,17 @@ Return a compact operational report:
 4. Chamber counts: house, senate, conference, bench.
 5. Seat list and vote table.
 6. Agent/model participation when visible.
-7. Blockers or reject votes.
-8. Native Git audit summary:
+7. Commons summary:
+   - channels and phases
+   - authors and agents
+   - proposal/question/objection/revision/consensus counts
+   - targeted and referenced message counts
+8. Blockers or reject votes.
+9. Native Git audit summary:
    - tools that changed files
    - agents/models/categories when visible
    - sessions and files touched
-9. Recommended next action:
+10. Recommended next action:
    - continue deliberation
    - revise plan
    - execute plan

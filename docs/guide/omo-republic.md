@@ -19,6 +19,7 @@ OMO Republic writes deliberation records under the Git common dir:
 
 ```text
 .git/omo/republic/ledger.jsonl
+.git/omo/republic/commons.jsonl
 .git/omo/republic/deliberations/<deliberation-id>/
 ```
 
@@ -29,6 +30,21 @@ Native Git tracking writes tool-caused file changes separately:
 ```
 
 Because both locations are inside `.git`, neither the deliberation ledger nor native-git audit records dirty the worktree.
+
+## Republic Commons
+
+The ledger records durable votes and phase summaries. The commons records the conversation between seats.
+
+This matters because parallel agents are otherwise isolated workers: the main agent asks questions, waits for answers, and manually reconciles them. Republic Commons adds an asynchronous shared board where seats can publish proposals, ask targeted questions, object to another seat, answer objections, revise their position, and record consensus. The result is closer to a real committee hearing than a batch of unrelated subtask reports.
+
+Commons messages are JSONL records with a `deliberationID`, `channel`, `phase`, `round`, `authorSeatID`, `messageType`, optional `targetSeatID`, optional `references`, touched `files`, and concise `content`.
+
+The expected deliberation rhythm is:
+
+1. Round 0: independent proposals. Seats do not read each other first.
+2. Round 1: cross-examination. Each seat reads the commons and responds to at least one other message by ID.
+3. Round 2: revision or consensus. Seats update their position, preserve dissent, or confirm agreement.
+4. Conference report: the synthesizer reads both `ledger.jsonl` and `commons.jsonl`.
 
 ## Commands
 
@@ -58,6 +74,8 @@ The status report includes a governance decision:
 - `blocked`: at least one reject/blocker vote is present and blocker veto is enabled.
 - `approved`: approve votes meet the configured supermajority.
 - `revise`: the plan should be revised before execution.
+
+It also includes a Commons section with message counts, channels, phases, authors, agents, message types, targeted messages, referenced messages, and files discussed.
 
 ## Configuration
 

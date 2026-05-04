@@ -32,6 +32,41 @@ export interface RepublicVoteSummary {
   other: number
 }
 
+export interface RepublicCommonsMessage {
+  version?: number
+  timestamp?: string
+  repoRoot?: string
+  messageID?: string
+  deliberationID: string
+  channel: string
+  phase: string
+  round?: number
+  authorSeatID: string
+  authorAgent?: string
+  authorRole?: string
+  targetSeatID?: string
+  messageType: "proposal" | "question" | "answer" | "objection" | "revision" | "consensus" | "note"
+  references?: string[]
+  files?: string[]
+  confidence?: number
+  content: string
+}
+
+export interface RepublicCommonsSummary {
+  deliberationID?: string
+  messageCount: number
+  channels: Record<string, number>
+  phases: Record<string, number>
+  authors: Record<string, number>
+  agents: Record<string, number>
+  messageTypes: Record<string, number>
+  targetedMessages: number
+  referencedMessages: number
+  files: string[]
+  latestTimestamp?: string
+  latestContent?: string
+}
+
 export interface RepublicLedgerSummary {
   deliberationID?: string
   recordCount: number
@@ -76,6 +111,10 @@ export function getRepublicLedgerPath(repository: NativeGitRepository): string {
   return join(repository.gitCommonDir, "omo", "republic", "ledger.jsonl")
 }
 
+export function getRepublicCommonsPath(repository: NativeGitRepository): string {
+  return join(repository.gitCommonDir, "omo", "republic", "commons.jsonl")
+}
+
 function incrementCounter(counter: Record<string, number>, key: string | undefined): void {
   if (!key) return
   counter[key] = (counter[key] ?? 0) + 1
@@ -92,6 +131,37 @@ function parseRepublicLedgerLine(line: string): RepublicLedgerRecord | null {
   } catch {
     return null
   }
+}
+
+function parseRepublicCommonsLine(line: string): RepublicCommonsMessage | null {
+  try {
+    const parsed = JSON.parse(line) as Partial<RepublicCommonsMessage>
+    if (
+      typeof parsed.deliberationID !== "string" ||
+      typeof parsed.channel !== "string" ||
+      typeof parsed.phase !== "string" ||
+      typeof parsed.authorSeatID !== "string" ||
+      typeof parsed.messageType !== "string" ||
+      typeof parsed.content !== "string"
+    ) {
+      return null
+    }
+
+    return parsed as RepublicCommonsMessage
+  } catch {
+    return null
+  }
+}
+
+function createRepublicMessageID(message: RepublicCommonsMessage, timestamp: string): string {
+  const base = [
+    sanitizeRepublicDeliberationID(message.deliberationID),
+    message.channel,
+    message.authorSeatID,
+    message.messageType,
+    timestamp,
+  ].join("-")
+  return sanitizeRepublicDeliberationID(base).slice(0, 120)
 }
 
 export function readRepublicLedgerRecords(
@@ -111,6 +181,103 @@ export function readRepublicLedgerRecords(
     .map(parseRepublicLedgerLine)
     .filter((record): record is RepublicLedgerRecord => record !== null)
     .filter((record) => !sanitizedID || sanitizeRepublicDeliberationID(record.deliberationID) === sanitizedID)
+}
+
+export function appendRepublicCommonsMessage(
+  repository: NativeGitRepository,
+  message: RepublicCommonsMessage,
+): string {
+  const commonsPath = getRepublicCommonsPath(repository)
+  mkdirSync(dirname(commonsPath), { recursive: true })
+  const timestamp = new Date().toISOString()
+  appendFileSync(
+    commonsPath,
+    JSON.stringify({
+      version: 1,
+      timestamp,
+      repoRoot: repository.repoRoot,
+      ...message,
+      deliberationID: sanitizeRepublicDeliberationID(message.deliberationID),
+      messageID: message.messageID ?? createRepublicMessageID(message, timestamp),
+    }) + "\n",
+    "utf-8",
+  )
+  return commonsPath
+}
+
+export function readRepublicCommonsMessages(
+  repository: NativeGitRepository,
+  deliberationID?: string,
+): RepublicCommonsMessage[] {
+  const commonsPath = getRepublicCommonsPath(repository)
+  if (!existsSync(commonsPath)) {
+    return []
+  }
+
+  const sanitizedID = deliberationID ? sanitizeRepublicDeliberationID(deliberationID) : undefined
+  return readFileSync(commonsPath, "utf-8")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map(parseRepublicCommonsLine)
+    .filter((message): message is RepublicCommonsMessage => message !== null)
+    .filter((message) => !sanitizedID || sanitizeRepublicDeliberationID(message.deliberationID) === sanitizedID)
+}
+
+export function summarizeRepublicCommonsMessages(
+  messages: RepublicCommonsMessage[],
+  deliberationID?: string,
+): RepublicCommonsSummary {
+  const channels: Record<string, number> = {}
+  const phases: Record<string, number> = {}
+  const authors: Record<string, number> = {}
+  const agents: Record<string, number> = {}
+  const messageTypes: Record<string, number> = {}
+  const files = new Set<string>()
+  let targetedMessages = 0
+  let referencedMessages = 0
+  let latestTimestamp: string | undefined
+  let latestContent: string | undefined
+
+  for (const message of messages) {
+    incrementCounter(channels, message.channel)
+    incrementCounter(phases, message.phase)
+    incrementCounter(authors, message.authorSeatID)
+    incrementCounter(agents, message.authorAgent)
+    incrementCounter(messageTypes, message.messageType)
+    if (message.targetSeatID) targetedMessages += 1
+    if ((message.references?.length ?? 0) > 0) referencedMessages += 1
+    for (const file of message.files ?? []) {
+      files.add(file)
+    }
+
+    if (message.timestamp && (!latestTimestamp || message.timestamp >= latestTimestamp)) {
+      latestTimestamp = message.timestamp
+      latestContent = message.content
+    }
+  }
+
+  return {
+    deliberationID: deliberationID ? sanitizeRepublicDeliberationID(deliberationID) : undefined,
+    messageCount: messages.length,
+    channels,
+    phases,
+    authors,
+    agents,
+    messageTypes,
+    targetedMessages,
+    referencedMessages,
+    files: Array.from(files).sort(),
+    latestTimestamp,
+    latestContent,
+  }
+}
+
+export function summarizeRepublicCommons(
+  repository: NativeGitRepository,
+  deliberationID?: string,
+): RepublicCommonsSummary {
+  return summarizeRepublicCommonsMessages(readRepublicCommonsMessages(repository, deliberationID), deliberationID)
 }
 
 export function summarizeRepublicLedgerRecords(

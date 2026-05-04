@@ -620,7 +620,7 @@ Configure the deliberative multi-agent workflow and ledger:
 | `veto_on_blocker`    | `true`       | Treat reject/blocker review votes as final-plan blockers                    |
 | `git_summary`        | `true`       | Include native-git audit information in Republic status reports             |
 
-Deliberation ledgers live under the Git common dir at `.git/omo/republic/ledger.jsonl`, while tool-caused dirty Git changes are audited separately at `.git/omo/native-git/audit.jsonl`. Use `/republic-status` or `oh-my-opencode republic status` to combine both views.
+Deliberation ledgers live under the Git common dir at `.git/omo/republic/ledger.jsonl`. Agent-to-agent Commons messages live beside them at `.git/omo/republic/commons.jsonl`, so parallel seats can publish proposals, questions, objections, answers, revisions, and consensus without dirtying the worktree. Tool-caused dirty Git changes are audited separately at `.git/omo/native-git/audit.jsonl`. Use `/republic-status` or `oh-my-opencode republic status` to combine all three views.
 
 ### Git Master
 

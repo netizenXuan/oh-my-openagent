@@ -60,6 +60,35 @@ If inside a git repository, store records under the Git common dir so they do no
    - \`review-bench.md\`
    - \`final.md\`
 
+## COMMONS
+
+Use a shared asynchronous commons for agent-to-agent communication. This is the part that turns parallel seats from isolated reports into a collaborative deliberation:
+
+1. Write messages to:
+   - \`.git/omo/republic/commons.jsonl\`
+2. Append one JSONL message whenever a seat needs to publish a proposal, ask another seat a question, object, answer, revise, or record consensus:
+   - \`version\`: 1
+   - \`timestamp\`: ISO timestamp
+   - \`repoRoot\`: repository root
+   - \`messageID\`: stable id such as \`house-1-r0-proposal\`
+   - \`deliberationID\`
+   - \`channel\`: house-planning, senate-planning, conference, review-bench, execution
+   - \`phase\`: brief, seat-proposal, cross-examination, revision, conference-report, review, final
+   - \`round\`: 0 for independent proposals, 1 for rebuttal, 2 for revision/consensus
+   - \`authorSeatID\`
+   - \`authorAgent\`, \`authorRole\`
+   - \`targetSeatID\`: when asking or challenging another seat
+   - \`messageType\`: proposal, question, answer, objection, revision, consensus, note
+   - \`references\`: message IDs this message responds to
+   - \`files\`: relevant files, if any
+   - \`confidence\`: 0.0 to 1.0
+   - \`content\`: concise substantive content
+3. Round rules:
+   - Round 0: seats must not read other seats first; publish independent proposals.
+   - Round 1: each seat reads the commons and must respond to at least one other seat by \`messageID\`.
+   - Round 2: each seat posts either a revision, consensus statement, or remaining objection.
+4. The Conference Committee must read both \`ledger.jsonl\` and \`commons.jsonl\` before writing the final recommendation.
+
 ## WORKFLOW
 
 1. **Neutral Brief**
@@ -67,10 +96,11 @@ If inside a git repository, store records under the Git common dir so they do no
    - List known constraints, repo context needed, and decision criteria.
    - Do not include a preferred solution yet.
    - Write the brief artifact and append a \`brief\` ledger record.
+   - Write a \`note\` commons message announcing the deliberation scope.
 
 2. **House of Planners**
    - Run 3 independent planner seats.
-   - Give each seat the same brief, but tell it not to read other seats first.
+   - Round 0: give each seat the same brief, but tell it not to read other seats first.
    - Each seat must return:
      - Recommendation
      - Plan
@@ -79,21 +109,27 @@ If inside a git repository, store records under the Git common dir so they do no
      - What would change my mind
      - Confidence
    - Append one \`seat-proposal\` ledger record per seat.
+   - Append one \`proposal\` commons message per seat.
+   - Round 1: have each seat read the commons and post one \`question\` or \`objection\` targeted at another seat.
+   - Round 2: have each seat post one \`revision\` or \`consensus\` message.
 
 3. **Senate of Planners**
    - Run 2 independent conservative planner seats.
    - Focus them on stability, maintainability, compatibility, review burden, and rollback.
    - Append one \`seat-proposal\` ledger record per seat.
+   - Use the same Round 0/1/2 commons protocol as the House, but weight long-term risk and compatibility more heavily.
 
 4. **Conference Committee**
-   - Compare all planner seats.
+   - Compare all planner seats and all commons exchanges.
    - Extract consensus, unresolved conflicts, minority reports, and the recommended plan.
    - Append a \`conference-report\` ledger record.
+   - Append a \`consensus\` or \`revision\` commons message with the recommended resolution.
 
 5. **Review Bench**
    - Run 2 reviewer seats against the conference report.
    - They should identify blockers, missing tests, hidden coupling, and rollback risk.
    - Append one \`review\` ledger record per seat.
+   - Each reviewer should cite at least one commons message ID when accepting or challenging the conference report.
 
 6. **Final Recommendation**
    - Produce a compact final report:

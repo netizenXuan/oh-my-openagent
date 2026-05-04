@@ -5,7 +5,12 @@ import { execFileSync } from "node:child_process"
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { appendNativeGitAuditRecord, appendRepublicLedgerRecord, getNativeGitRepository } from "../../shared/git-worktree"
+import {
+  appendNativeGitAuditRecord,
+  appendRepublicCommonsMessage,
+  appendRepublicLedgerRecord,
+  getNativeGitRepository,
+} from "../../shared/git-worktree"
 import { buildRepublicStatusReport, formatRepublicStatusReport } from "./status"
 
 function git(cwd: string, args: string[]): string {
@@ -68,6 +73,19 @@ describe("republic status report", () => {
       files: ["README.md"],
       summary: "Proceed with tracked native git.",
     })
+    appendRepublicCommonsMessage(repository!, {
+      deliberationID: "native git republic",
+      channel: "house-planning",
+      phase: "cross-examination",
+      round: 1,
+      authorSeatID: "planner-house-2",
+      authorAgent: "prometheus",
+      targetSeatID: "planner-house-1",
+      messageType: "question",
+      references: ["proposal-1"],
+      files: ["README.md"],
+      content: "Does the proposal preserve rollback visibility?",
+    })
     appendNativeGitAuditRecord(repository!, {
       tool: "edit",
       sessionID: "ses_1",
@@ -89,10 +107,16 @@ describe("republic status report", () => {
     expect(report.republic.recordCount).toBe(1)
     expect(report.republic.deliberationID).toBe("native-git-republic")
     expect(report.decision.status).toBe("needs-quorum")
+    expect(report.commons.messageCount).toBe(1)
+    expect(report.commons.targetedMessages).toBe(1)
+    expect(report.commons.referencedMessages).toBe(1)
     expect(report.nativeGit.recordCount).toBe(1)
     expect(formatted).toContain("OMO Republic Status")
     expect(formatted).toContain("Deliberations: native-git-republic")
     expect(formatted).toContain("Agents: prometheus=1")
+    expect(formatted).toContain("Republic Commons")
+    expect(formatted).toContain("Messages: 1")
+    expect(formatted).toContain("Types: question=1")
     expect(formatted).toContain("Decision: needs-quorum")
     expect(formatted).toContain("Models: kimi-for-coding/k2p6=1")
     expect(formatted).toContain("Next action:")

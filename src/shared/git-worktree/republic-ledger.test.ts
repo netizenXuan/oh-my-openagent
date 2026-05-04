@@ -7,12 +7,17 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { getNativeGitRepository } from "./native-git"
 import {
+  appendRepublicCommonsMessage,
   appendRepublicLedgerRecord,
   evaluateRepublicDecision,
+  getRepublicCommonsPath,
   getRepublicDeliberationDir,
   getRepublicLedgerPath,
+  readRepublicCommonsMessages,
   readRepublicLedgerRecords,
   sanitizeRepublicDeliberationID,
+  summarizeRepublicCommons,
+  summarizeRepublicCommonsMessages,
   summarizeRepublicLedger,
   summarizeRepublicLedgerRecords,
 } from "./republic-ledger"
@@ -148,6 +153,102 @@ describe("republic ledger", () => {
     expect(summary.averageConfidence).toBe(0.8)
     expect(summary.files).toEqual(["src/a.ts", "src/b.ts"])
     expect(summary.blocked).toBe(true)
+  })
+
+  test("writes commons messages under git common dir without dirtying the worktree", () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")
+    commitAll(directory, "init")
+
+    const repository = getNativeGitRepository(directory)
+    expect(repository).not.toBeNull()
+
+    const commonsPath = appendRepublicCommonsMessage(repository!, {
+      deliberationID: "agent republic",
+      channel: "house-planning",
+      phase: "seat-proposal",
+      round: 0,
+      authorSeatID: "planner-house-1",
+      authorAgent: "prometheus",
+      authorRole: "planner",
+      messageType: "proposal",
+      files: ["src/a.ts"],
+      confidence: 0.8,
+      content: "Prefer a ledger-first implementation.",
+    })
+
+    expect(commonsPath).toBe(getRepublicCommonsPath(repository!))
+    expect(commonsPath).toContain(join(".git", "omo", "republic", "commons.jsonl"))
+    expect(existsSync(commonsPath)).toBe(true)
+    expect(readFileSync(commonsPath, "utf-8")).toContain('"messageType":"proposal"')
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
+  test("reads and summarizes commons messages by deliberation id", () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")
+    commitAll(directory, "init")
+
+    const repository = getNativeGitRepository(directory)
+    expect(repository).not.toBeNull()
+
+    appendRepublicCommonsMessage(repository!, {
+      messageID: "proposal-1",
+      deliberationID: "agent republic",
+      channel: "house-planning",
+      phase: "seat-proposal",
+      round: 0,
+      authorSeatID: "planner-house-1",
+      authorAgent: "prometheus",
+      authorRole: "planner",
+      messageType: "proposal",
+      files: ["src/a.ts"],
+      confidence: 0.7,
+      content: "Use independent seat proposals.",
+    })
+    appendRepublicCommonsMessage(repository!, {
+      deliberationID: "agent republic",
+      channel: "house-planning",
+      phase: "cross-examination",
+      round: 1,
+      authorSeatID: "planner-house-2",
+      authorAgent: "prometheus",
+      authorRole: "planner",
+      targetSeatID: "planner-house-1",
+      messageType: "objection",
+      references: ["proposal-1"],
+      files: ["src/b.ts"],
+      confidence: 0.6,
+      content: "Question whether the proposal has enough rollback detail.",
+    })
+    appendRepublicCommonsMessage(repository!, {
+      deliberationID: "other",
+      channel: "review-bench",
+      phase: "review",
+      authorSeatID: "reviewer-bench-1",
+      messageType: "note",
+      content: "Different deliberation.",
+    })
+
+    const messages = readRepublicCommonsMessages(repository!, "agent republic")
+    const summary = summarizeRepublicCommons(repository!, "agent republic")
+
+    expect(messages).toHaveLength(2)
+    expect(summarizeRepublicCommonsMessages(messages, "agent republic")).toEqual(summary)
+    expect(summary.deliberationID).toBe("agent-republic")
+    expect(summary.messageCount).toBe(2)
+    expect(summary.channels["house-planning"]).toBe(2)
+    expect(summary.phases["seat-proposal"]).toBe(1)
+    expect(summary.phases["cross-examination"]).toBe(1)
+    expect(summary.authors["planner-house-1"]).toBe(1)
+    expect(summary.authors["planner-house-2"]).toBe(1)
+    expect(summary.agents.prometheus).toBe(2)
+    expect(summary.messageTypes.proposal).toBe(1)
+    expect(summary.messageTypes.objection).toBe(1)
+    expect(summary.targetedMessages).toBe(1)
+    expect(summary.referencedMessages).toBe(1)
+    expect(summary.files).toEqual(["src/a.ts", "src/b.ts"])
+    expect(summary.latestContent).toBe("Question whether the proposal has enough rollback detail.")
   })
 
   test("evaluates quorum, blocker veto, and supermajority decisions", () => {

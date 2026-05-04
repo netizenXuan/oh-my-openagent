@@ -201,9 +201,9 @@ bunx oh-my-opencode republic status --deliberation-id delib_20260504_native_git 
 | `--deliberation-id <id>` | Filter Republic ledger records to one deliberation   |
 | `--json`               | Output structured JSON for scripts or dashboards      |
 
-The command reads `.git/omo/republic/ledger.jsonl` and `.git/omo/native-git/audit.jsonl`. Both files live under the Git common dir, so status reporting does not dirty the worktree.
+The command reads `.git/omo/republic/ledger.jsonl`, `.git/omo/republic/commons.jsonl`, and `.git/omo/native-git/audit.jsonl`. All three files live under the Git common dir, so status reporting does not dirty the worktree.
 
-The report includes a decision gate: `no-records`, `needs-quorum`, `blocked`, `approved`, or `revise`.
+The report includes a decision gate: `no-records`, `needs-quorum`, `blocked`, `approved`, or `revise`. It also summarizes Commons messages so you can see whether parallel seats actually challenged, answered, and revised each other instead of only reporting back to the main agent.
 
 ---
 
