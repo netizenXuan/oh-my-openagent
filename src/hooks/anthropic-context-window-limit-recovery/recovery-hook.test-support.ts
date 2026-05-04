@@ -42,6 +42,18 @@ const pluginConfig = {
     mode: "tracked",
     audit_log: true,
   },
+  republic: {
+    enabled: true,
+    mode: "advisory",
+    ledger: true,
+    house_seats: 3,
+    senate_seats: 2,
+    review_bench_seats: 2,
+    quorum: 4,
+    supermajority: 0.67,
+    veto_on_blocker: true,
+    git_summary: true,
+  },
 } satisfies OhMyOpenCodeConfig
 
 export function createRecoveryHook() {

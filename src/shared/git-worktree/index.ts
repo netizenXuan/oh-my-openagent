@@ -20,6 +20,11 @@ export {
   appendRepublicLedgerRecord,
   getRepublicDeliberationDir,
   getRepublicLedgerPath,
+  readRepublicLedgerRecords,
   sanitizeRepublicDeliberationID,
+  summarizeRepublicLedger,
+  summarizeRepublicLedgerRecords,
+  type RepublicLedgerSummary,
   type RepublicLedgerRecord,
+  type RepublicVoteSummary,
 } from "./republic-ledger"

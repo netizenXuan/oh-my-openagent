@@ -10,7 +10,10 @@ import {
   appendRepublicLedgerRecord,
   getRepublicDeliberationDir,
   getRepublicLedgerPath,
+  readRepublicLedgerRecords,
   sanitizeRepublicDeliberationID,
+  summarizeRepublicLedger,
+  summarizeRepublicLedgerRecords,
 } from "./republic-ledger"
 
 function git(cwd: string, args: string[]): string {
@@ -83,5 +86,66 @@ describe("republic ledger", () => {
     expect(ledger).toContain('"deliberationID":"native-git-review"')
     expect(ledger).toContain('"seatID":"planner-1"')
     expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
+  test("reads and summarizes ledger records by deliberation id", () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")
+    commitAll(directory, "init")
+
+    const repository = getNativeGitRepository(directory)
+    expect(repository).not.toBeNull()
+
+    appendRepublicLedgerRecord(repository!, {
+      deliberationID: "agent republic",
+      phase: "seat-proposal",
+      chamber: "house",
+      seatID: "planner-house-1",
+      role: "planner",
+      agent: "prometheus",
+      vote: "approve",
+      confidence: 0.7,
+      files: ["src/a.ts"],
+      summary: "Use a ledger-first plan.",
+    })
+    appendRepublicLedgerRecord(repository!, {
+      deliberationID: "agent republic",
+      phase: "review",
+      chamber: "bench",
+      seatID: "reviewer-bench-1",
+      role: "reviewer",
+      agent: "momus",
+      vote: "reject",
+      confidence: 0.9,
+      files: ["src/b.ts"],
+      summary: "Blocker: missing rollback path.",
+    })
+    appendRepublicLedgerRecord(repository!, {
+      deliberationID: "other",
+      phase: "brief",
+      vote: "abstain",
+      summary: "Different deliberation.",
+    })
+
+    const records = readRepublicLedgerRecords(repository!, "agent republic")
+    const summary = summarizeRepublicLedger(repository!, "agent republic")
+
+    expect(records).toHaveLength(2)
+    expect(summarizeRepublicLedgerRecords(records, "agent republic")).toEqual(summary)
+    expect(summary.deliberationID).toBe("agent-republic")
+    expect(summary.recordCount).toBe(2)
+    expect(summary.deliberationIDs).toEqual(["agent-republic"])
+    expect(summary.phases["seat-proposal"]).toBe(1)
+    expect(summary.phases.review).toBe(1)
+    expect(summary.chambers.house).toBe(1)
+    expect(summary.chambers.bench).toBe(1)
+    expect(summary.agents.prometheus).toBe(1)
+    expect(summary.agents.momus).toBe(1)
+    expect(summary.seats).toEqual(["planner-house-1", "reviewer-bench-1"])
+    expect(summary.votes.approve).toBe(1)
+    expect(summary.votes.reject).toBe(1)
+    expect(summary.averageConfidence).toBe(0.8)
+    expect(summary.files).toEqual(["src/a.ts", "src/b.ts"])
+    expect(summary.blocked).toBe(true)
   })
 })
