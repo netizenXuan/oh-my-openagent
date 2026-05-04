@@ -120,6 +120,17 @@ By default the static HTML is written under:
 
 The dashboard is intentionally data-first. The graph model is suitable for a future draggable editor where users can define custom agent teams, module workgroups, supervisors, and communication lanes visually.
 
+## OpenCode Smoke Verification
+
+The current implementation has been smoke tested through the real OpenCode CLI with a local plugin path and `kimi-for-coding/k2p6`:
+
+- `Hephaestus - Deep Agent`: allowed on Kimi K2.x and recorded `agent="hephaestus"` plus `model="kimi-for-coding/k2p6"` in `.git/omo/native-git/audit.jsonl`.
+- `Sisyphus - Ultraworker`: wrote scoped coordination files and recorded `agent="sisyphus"` plus the Kimi model.
+- `Prometheus - Plan Builder`: correctly enforced the planning-agent boundary by refusing writes outside `.sisyphus/`, then wrote `.sisyphus/plans/prometheus-smoke-test.md` with native-git attribution.
+- `Atlas - Plan Executor`: wrote smoke output, triggered the existing orchestrator warning for direct file edits, and still recorded native-git attribution.
+
+The same smoke repository rendered `republic status` and `republic dashboard` from the generated Git common-dir records. The status summary reported all four primary agents, seven native-git write records, and one Kimi K2.6 model bucket.
+
 ## Configuration
 
 ```jsonc

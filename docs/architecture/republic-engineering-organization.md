@@ -122,3 +122,14 @@ This graph is intentionally close to a future visual editor. A later UI can let 
 5. Productization:
    - project templates for common engineering organizations
    - CI export for status, audit, and dashboard artifacts
+
+## Current Verification Notes
+
+The first OpenCode smoke pass used `kimi-for-coding/k2p6` with a local plugin path. It verified that all four primary agents can participate in the Git-native record stream:
+
+- Hephaestus can now be explicitly run on Kimi K2.x without being redirected to Sisyphus.
+- Sisyphus and Atlas produce native-git audit records with stable agent/model attribution.
+- Prometheus remains constrained to planning files under `.sisyphus/`, and its allowed plan write is still audited.
+- The dashboard can render native-git audit records into agent, tool, file, and module nodes even before a Republic ledger exists.
+
+This is not yet the full governed execution system. It is the foundation: durable records, communication data structures, same-role/workgroup metadata, and an inspectable graph. The next step is to make Commons publication and supervisor interventions automatic during multi-agent execution.
