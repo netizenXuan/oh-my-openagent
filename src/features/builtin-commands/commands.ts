@@ -9,6 +9,7 @@ import { START_WORK_TEMPLATE } from "./templates/start-work"
 import { HANDOFF_TEMPLATE } from "./templates/handoff"
 import { REMOVE_AI_SLOPS_TEMPLATE } from "./templates/remove-ai-slops"
 import { DELIBERATE_TEMPLATE } from "./templates/deliberate"
+import { REPUBLIC_STATUS_TEMPLATE } from "./templates/republic-status"
 
 interface LoadBuiltinCommandsOptions {
   useRegisteredAgents?: boolean
@@ -88,6 +89,17 @@ Timestamp: $TIMESTAMP
 $ARGUMENTS
 </user-request>`,
       argumentHint: "<problem-or-plan>",
+    },
+    "republic-status": {
+      description: "(builtin) Summarize OMO Republic ledger and native Git audit state",
+      template: `<command-instruction>
+${REPUBLIC_STATUS_TEMPLATE}
+</command-instruction>
+
+<user-request>
+$ARGUMENTS
+</user-request>`,
+      argumentHint: "[deliberation-id]",
     },
     "start-work": {
       description: "(builtin) Start Sisyphus work session from Prometheus plan",

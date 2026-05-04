@@ -5,6 +5,7 @@ import { loadBuiltinCommands } from "./commands"
 import { DELIBERATE_TEMPLATE } from "./templates/deliberate"
 import { HANDOFF_TEMPLATE } from "./templates/handoff"
 import { REMOVE_AI_SLOPS_TEMPLATE } from "./templates/remove-ai-slops"
+import { REPUBLIC_STATUS_TEMPLATE } from "./templates/republic-status"
 import type { BuiltinCommandName } from "./types"
 import { _resetForTesting, registerAgentName } from "../claude-code-session-state"
 
@@ -194,6 +195,44 @@ describe("loadBuiltinCommands - deliberate", () => {
     expect(DELIBERATE_TEMPLATE).toContain("Senate of Planners")
     expect(DELIBERATE_TEMPLATE).toContain("multiple independent seats for the same role")
     expect(DELIBERATE_TEMPLATE).toContain(".git/omo/republic/ledger.jsonl")
+  })
+})
+
+describe("loadBuiltinCommands - republic-status", () => {
+  test("should include republic-status command in loaded commands", () => {
+    //#given
+    const disabledCommands: BuiltinCommandName[] = []
+
+    //#when
+    const commands = loadBuiltinCommands(disabledCommands)
+
+    //#then
+    expect(commands["republic-status"]).toBeDefined()
+    expect(commands["republic-status"].name).toBe("republic-status")
+  })
+
+  test("should exclude republic-status when disabled", () => {
+    //#given
+    const disabledCommands: BuiltinCommandName[] = ["republic-status"]
+
+    //#when
+    const commands = loadBuiltinCommands(disabledCommands)
+
+    //#then
+    expect(commands["republic-status"]).toBeUndefined()
+  })
+
+  test("should include ledger and native git audit status instructions", () => {
+    //#given - no disabled commands
+
+    //#when
+    const commands = loadBuiltinCommands()
+
+    //#then
+    expect(commands["republic-status"].template).toContain(REPUBLIC_STATUS_TEMPLATE)
+    expect(commands["republic-status"].template).toContain(".git/omo/republic/ledger.jsonl")
+    expect(commands["republic-status"].template).toContain(".git/omo/native-git/audit.jsonl")
+    expect(commands["republic-status"].template).toContain("$ARGUMENTS")
   })
 })
 
