@@ -22,4 +22,5 @@ export type {
   ModelCapabilitiesConfig,
   FallbackModels,
   NativeGitConfig,
+  RepublicConfig,
 } from "./schema"

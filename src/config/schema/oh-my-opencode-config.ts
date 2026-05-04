@@ -17,6 +17,7 @@ import { NotificationConfigSchema } from "./notification"
 import { OpenClawConfigSchema } from "./openclaw"
 import { ModelCapabilitiesConfigSchema } from "./model-capabilities"
 import { RalphLoopConfigSchema } from "./ralph-loop"
+import { RepublicConfigSchema } from "./republic"
 import { RuntimeFallbackConfigSchema } from "./runtime-fallback"
 import { SkillsConfigSchema } from "./skills"
 import { SisyphusConfigSchema } from "./sisyphus"
@@ -73,6 +74,18 @@ export const OhMyOpenCodeConfigSchema = z.object({
   git: NativeGitConfigSchema.default({
     mode: "tracked",
     audit_log: true,
+  }),
+  republic: RepublicConfigSchema.default({
+    enabled: true,
+    mode: "advisory",
+    ledger: true,
+    house_seats: 3,
+    senate_seats: 2,
+    review_bench_seats: 2,
+    quorum: 4,
+    supermajority: 0.67,
+    veto_on_blocker: true,
+    git_summary: true,
   }),
   browser_automation_engine: BrowserAutomationConfigSchema.optional(),
   websearch: WebsearchConfigSchema.optional(),

@@ -12,6 +12,7 @@ import {
   GitMasterConfigSchema,
   HookNameSchema,
   OhMyOpenCodeConfigSchema,
+  RepublicConfigSchema,
 } from "./schema"
 
 describe("disabled_mcps schema", () => {
@@ -1074,6 +1075,63 @@ describe("OhMyOpenCodeConfigSchema - native git defaults", () => {
     if (result.success) {
       expect(result.data.git.mode).toBe("manual")
       expect(result.data.git.audit_log).toBe(false)
+    }
+  })
+})
+
+describe("RepublicConfigSchema", () => {
+  test("defaults to advisory mode with durable ledger enabled", () => {
+    //#when
+    const result = RepublicConfigSchema.safeParse({})
+
+    //#then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.enabled).toBe(true)
+      expect(result.data.mode).toBe("advisory")
+      expect(result.data.ledger).toBe(true)
+      expect(result.data.house_seats).toBe(3)
+      expect(result.data.senate_seats).toBe(2)
+      expect(result.data.review_bench_seats).toBe(2)
+      expect(result.data.quorum).toBe(4)
+      expect(result.data.supermajority).toBe(0.67)
+      expect(result.data.veto_on_blocker).toBe(true)
+      expect(result.data.git_summary).toBe(true)
+    }
+  })
+
+  test("accepts manual, advisory, and governed modes", () => {
+    for (const mode of ["manual", "advisory", "governed"] as const) {
+      //#when
+      const result = RepublicConfigSchema.safeParse({ mode })
+
+      //#then
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.mode).toBe(mode)
+      }
+    }
+  })
+
+  test("rejects invalid seat counts and supermajority thresholds", () => {
+    expect(RepublicConfigSchema.safeParse({ house_seats: 0 }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ senate_seats: 8 }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ supermajority: 0.49 }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ supermajority: 1.01 }).success).toBe(false)
+  })
+})
+
+describe("OhMyOpenCodeConfigSchema - republic defaults", () => {
+  test("republic defaults are applied when section is missing from config", () => {
+    //#when
+    const result = OhMyOpenCodeConfigSchema.safeParse({})
+
+    //#then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.republic.enabled).toBe(true)
+      expect(result.data.republic.mode).toBe("advisory")
+      expect(result.data.republic.ledger).toBe(true)
     }
   })
 })
