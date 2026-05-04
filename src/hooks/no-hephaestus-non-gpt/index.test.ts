@@ -101,6 +101,27 @@ describe("no-hephaestus-non-gpt hook", () => {
     expect(output.message.agent).toBeUndefined()
   })
 
+  test("does not switch agent when hephaestus uses kimi k2 model", async () => {
+    // given - hephaestus with Kimi K2.6 model
+    const showToast = spyOn({ fn: async (_input: unknown) => ({}) }, "fn")
+    const hook = createNoHephaestusNonGptHook({
+      client: { tui: { showToast } },
+    } as any)
+
+    const output = createOutput()
+
+    // when - chat.message runs
+    await hook["chat.message"]?.({
+      sessionID: "ses_kimi",
+      agent: HEPHAESTUS_DISPLAY,
+      model: { providerID: "kimi-for-coding", modelID: "k2p6" },
+    }, output)
+
+    // then - Kimi K2.x is allowed for explicit smoke and custom workflows
+    expect(showToast).toHaveBeenCalledTimes(0)
+    expect(output.message.agent).toBeUndefined()
+  })
+
   test("does not show toast for non-hephaestus agent", async () => {
     // given - sisyphus with claude model (non-gpt)
     const showToast = spyOn({ fn: async (_input: unknown) => ({}) }, "fn")
