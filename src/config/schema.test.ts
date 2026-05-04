@@ -1136,6 +1136,33 @@ describe("OhMyOpenCodeConfigSchema - republic defaults", () => {
   })
 })
 
+describe("OhMyOpenCodeConfigSchema - disabled commands", () => {
+  test("accepts all current built-in command names", () => {
+    //#given
+    const config = {
+      disabled_commands: [
+        "init-deep",
+        "ralph-loop",
+        "ulw-loop",
+        "cancel-ralph",
+        "refactor",
+        "deliberate",
+        "republic-status",
+        "start-work",
+        "stop-continuation",
+        "handoff",
+        "remove-ai-slops",
+      ],
+    }
+
+    //#when
+    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+
+    //#then
+    expect(result.success).toBe(true)
+  })
+})
+
 describe("skills schema", () => {
   test("accepts skills.sources configuration", () => {
     //#given
