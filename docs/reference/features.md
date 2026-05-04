@@ -553,6 +553,8 @@ When run inside a Git repository, deliberation records are written under the Git
 
 Reads `.git/omo/republic/ledger.jsonl`, `.git/omo/republic/commons.jsonl`, and `.git/omo/native-git/audit.jsonl`, then reports deliberation IDs, phase counts, chamber counts, commons message counts, targeted/referenced message counts, seat votes, visible agent/model participation, blocker status, touched files, and the recommended next action. This is read-only and does not create new ledger entries.
 
+The CLI also provides `oh-my-opencode republic dashboard`, which renders the same state as a network graph. Static output defaults to `.git/omo/republic/dashboard.html`; `--serve` starts a local live dashboard that polls Git common-dir records.
+
 ### /start-work
 
 **Purpose**: Start execution from a Prometheus-generated plan

@@ -22,6 +22,7 @@ npx oh-my-opencode
 | `get-local-version`           | Display local version information and update check     |
 | `refresh-model-capabilities`  | Refresh the cached models.dev-based model capabilities |
 | `republic status`             | Summarize OMO Republic ledger and native Git audit state |
+| `republic dashboard`          | Render or serve an OMO Republic collaboration graph      |
 | `version`                     | Show version information                               |
 | `mcp oauth`                   | MCP OAuth authentication management                    |
 
@@ -204,6 +205,35 @@ bunx oh-my-opencode republic status --deliberation-id delib_20260504_native_git 
 The command reads `.git/omo/republic/ledger.jsonl`, `.git/omo/republic/commons.jsonl`, and `.git/omo/native-git/audit.jsonl`. All three files live under the Git common dir, so status reporting does not dirty the worktree.
 
 The report includes a decision gate: `no-records`, `needs-quorum`, `blocked`, `approved`, or `revise`. It also summarizes Commons messages so you can see whether parallel seats actually challenged, answered, and revised each other instead of only reporting back to the main agent.
+
+---
+
+## republic dashboard
+
+Renders the OMO Republic collaboration state as a network graph. By default it writes a static HTML file under the Git common dir at `.git/omo/republic/dashboard.html`, so it does not dirty the worktree.
+
+### Usage
+
+```bash
+bunx oh-my-opencode republic dashboard
+bunx oh-my-opencode republic dashboard --directory /path/to/repo
+bunx oh-my-opencode republic dashboard --directory /path/to/repo --serve --port 4097
+bunx oh-my-opencode republic dashboard --directory /path/to/repo --json
+```
+
+### Options
+
+| Option                 | Description                                           |
+| ---------------------- | ----------------------------------------------------- |
+| `-d, --directory <path>` | Working directory to inspect                         |
+| `--deliberation-id <id>` | Filter Republic graph data to one deliberation       |
+| `-o, --output <path>`  | Static HTML output path                               |
+| `--json`               | Output graph data instead of HTML                     |
+| `--serve`              | Serve a live dashboard that polls `.git/omo` records  |
+| `--port <port>`        | Port for `--serve`                                    |
+| `--refresh-ms <ms>`    | Polling interval for `--serve`                        |
+
+The graph includes repository, deliberation, chamber, seat, agent, message, module, file, tool, and decision nodes, with edges for assignment, publication, targeting, references, discussed files, and code changes.
 
 ---
 

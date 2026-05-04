@@ -67,6 +67,18 @@ bunx oh-my-opencode republic status --directory /path/to/repo
 bunx oh-my-opencode republic status --directory /path/to/repo --json
 ```
 
+Render a static collaboration graph dashboard:
+
+```bash
+bunx oh-my-opencode republic dashboard --directory /path/to/repo
+```
+
+Serve a live dashboard that polls the Git common-dir records:
+
+```bash
+bunx oh-my-opencode republic dashboard --directory /path/to/repo --serve --port 4097
+```
+
 The status report includes a governance decision:
 
 - `no-records`: no Republic ledger exists yet.
@@ -76,6 +88,22 @@ The status report includes a governance decision:
 - `revise`: the plan should be revised before execution.
 
 It also includes a Commons section with message counts, channels, phases, authors, agents, message types, targeted messages, referenced messages, and files discussed.
+
+## Dashboard
+
+The Republic dashboard converts Git-native records into a network graph:
+
+- repository, deliberation, chamber, seat, agent, message, module, file, tool, and decision nodes
+- `runs`, `published`, `targets`, `references`, `discusses`, `reviews`, and `changed` edges
+- a Commons timeline showing recent cross-seat proposals, questions, objections, revisions, and consensus
+
+By default the static HTML is written under:
+
+```text
+.git/omo/republic/dashboard.html
+```
+
+The dashboard is intentionally data-first. The graph model is suitable for a future draggable editor where users can define custom agent teams, module workgroups, supervisors, and communication lanes visually.
 
 ## Configuration
 
