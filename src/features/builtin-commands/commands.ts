@@ -10,6 +10,7 @@ import { HANDOFF_TEMPLATE } from "./templates/handoff"
 import { REMOVE_AI_SLOPS_TEMPLATE } from "./templates/remove-ai-slops"
 import { DELIBERATE_TEMPLATE } from "./templates/deliberate"
 import { REPUBLIC_STATUS_TEMPLATE } from "./templates/republic-status"
+import { REPUBLIC_DASHBOARD_TEMPLATE } from "./templates/republic-dashboard"
 
 interface LoadBuiltinCommandsOptions {
   useRegisteredAgents?: boolean
@@ -100,6 +101,17 @@ ${REPUBLIC_STATUS_TEMPLATE}
 $ARGUMENTS
 </user-request>`,
       argumentHint: "[deliberation-id]",
+    },
+    "republic-dashboard": {
+      description: "(builtin) Render or serve the OMO Republic collaboration graph",
+      template: `<command-instruction>
+${REPUBLIC_DASHBOARD_TEMPLATE}
+</command-instruction>
+
+<user-request>
+$ARGUMENTS
+</user-request>`,
+      argumentHint: "[deliberation-id] [--serve] [--port=4097]",
     },
     "start-work": {
       description: "(builtin) Start Sisyphus work session from Prometheus plan",

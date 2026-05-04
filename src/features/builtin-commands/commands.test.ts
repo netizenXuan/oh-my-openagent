@@ -5,6 +5,7 @@ import { loadBuiltinCommands } from "./commands"
 import { DELIBERATE_TEMPLATE } from "./templates/deliberate"
 import { HANDOFF_TEMPLATE } from "./templates/handoff"
 import { REMOVE_AI_SLOPS_TEMPLATE } from "./templates/remove-ai-slops"
+import { REPUBLIC_DASHBOARD_TEMPLATE } from "./templates/republic-dashboard"
 import { REPUBLIC_STATUS_TEMPLATE } from "./templates/republic-status"
 import type { BuiltinCommandName } from "./types"
 import { _resetForTesting, registerAgentName } from "../claude-code-session-state"
@@ -233,6 +234,44 @@ describe("loadBuiltinCommands - republic-status", () => {
     expect(commands["republic-status"].template).toContain(".git/omo/republic/ledger.jsonl")
     expect(commands["republic-status"].template).toContain(".git/omo/native-git/audit.jsonl")
     expect(commands["republic-status"].template).toContain("$ARGUMENTS")
+  })
+})
+
+describe("loadBuiltinCommands - republic-dashboard", () => {
+  test("should include republic-dashboard command in loaded commands", () => {
+    //#given
+    const disabledCommands: BuiltinCommandName[] = []
+
+    //#when
+    const commands = loadBuiltinCommands(disabledCommands)
+
+    //#then
+    expect(commands["republic-dashboard"]).toBeDefined()
+    expect(commands["republic-dashboard"].name).toBe("republic-dashboard")
+  })
+
+  test("should exclude republic-dashboard when disabled", () => {
+    //#given
+    const disabledCommands: BuiltinCommandName[] = ["republic-dashboard"]
+
+    //#when
+    const commands = loadBuiltinCommands(disabledCommands)
+
+    //#then
+    expect(commands["republic-dashboard"]).toBeUndefined()
+  })
+
+  test("should include dashboard instructions", () => {
+    //#given - no disabled commands
+
+    //#when
+    const commands = loadBuiltinCommands()
+
+    //#then
+    expect(commands["republic-dashboard"].template).toContain(REPUBLIC_DASHBOARD_TEMPLATE)
+    expect(commands["republic-dashboard"].template).toContain("oh-my-opencode republic dashboard")
+    expect(commands["republic-dashboard"].template).toContain(".git/omo/republic/dashboard.html")
+    expect(commands["republic-dashboard"].template).toContain("workgroup")
   })
 })
 

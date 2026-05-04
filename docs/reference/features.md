@@ -451,6 +451,7 @@ Commands are slash-triggered workflows that execute predefined templates.
 | `/refactor`          | Intelligent refactoring with LSP, AST-grep, architecture analysis, and TDD verification    |
 | `/deliberate`        | Run multi-seat OMO Republic deliberation and write Git common-dir ledger/commons records    |
 | `/republic-status`   | Summarize OMO Republic ledger, commons, and native Git audit state                          |
+| `/republic-dashboard` | Render or serve the OMO Republic collaboration graph                                       |
 | `/start-work`        | Start Sisyphus work session from Prometheus plan                                           |
 | `/stop-continuation` | Stop all continuation mechanisms (ralph loop, todo continuation, boulder) for this session |
 | `/handoff`           | Create a detailed context summary for continuing work in a new session                     |

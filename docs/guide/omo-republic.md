@@ -88,6 +88,12 @@ Serve a live dashboard that polls the Git common-dir records:
 bunx oh-my-opencode republic dashboard --directory /path/to/repo --serve --port 4097
 ```
 
+Open the dashboard from OpenCode:
+
+```text
+/republic-dashboard [deliberation-id] [--serve] [--port=4097]
+```
+
 The status report includes a governance decision:
 
 - `no-records`: no Republic ledger exists yet.
@@ -134,6 +140,8 @@ The dashboard is intentionally data-first. The graph model is suitable for a fut
 ```
 
 The current implementation is advisory. It records, summarizes, and recommends. Strong enforcement, per-seat worktrees, and automatic execution gates belong in later governed mode work.
+
+For the larger engineering-organization design, see [OMO Republic Engineering Organization](../architecture/republic-engineering-organization.md).
 
 ## Operating Model
 
