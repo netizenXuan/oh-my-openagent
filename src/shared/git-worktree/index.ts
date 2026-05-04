@@ -12,7 +12,11 @@ export {
   getNativeGitRepository,
   getNativeGitStatus,
   parseNativeGitStatusPorcelainZ,
+  readNativeGitAuditRecords,
+  summarizeNativeGitAudit,
+  summarizeNativeGitAuditRecords,
   type NativeGitAuditRecord,
+  type NativeGitAuditSummary,
   type NativeGitRepository,
   type NativeGitStatus,
 } from "./native-git"

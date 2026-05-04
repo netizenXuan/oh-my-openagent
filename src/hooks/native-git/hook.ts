@@ -13,6 +13,9 @@ type NativeGitToolInput = {
   tool: string
   sessionID?: string
   callID?: string
+  agent?: string
+  model?: string
+  category?: string
 }
 
 type NativeGitEventInput = {
@@ -110,6 +113,9 @@ function getNativeGitToolInputFromEvent(input: NativeGitEventInput): NativeGitTo
       tool,
       sessionID: getStringProperty(input.event.properties, ["sessionID", "sessionId"]),
       callID: getStringProperty(input.event.properties, ["callID", "callId", "call_id"]),
+      agent: getStringProperty(input.event.properties, ["agent", "agentID", "agentId"]),
+      model: getStringProperty(input.event.properties, ["model", "modelID", "modelId"]),
+      category: getStringProperty(input.event.properties, ["category"]),
     }
   }
 
@@ -141,6 +147,29 @@ function getNativeGitToolInputFromEvent(input: NativeGitEventInput): NativeGitTo
     callID:
       getStringProperty(part, ["callID", "callId", "call_id"]) ??
       getStringProperty(input.event.properties, ["callID", "callId", "call_id"]),
+    agent:
+      getStringProperty(part, ["agent", "agentID", "agentId"]) ??
+      getStringProperty(input.event.properties, ["agent", "agentID", "agentId"]),
+    model:
+      getStringProperty(part, ["model", "modelID", "modelId"]) ??
+      getStringProperty(input.event.properties, ["model", "modelID", "modelId"]),
+    category: getStringProperty(part, ["category"]) ?? getStringProperty(input.event.properties, ["category"]),
+  }
+}
+
+function mergeToolOutputMetadata(
+  input: NativeGitToolInput,
+  metadata: Record<string, unknown> | undefined,
+): NativeGitToolInput {
+  if (!metadata) {
+    return input
+  }
+
+  return {
+    ...input,
+    agent: input.agent ?? getStringProperty(metadata, ["agent", "agentID", "agentId"]),
+    model: input.model ?? getStringProperty(metadata, ["model", "modelID", "modelId"]),
+    category: input.category ?? getStringProperty(metadata, ["category"]),
   }
 }
 
@@ -293,6 +322,9 @@ export function createNativeGitHook(ctx: PluginInput, config: NativeGitConfig | 
           tool,
           sessionID: input.sessionID,
           callID: input.callID,
+          agent: input.agent,
+          model: input.model,
+          category: input.category,
           files: status.files,
           summary,
         })
@@ -367,7 +399,8 @@ export function createNativeGitHook(ctx: PluginInput, config: NativeGitConfig | 
         return
       }
 
-      const result = trackNativeGitChanges(input)
+      const enrichedInput = mergeToolOutputMetadata(input, output.metadata)
+      const result = trackNativeGitChanges(enrichedInput)
       const callKey = getCallKey(input)
       if (result.changedSinceLastCheck && result.summary && (!callKey || !outputReminderCallKeys.has(callKey))) {
         if (tool !== "task") {

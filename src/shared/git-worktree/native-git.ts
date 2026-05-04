@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
-import { appendFileSync, mkdirSync, readFileSync, statSync } from "node:fs"
+import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync } from "node:fs"
 import { dirname, isAbsolute, join, resolve } from "node:path"
 import { collectGitDiffStats } from "./collect-git-diff-stats"
 import { formatFileChanges } from "./format-file-changes"
@@ -20,11 +20,29 @@ export interface NativeGitStatus {
 }
 
 export interface NativeGitAuditRecord {
+  version?: number
+  timestamp?: string
+  repoRoot?: string
   sessionID?: string
   callID?: string
   tool: string
+  agent?: string
+  model?: string
+  category?: string
   files: string[]
   summary?: string
+}
+
+export interface NativeGitAuditSummary {
+  recordCount: number
+  tools: Record<string, number>
+  agents: Record<string, number>
+  models: Record<string, number>
+  categories: Record<string, number>
+  sessions: Record<string, number>
+  files: string[]
+  latestTimestamp?: string
+  latestSummary?: string
 }
 
 function runGit(directory: string, args: string[]): string {
@@ -138,6 +156,81 @@ export function getNativeGitChangeSummary(directory: string): string {
 
 export function getNativeGitAuditPath(repository: NativeGitRepository): string {
   return join(repository.gitCommonDir, "omo", "native-git", "audit.jsonl")
+}
+
+function parseNativeGitAuditLine(line: string): NativeGitAuditRecord | null {
+  try {
+    const parsed = JSON.parse(line) as Partial<NativeGitAuditRecord>
+    if (typeof parsed.tool !== "string" || !Array.isArray(parsed.files)) {
+      return null
+    }
+
+    return parsed as NativeGitAuditRecord
+  } catch {
+    return null
+  }
+}
+
+function incrementCounter(counter: Record<string, number>, key: string | undefined): void {
+  if (!key) return
+  counter[key] = (counter[key] ?? 0) + 1
+}
+
+export function readNativeGitAuditRecords(repository: NativeGitRepository): NativeGitAuditRecord[] {
+  const auditPath = getNativeGitAuditPath(repository)
+  if (!existsSync(auditPath)) {
+    return []
+  }
+
+  return readFileSync(auditPath, "utf-8")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map(parseNativeGitAuditLine)
+    .filter((record): record is NativeGitAuditRecord => record !== null)
+}
+
+export function summarizeNativeGitAuditRecords(records: NativeGitAuditRecord[]): NativeGitAuditSummary {
+  const tools: Record<string, number> = {}
+  const agents: Record<string, number> = {}
+  const models: Record<string, number> = {}
+  const categories: Record<string, number> = {}
+  const sessions: Record<string, number> = {}
+  const files = new Set<string>()
+  let latestTimestamp: string | undefined
+  let latestSummary: string | undefined
+
+  for (const record of records) {
+    incrementCounter(tools, record.tool)
+    incrementCounter(agents, record.agent)
+    incrementCounter(models, record.model)
+    incrementCounter(categories, record.category)
+    incrementCounter(sessions, record.sessionID)
+    for (const file of record.files) {
+      files.add(file)
+    }
+
+    if (record.timestamp && (!latestTimestamp || record.timestamp > latestTimestamp)) {
+      latestTimestamp = record.timestamp
+      latestSummary = record.summary
+    }
+  }
+
+  return {
+    recordCount: records.length,
+    tools,
+    agents,
+    models,
+    categories,
+    sessions,
+    files: Array.from(files).sort(),
+    latestTimestamp,
+    latestSummary,
+  }
+}
+
+export function summarizeNativeGitAudit(repository: NativeGitRepository): NativeGitAuditSummary {
+  return summarizeNativeGitAuditRecords(readNativeGitAuditRecords(repository))
 }
 
 export function appendNativeGitAuditRecord(

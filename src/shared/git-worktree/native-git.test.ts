@@ -11,6 +11,8 @@ import {
   getNativeGitRepository,
   getNativeGitStatus,
   parseNativeGitStatusPorcelainZ,
+  readNativeGitAuditRecords,
+  summarizeNativeGitAudit,
 } from "./native-git"
 
 function git(cwd: string, args: string[]): string {
@@ -141,5 +143,49 @@ describe("native git service", () => {
     expect(existsSync(auditPath)).toBe(true)
     expect(readFileSync(auditPath, "utf-8")).toContain('"tool":"edit"')
     expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
+  test("summarizes audit records by tool, agent, model, category, session, and files", () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")
+    commitAll(directory, "init")
+
+    const repository = getNativeGitRepository(directory)
+    expect(repository).not.toBeNull()
+
+    appendNativeGitAuditRecord(repository!, {
+      tool: "edit",
+      sessionID: "ses_1",
+      callID: "call_1",
+      agent: "atlas",
+      model: "kimi-for-coding/k2p6",
+      category: "quick",
+      files: ["README.md"],
+      summary: "README.md changed",
+    })
+    appendNativeGitAuditRecord(repository!, {
+      tool: "bash",
+      sessionID: "ses_1",
+      callID: "call_2",
+      agent: "atlas",
+      model: "kimi-for-coding/k2p6",
+      category: "quick",
+      files: ["src/index.ts"],
+      summary: "src/index.ts changed",
+    })
+
+    const records = readNativeGitAuditRecords(repository!)
+    const summary = summarizeNativeGitAudit(repository!)
+
+    expect(records).toHaveLength(2)
+    expect(summary.recordCount).toBe(2)
+    expect(summary.tools.edit).toBe(1)
+    expect(summary.tools.bash).toBe(1)
+    expect(summary.agents.atlas).toBe(2)
+    expect(summary.models["kimi-for-coding/k2p6"]).toBe(2)
+    expect(summary.categories.quick).toBe(2)
+    expect(summary.sessions.ses_1).toBe(2)
+    expect(summary.files).toEqual(["README.md", "src/index.ts"])
+    expect(summary.latestSummary).toBe("src/index.ts changed")
   })
 })

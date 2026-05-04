@@ -77,7 +77,14 @@ describe("native git hook", () => {
     const hook = createNativeGitHook({ directory } as never, { mode: "tracked", audit_log: true })
     await captureToolBaseline(hook, { tool: "edit", sessionID: "ses_test", callID: "call_1" })
     writeFileSync(join(directory, "README.md"), "changed\n", "utf-8")
-    const output = { output: "updated", metadata: {} }
+    const output = {
+      output: "updated",
+      metadata: {
+        agent: "atlas",
+        model: "kimi-for-coding/k2p6",
+        category: "quick",
+      },
+    }
 
     await hook["tool.execute.after"]({ tool: "edit", sessionID: "ses_test", callID: "call_1" }, output)
 
@@ -86,6 +93,9 @@ describe("native git hook", () => {
     expect(output.output).toContain("Native Git tracking detected uncommitted changes")
     expect(output.output).toContain("README.md")
     expect(readFileSync(auditPath, "utf-8")).toContain('"tool":"edit"')
+    expect(readFileSync(auditPath, "utf-8")).toContain('"agent":"atlas"')
+    expect(readFileSync(auditPath, "utf-8")).toContain('"model":"kimi-for-coding/k2p6"')
+    expect(readFileSync(auditPath, "utf-8")).toContain('"category":"quick"')
     expect(git(directory, ["status", "--porcelain"])).toContain("README.md")
   })
 
