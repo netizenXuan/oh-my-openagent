@@ -1,9 +1,13 @@
 import type { PluginInput } from "@opencode-ai/plugin"
-import type { NativeGitConfig } from "../../config"
+import type { NativeGitConfig, RepublicConfig } from "../../config"
 import {
   appendNativeGitAuditRecord,
+  appendRepublicCommonsMessage,
+  appendRepublicLedgerRecord,
   getNativeGitChangeSummary,
   getNativeGitStatus,
+  sanitizeRepublicDeliberationID,
+  type NativeGitRepository,
 } from "../../shared/git-worktree"
 import { log } from "../../shared/logger"
 import { getSessionAgent } from "../../features/claude-code-session-state"
@@ -76,6 +80,69 @@ Native Git tracking detected uncommitted changes.
 
 ${summary.trim()}
 </system-reminder>`
+}
+
+function normalizePath(filePath: string): string {
+  return filePath.replace(/\\/g, "/").replace(/^\.\//, "")
+}
+
+function getFileModule(filePath: string): string {
+  const normalized = normalizePath(filePath)
+  const parts = normalized.split("/").filter(Boolean)
+  if (parts.length === 0) {
+    return "workspace"
+  }
+
+  if (parts[0] === ".sisyphus") {
+    return parts[1] ? `.sisyphus/${parts[1]}` : ".sisyphus"
+  }
+
+  if (parts[0] === ".github") {
+    return parts[1] ? `.github/${parts[1]}` : ".github"
+  }
+
+  if (parts[0] === "src" && parts[1] && parts.length > 2) {
+    return `src/${parts[1]}`
+  }
+
+  if (parts[0] === "docs" && parts[1] && parts.length > 2) {
+    return `docs/${parts[1]}`
+  }
+
+  return parts[0] ?? "workspace"
+}
+
+function getModules(files: string[]): string[] {
+  return Array.from(new Set(files.map(getFileModule))).sort()
+}
+
+function getPrimaryModule(files: string[]): string {
+  return getModules(files)[0] ?? "workspace"
+}
+
+function getWorkgroupID(moduleName: string): string {
+  return `wg-${sanitizeRepublicDeliberationID(moduleName).toLowerCase()}`
+}
+
+function getDeliberationID(input: NativeGitToolInput): string {
+  return sanitizeRepublicDeliberationID(`session-${input.sessionID ?? "unknown"}`)
+}
+
+function getSeatID(input: NativeGitToolInput): string {
+  return sanitizeRepublicDeliberationID(`${input.agent ?? "agent"}-executor`)
+}
+
+function getTaskID(input: NativeGitToolInput, moduleName: string): string {
+  const callFragment = input.callID ? input.callID.slice(0, 12) : "tool"
+  return sanitizeRepublicDeliberationID(`${input.agent ?? "agent"}-${input.tool}-${moduleName}-${callFragment}`)
+}
+
+function isRepublicLedgerEnabled(config: RepublicConfig | undefined): boolean {
+  return (config?.enabled ?? true) && (config?.ledger ?? true) && (config?.mode ?? "advisory") !== "manual"
+}
+
+function isRepublicAutoCommonsEnabled(config: RepublicConfig | undefined): boolean {
+  return isRepublicLedgerEnabled(config) && (config?.commons?.auto_publish ?? true)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -204,7 +271,11 @@ function mergeToolOutputMetadata(
   }
 }
 
-export function createNativeGitHook(ctx: PluginInput, config: NativeGitConfig | undefined) {
+export function createNativeGitHook(
+  ctx: PluginInput,
+  config: NativeGitConfig | undefined,
+  republicConfig?: RepublicConfig,
+) {
   const mode = config?.mode ?? "tracked"
   const auditLog = config?.audit_log ?? true
   const lastStatusBySessionRepo = new Map<string, string>()
@@ -213,6 +284,7 @@ export function createNativeGitHook(ctx: PluginInput, config: NativeGitConfig | 
   const baselineByCall = new Map<string, NativeGitCallBaseline>()
   const changedResultByCall = new Map<string, NativeGitTrackResult>()
   const auditedCallKeys = new Set<string>()
+  const republicPublishedCallKeys = new Set<string>()
   const outputReminderCallKeys = new Set<string>()
   const taskReminderCallKeys = new Set<string>()
   const initialStatusByRepo = new Map<string, string>()
@@ -231,7 +303,7 @@ export function createNativeGitHook(ctx: PluginInput, config: NativeGitConfig | 
     deleteSessionMapEntries(baselineByCall, sessionID)
     deleteSessionMapEntries(changedResultByCall, sessionID)
 
-    for (const set of [auditedCallKeys, outputReminderCallKeys, taskReminderCallKeys]) {
+    for (const set of [auditedCallKeys, republicPublishedCallKeys, outputReminderCallKeys, taskReminderCallKeys]) {
       for (const key of set) {
         if (key.startsWith(`${sessionID}:`)) {
           set.delete(key)
@@ -324,6 +396,69 @@ export function createNativeGitHook(ctx: PluginInput, config: NativeGitConfig | 
     }
   }
 
+  function publishRepublicChange(
+    repository: NativeGitRepository,
+    input: NativeGitToolInput,
+    files: string[],
+    summary: string,
+  ): void {
+    if (!isRepublicAutoCommonsEnabled(republicConfig)) {
+      return
+    }
+
+    const callKey = getCallKey(input)
+    if (callKey && republicPublishedCallKeys.has(callKey)) {
+      return
+    }
+
+    const moduleName = getPrimaryModule(files)
+    const workgroupID = getWorkgroupID(moduleName)
+    const deliberationID = getDeliberationID(input)
+    const seatID = getSeatID(input)
+    const taskID = getTaskID(input, moduleName)
+
+    appendRepublicCommonsMessage(repository, {
+      deliberationID,
+      channel: "native-git",
+      phase: "execution",
+      authorSeatID: seatID,
+      authorAgent: input.agent,
+      authorRole: input.category ?? "executor",
+      workgroupID,
+      module: moduleName,
+      taskID,
+      status: "changed",
+      messageType: "status",
+      files,
+      content: [
+        `Native Git recorded ${files.length} changed file${files.length === 1 ? "" : "s"} from ${input.tool}.`,
+        summary.trim(),
+      ].join("\n\n"),
+    })
+
+    appendRepublicLedgerRecord(repository, {
+      deliberationID,
+      phase: "execution",
+      chamber: "commons",
+      seatID,
+      role: input.category ?? "executor",
+      agent: input.agent,
+      model: input.model,
+      sessionID: input.sessionID,
+      callID: input.callID,
+      workgroupID,
+      module: moduleName,
+      taskID,
+      status: "changed",
+      files,
+      summary,
+    })
+
+    if (callKey) {
+      republicPublishedCallKeys.add(callKey)
+    }
+  }
+
   function trackNativeGitChanges(input: NativeGitToolInput): NativeGitTrackResult {
     input = enrichToolInput(input)
     const tool = input.tool.toLowerCase()
@@ -388,6 +523,8 @@ export function createNativeGitHook(ctx: PluginInput, config: NativeGitConfig | 
           auditedCallKeys.add(callKey)
         }
       }
+
+      publishRepublicChange(status.repository, input, status.files, summary)
 
       log("[native-git] tracked uncommitted changes", {
         tool,

@@ -5,7 +5,12 @@ import { execFileSync } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { getNativeGitAuditPath, getNativeGitRepository } from "../../shared/git-worktree"
+import {
+  getNativeGitAuditPath,
+  getNativeGitRepository,
+  readRepublicCommonsMessages,
+  readRepublicLedgerRecords,
+} from "../../shared/git-worktree"
 import { createNativeGitHook, NATIVE_GIT_TASK_REMINDER } from "./hook"
 
 function git(cwd: string, args: string[]): string {
@@ -97,6 +102,44 @@ describe("native git hook", () => {
     expect(readFileSync(auditPath, "utf-8")).toContain('"model":"kimi-for-coding/k2p6"')
     expect(readFileSync(auditPath, "utf-8")).toContain('"category":"quick"')
     expect(git(directory, ["status", "--porcelain"])).toContain("README.md")
+  })
+
+  test("tracked mode publishes native git changes to republic commons", async () => {
+    const hook = createNativeGitHook(
+      { directory } as never,
+      { mode: "tracked", audit_log: true },
+      { enabled: true, mode: "advisory", ledger: true, commons: { auto_publish: true } } as never,
+    )
+    await captureToolBaseline(hook, { tool: "write", sessionID: "ses_republic", callID: "call_republic" })
+    mkdirSync(join(directory, "src"))
+    writeFileSync(join(directory, "src", "feature.ts"), "export const feature = true\n", "utf-8")
+
+    await hook["tool.execute.after"](
+      { tool: "write", sessionID: "ses_republic", callID: "call_republic" },
+      {
+        output: "created",
+        metadata: {
+          agent: "sisyphus",
+          model: "kimi-for-coding/k2p6",
+          category: "quick",
+        },
+      },
+    )
+
+    const repository = getNativeGitRepository(directory)
+    const commons = readRepublicCommonsMessages(repository!, "session-ses_republic")
+    const ledger = readRepublicLedgerRecords(repository!, "session-ses_republic")
+
+    expect(commons).toHaveLength(1)
+    expect(commons[0]?.messageType).toBe("status")
+    expect(commons[0]?.authorAgent).toBe("sisyphus")
+    expect(commons[0]?.workgroupID).toBe("wg-src")
+    expect(commons[0]?.files).toEqual(["src/feature.ts"])
+    expect(ledger).toHaveLength(1)
+    expect(ledger[0]?.agent).toBe("sisyphus")
+    expect(ledger[0]?.model).toBe("kimi-for-coding/k2p6")
+    expect(git(directory, ["status", "--porcelain"])).toContain("src/")
+    expect(git(directory, ["status", "--porcelain"])).not.toContain(".git/omo/republic")
   })
 
   test("tracked mode attributes changes from chat session context when tool metadata is missing", async () => {

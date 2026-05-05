@@ -57,7 +57,17 @@ export interface RepublicCommonsMessage {
   dependsOn?: string[]
   supervisorSeatID?: string
   status?: string
-  messageType: "proposal" | "question" | "answer" | "objection" | "revision" | "consensus" | "note"
+  messageType:
+    | "proposal"
+    | "question"
+    | "answer"
+    | "objection"
+    | "revision"
+    | "consensus"
+    | "note"
+    | "status"
+    | "intervention"
+    | "dependency-blocked"
   references?: string[]
   files?: string[]
   confidence?: number

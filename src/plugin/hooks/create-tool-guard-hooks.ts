@@ -108,7 +108,7 @@ export function createToolGuardHooks(args: {
     : null
 
   const nativeGit = isHookEnabled("native-git")
-    ? safeHook("native-git", () => createNativeGitHook(ctx, pluginConfig.git))
+    ? safeHook("native-git", () => createNativeGitHook(ctx, pluginConfig.git, pluginConfig.republic))
     : null
 
   const writeExistingFileGuard = isHookEnabled("write-existing-file-guard")

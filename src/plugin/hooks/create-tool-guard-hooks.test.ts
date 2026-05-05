@@ -16,10 +16,12 @@ const mockModelCacheState = {
 describe("createToolGuardHooks", () => {
   let capturedOptions: { skipClaudeUserRules?: boolean } | undefined
   let capturedNativeGitConfig: unknown
+  let capturedRepublicConfig: unknown
 
   beforeEach(() => {
     capturedOptions = undefined
     capturedNativeGitConfig = undefined
+    capturedRepublicConfig = undefined
     spyOn(hooks, "createRulesInjectorHook").mockImplementation(
       (_ctx: unknown, _state: unknown, options?: { skipClaudeUserRules?: boolean }) => {
         capturedOptions = options
@@ -27,8 +29,9 @@ describe("createToolGuardHooks", () => {
       },
     )
     spyOn(hooks, "createNativeGitHook").mockImplementation(
-      (_ctx: unknown, config: unknown) => {
+      (_ctx: unknown, config: unknown, republicConfig: unknown) => {
         capturedNativeGitConfig = config
+        capturedRepublicConfig = republicConfig
         return { name: "native-git" } as never
       },
     )
@@ -67,6 +70,11 @@ describe("createToolGuardHooks", () => {
         mode: "tracked",
         audit_log: true,
       },
+      republic: {
+        enabled: true,
+        mode: "advisory",
+        ledger: true,
+      },
     } as OhMyOpenCodeConfig
     const { createToolGuardHooks } = require("./create-tool-guard-hooks")
 
@@ -82,5 +90,6 @@ describe("createToolGuardHooks", () => {
     // then
     expect(result.nativeGit).toEqual({ name: "native-git" })
     expect(capturedNativeGitConfig).toEqual(pluginConfig.git)
+    expect(capturedRepublicConfig).toEqual(pluginConfig.republic)
   })
 })
