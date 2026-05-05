@@ -5,11 +5,17 @@ import {
   readNativeGitAuditRecords,
   readRepublicCommonsMessages,
   readRepublicLedgerRecords,
+  readRepublicSeatState,
+  readRepublicTeamManifest,
+  readRepublicTeamPhase,
   sanitizeRepublicDeliberationID,
   type NativeGitAuditRecord,
   type NativeGitRepository,
   type RepublicCommonsMessage,
   type RepublicLedgerRecord,
+  type RepublicSeatState,
+  type RepublicTeamManifest,
+  type RepublicTeamPhaseState,
 } from "../../shared/git-worktree"
 import { buildRepublicStatusReport, type RepublicStatusReport } from "./status"
 
@@ -29,6 +35,7 @@ export interface RepublicDashboardNode {
   type:
     | "repository"
     | "deliberation"
+    | "phase"
     | "chamber"
     | "workgroup"
     | "seat"
@@ -56,6 +63,9 @@ export interface RepublicDashboardData {
   repository: NativeGitRepository | null
   deliberationID?: string
   report: RepublicStatusReport
+  teamManifest: RepublicTeamManifest | null
+  teamPhase: RepublicTeamPhaseState | null
+  seatStates: RepublicSeatState[]
   ledgerRecords: RepublicLedgerRecord[]
   commonsMessages: RepublicCommonsMessage[]
   nativeGitRecords: NativeGitAuditRecord[]
@@ -257,6 +267,13 @@ export function buildRepublicDashboardData(options: RepublicDashboardOptions = {
   const ledgerRecords = repository ? readRepublicLedgerRecords(repository, options.deliberationId) : []
   const commonsMessages = repository ? readRepublicCommonsMessages(repository, options.deliberationId) : []
   const nativeGitRecords = repository ? readNativeGitAuditRecords(repository) : []
+  const teamManifest = repository ? readRepublicTeamManifest(repository) : null
+  const teamPhase = repository ? readRepublicTeamPhase(repository) : null
+  const seatStates = repository && teamManifest
+    ? teamManifest.seats
+      .map((seat) => readRepublicSeatState(repository, seat.seatID))
+      .filter((state): state is RepublicSeatState => state !== null)
+    : []
   const nodes = new Map<string, RepublicDashboardNode>()
   const edges = new Map<string, RepublicDashboardEdge>()
 
@@ -299,6 +316,93 @@ export function buildRepublicDashboardData(options: RepublicDashboardOptions = {
         type: "deliberates",
         label: "deliberates",
       })
+    }
+
+    if (teamManifest) {
+      const phaseID = teamPhase ? `phase:${teamPhase.phase}` : "phase:uninitialized"
+      addNode(nodes, {
+        id: phaseID,
+        label: teamPhase?.phase ?? "team",
+        type: "phase",
+        status: teamPhase?.status,
+        detail: teamPhase
+          ? `Team phase ${teamPhase.phase}/${teamPhase.status}`
+          : `Team model ${teamManifest.teamModel}`,
+      })
+      addEdge(edges, {
+        id: `repository-team-phase:${phaseID}`,
+        source: "repository",
+        target: phaseID,
+        type: "team-phase",
+        label: "team phase",
+      })
+
+      for (const seat of teamManifest.seats) {
+        const state = seatStates.find((candidate) => candidate.seatID === seat.seatID)
+        const seatID = `seat:${seat.seatID}`
+        addNode(nodes, {
+          id: seatID,
+          label: seat.seatID,
+          type: "seat",
+          status: state?.status,
+          detail: [
+            seat.role,
+            state?.status ? `status=${state.status}` : undefined,
+            seat.reason,
+          ].filter(Boolean).join(" | "),
+        })
+        addEdge(edges, {
+          id: `team-phase-seat:${phaseID}:${seatID}`,
+          source: phaseID,
+          target: seatID,
+          type: "team-seat",
+          label: "seat",
+        })
+        const workgroupID = addWorkgroupNode(nodes, edges, phaseID, seat.workgroupID)
+        if (workgroupID) {
+          addEdge(edges, {
+            id: `team-workgroup-seat:${workgroupID}:${seatID}`,
+            source: workgroupID,
+            target: seatID,
+            type: "assigns",
+            label: "assigns",
+          })
+        }
+        const taskNodeID = addTaskNode(nodes, edges, seatID, state?.taskID ?? seat.taskID, state?.status, state?.waitingOn)
+        if (seat.module) {
+          const moduleID = `module:${seat.module}`
+          addNode(nodes, {
+            id: moduleID,
+            label: seat.module,
+            type: "module",
+            detail: `Team module ${seat.module}`,
+          })
+          addEdge(edges, {
+            id: `team-seat-module:${seatID}:${moduleID}`,
+            source: seatID,
+            target: moduleID,
+            type: "owns-module",
+            label: "owns module",
+          })
+        }
+        if (seat.runtimeAgent) {
+          const agentID = `agent:${seat.runtimeAgent}`
+          addNode(nodes, {
+            id: agentID,
+            label: seat.runtimeAgent,
+            type: "agent",
+            detail: seat.conceptualAgent,
+          })
+          addEdge(edges, {
+            id: `team-agent-seat:${agentID}:${seatID}`,
+            source: agentID,
+            target: seatID,
+            type: "runs",
+            label: "runs",
+          })
+        }
+        addSupervisorEdge(nodes, edges, taskNodeID ?? seatID, seat.role.includes("supervisor") ? undefined : "republic-supervisor")
+      }
     }
 
     for (const record of ledgerRecords) {
@@ -537,6 +641,9 @@ export function buildRepublicDashboardData(options: RepublicDashboardOptions = {
     repository,
     deliberationID: options.deliberationId,
     report,
+    teamManifest,
+    teamPhase,
+    seatStates,
     ledgerRecords,
     commonsMessages,
     nativeGitRecords,
@@ -590,6 +697,7 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
     .node .sub { fill:var(--muted); font-size:10px; }
     .repository rect { fill:#10233d; }
     .deliberation rect { fill:#152d25; }
+    .phase rect { fill:#1f2f3d; }
     .chamber rect { fill:#292b15; }
     .workgroup rect { fill:#123326; }
     .seat rect { fill:#271f3a; }
@@ -630,7 +738,7 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
     </aside>
   </main>
   <script>
-    const typeOrder = ["repository","deliberation","chamber","workgroup","seat","agent","task","message","module","file","tool","decision"];
+    const typeOrder = ["repository","deliberation","phase","chamber","workgroup","seat","agent","task","message","module","file","tool","decision"];
     const colors = { approved:"status-approved", blocked:"status-blocked", "needs-quorum":"status-needs-quorum", revise:"status-revise" };
     ${liveLoader}
 
@@ -728,6 +836,9 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       document.getElementById("refresh-pill").textContent = "Updated " + new Date(data.generatedAt).toLocaleTimeString();
       document.getElementById("metrics").innerHTML = [
         metric("Decision", '<span class="' + (colors[decision.status] ?? "") + '">' + safe(decision.status) + '</span>'),
+        metric("Team model", safe(data.teamManifest?.teamModel ?? "none")),
+        metric("Team phase", safe(data.teamPhase ? data.teamPhase.phase + "/" + data.teamPhase.status : "none")),
+        metric("Team seats", data.teamManifest?.seats.length ?? 0),
         metric("Ledger records", data.report.republic.recordCount),
         metric("Commons messages", data.report.commons.messageCount),
         metric("Native git records", data.report.nativeGit.recordCount),

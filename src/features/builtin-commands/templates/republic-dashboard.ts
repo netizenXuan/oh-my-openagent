@@ -28,8 +28,8 @@ export const REPUBLIC_DASHBOARD_TEMPLATE = `You are helping the user inspect the
 
 Explain that the graph shows:
 
-- repository, deliberation, chamber, workgroup, seat, agent, task, message, module, file, tool, and decision nodes
-- assignment, supervision, dependency, publication, targeting, references, discussed files, and code-change edges
+- repository, deliberation, team phase, chamber, workgroup, seat, agent, task, message, module, file, tool, and decision nodes
+- assignment, team phase, supervision, dependency, publication, targeting, references, discussed files, and code-change edges
 - a Commons timeline for cross-seat communication
 
 If no Republic records exist, suggest running \`/deliberate <problem-or-plan>\` first.`

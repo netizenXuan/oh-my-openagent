@@ -10,6 +10,7 @@ import {
   appendRepublicCommonsMessage,
   appendRepublicLedgerRecord,
   getNativeGitRepository,
+  initializeRepublicTeam,
 } from "../../shared/git-worktree"
 import {
   buildRepublicDashboardData,
@@ -117,11 +118,48 @@ describe("republic dashboard", () => {
       files: ["src/api/routes.ts"],
       summary: "API route file changed",
     })
+    initializeRepublicTeam(repository!, {
+      manifest: {
+        teamModel: "parliament_squad",
+        seatAllocation: "auto",
+        maxParallelSeats: 4,
+        defaultRuntimeAgent: "general",
+        seats: [
+          {
+            seatID: "api-planner-seat",
+            role: "planner",
+            phase: "planning",
+            workgroupID: "api-workgroup",
+            module: "api",
+            runtimeAgent: "general",
+            reason: "API files were part of the goal.",
+          },
+          {
+            seatID: "republic-supervisor",
+            role: "supervisor",
+            phase: "planning",
+            runtimeAgent: "hephaestus",
+          },
+        ],
+      },
+      phase: {
+        phase: "planning",
+        status: "in-progress",
+        deliberationID: "large-project",
+        activeRound: 1,
+        lockedContracts: ["api-workgroup"],
+      },
+    })
 
     const data = buildRepublicDashboardData({ directory, deliberationId: "large project" })
 
     expect(data.repository?.repoRoot).toBe(directory.replace(/\\/g, "/"))
+    expect(data.teamManifest?.teamModel).toBe("parliament_squad")
+    expect(data.teamPhase?.phase).toBe("planning")
+    expect(data.seatStates.some((state) => state.seatID === "api-planner-seat")).toBe(true)
     expect(data.report.commons.messageCount).toBe(2)
+    expect(data.nodes.some((node) => node.id === "phase:planning")).toBe(true)
+    expect(data.edges.some((edge) => edge.type === "team-seat")).toBe(true)
     expect(data.nodes.some((node) => node.id === "seat:planner-house-1")).toBe(true)
     expect(data.nodes.some((node) => node.id === "agent:prometheus")).toBe(true)
     expect(data.nodes.some((node) => node.id === "workgroup:api-workgroup")).toBe(true)
