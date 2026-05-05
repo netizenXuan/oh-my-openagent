@@ -629,6 +629,15 @@ Configure the deliberative multi-agent workflow and ledger:
     },
     "contracts": {
       "enabled": true
+    },
+    "scheduler": {
+      "enabled": true,
+      "auto_dispatch": true,
+      "message_types": ["question", "handoff", "objection"],
+      "default_agent": "sisyphus",
+      "supervisor_agent": "hephaestus",
+      "seat_agents": {},
+      "prompt_max_messages": 8
     }
   }
 }
@@ -658,10 +667,17 @@ Configure the deliberative multi-agent workflow and ledger:
 | `dependency_gate.mode`                   | `"advisory"` | `"advisory"` warns and records; `"block"` blocks only when `republic.mode` is `"governed"` |
 | `dependency_gate.cross_module_threshold` | `2`          | Number of inferred modules that triggers the dependency gate                 |
 | `contracts.enabled`                      | `true`       | Enable workgroup contract storage under `.git/omo/republic/contracts/`      |
+| `scheduler.enabled`                      | `true`       | Enable active dispatch for targeted Commons messages                         |
+| `scheduler.auto_dispatch`                | `true`       | Launch a background response seat when a targeted dispatchable message is published |
+| `scheduler.message_types`                | see example  | Message types that trigger dispatch: `question`, `handoff`, `objection`     |
+| `scheduler.default_agent`                | `"sisyphus"` | OMO agent used when a target seat has no explicit mapping                    |
+| `scheduler.supervisor_agent`             | `"hephaestus"` | OMO agent used for supervisor-targeted dispatch                            |
+| `scheduler.seat_agents`                  | `{}`         | Map conceptual seat IDs such as `api-seat` to concrete OMO agents           |
+| `scheduler.prompt_max_messages`          | `8`          | Context budget hint included in dispatched response prompts                  |
 
 Deliberation ledgers live under the Git common dir at `.git/omo/republic/ledger.jsonl`. Agent-to-agent Commons messages live beside them at `.git/omo/republic/commons.jsonl`, so parallel seats can publish proposals, questions, objections, answers, revisions, handoffs, status updates, dependency-gate events, and supervisor interventions without dirtying the worktree. Per-seat working docs live at `.git/omo/republic/agents/<seat-id>.md`; workgroup contracts live at `.git/omo/republic/contracts/<workgroup-id>.md`. Tool-caused dirty Git changes are audited separately at `.git/omo/native-git/audit.jsonl`. Use `/republic-status` or `oh-my-opencode republic status` to combine these views.
 
-The interactive Republic tools are `republic_publish`, `republic_inbox`, and `republic_contract`. They are available to agents as normal tools and store their records under the Git common dir.
+The interactive Republic tools are `republic_publish`, `republic_inbox`, and `republic_contract`. They are available to agents as normal tools and store their records under the Git common dir. When the scheduler is enabled, targeted `question`, `handoff`, and `objection` messages also create background response sessions for the target seat and write `channel: "scheduler"` dispatch records.
 
 ### Git Master
 

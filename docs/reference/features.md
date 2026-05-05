@@ -562,7 +562,7 @@ Interactive Republic collaboration is available through three tools:
 - `republic_inbox`: read targeted, referenced, workgroup, module, dependency-gate, and supervisor messages for a seat.
 - `republic_contract`: record shared API, schema, test, or handoff contracts before adjacent modules implement against each other.
 
-When enabled, the native-git hook injects relevant inbox messages into the next chat turn as `<republic-commons-inbox>`. The supervisor policy loop also records `supervisor-policy` messages on idle when questions or governance warnings remain unresolved.
+When enabled, targeted `question`, `handoff`, and `objection` messages published with `republic_publish` are actively dispatched to a background response seat. The scheduler records that dispatch in Commons and the ledger, then the background seat can answer, revise, object, hand off, or write a contract through the same Republic tools. The native-git hook injects relevant inbox messages into the next chat turn as `<republic-commons-inbox>`. The supervisor policy loop records `supervisor-policy` messages on idle when questions, objections, or governance warnings remain unresolved.
 
 ### /start-work
 
@@ -643,7 +643,7 @@ Load custom commands from:
 
 | Tool                  | Description                                                                                                      |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| **republic_publish**  | Publish a Git-native Commons message: question, answer, objection, proposal, revision, handoff, consensus, or note. |
+| **republic_publish**  | Publish a Git-native Commons message: question, answer, objection, proposal, revision, handoff, consensus, or note. Targeted questions, handoffs, and objections can dispatch background response seats. |
 | **republic_inbox**    | Read relevant Commons messages for a seat, optionally including that seat's Markdown working doc.                 |
 | **republic_contract** | Write or revise a workgroup contract for shared API shape, data schemas, test boundaries, and handoffs.          |
 

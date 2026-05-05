@@ -73,7 +73,7 @@ The expected deliberation rhythm is:
 
 ## Interactive Commons
 
-OMO Republic now supports asynchronous agent-to-agent collaboration through three built-in tools:
+OMO Republic now supports agent-to-agent collaboration through three built-in tools:
 
 - `republic_publish`: publish a `question`, `answer`, `objection`, `proposal`, `revision`, `handoff`, `consensus`, or `note`.
 - `republic_inbox`: read messages relevant to the current or named seat, optionally including the seat Markdown doc.
@@ -82,12 +82,13 @@ OMO Republic now supports asynchronous agent-to-agent collaboration through thre
 This supports the intended workflow:
 
 1. `api-seat` is unsure about an interface and publishes a targeted `question` to `docs-seat`.
-2. `docs-seat` reads `republic_inbox`, replies with `answer`, and references the original message ID.
-3. The supervisor policy loop sees unresolved questions or governance warnings on idle and publishes a `supervisor-policy` message.
-4. On the next agent turn, relevant inbox messages are injected into the prompt inside `<republic-commons-inbox>`.
-5. The affected seats answer, revise, hand off, or write a `republic_contract`.
+2. The Republic scheduler immediately launches a background seat session for `docs-seat` when `scheduler.auto_dispatch` is enabled.
+3. `docs-seat` reads `republic_inbox`, replies with `answer`, and references the original message ID.
+4. If a seat publishes an `objection`, that objection can dispatch another target seat and the supervisor policy loop treats unresolved objections as governance items.
+5. On the next agent turn, relevant inbox messages are injected into the prompt inside `<republic-commons-inbox>`.
+6. The affected seats answer, revise, hand off, or write a `republic_contract`.
 
-This is not a live mid-token chat bus. It is a Git-native asynchronous coordination layer: agents communicate by durable Commons records, and OMO injects relevant messages before the next turn.
+This is still not a live mid-token chat bus. It is now an active Git-native scheduler: targeted Commons messages create background response sessions, all coordination is stored under `.git/omo/republic`, and OMO injects relevant messages before the next turn.
 
 ## Workgroup Contracts
 
@@ -108,7 +109,8 @@ Republic execution has three live governance hooks:
 - **Automatic Commons publication**: native-git changes are published to Commons with agent, model, session, call, files, module, workgroup, and task metadata.
 - **Supervisor intervention**: high-risk file paths, large change sets, role-boundary crossings, or edits outside explicit user-mentioned paths create `messageType: "intervention"` records from `republic-supervisor` and append a visible system reminder to the tool output.
 - **Workgroup dependency gate**: before explicit multi-file tools run, OMO infers touched modules. If a call crosses the configured module threshold, advisory mode records a `dependency-blocked` preflight message and warns; governed block mode records the same message and blocks the tool call.
-- **Supervisor policy loop**: on idle, OMO scans Commons for unresolved questions, dependency blocks, and supervisor interventions, then records a `supervisor-policy` message that tells affected seats to read inbox and respond before continuing.
+- **Active Republic scheduler**: targeted `question`, `handoff`, and `objection` messages launch background response sessions for the target seat. Dispatch records are written back to Commons and ledger with `channel: "scheduler"`.
+- **Supervisor policy loop**: on idle, OMO scans Commons for unresolved questions, unresolved objections, dependency blocks, and supervisor interventions, then records a `supervisor-policy` message that tells affected seats to read inbox and respond before continuing.
 - **Agent prompt injection**: before a new chat turn, OMO reads the current seat's relevant Commons inbox and injects a compact `<republic-commons-inbox>` block into context.
 
 These hooks still do not auto-commit, auto-stash, or create worktrees. Git history remains under user or `git-master` control.
@@ -262,6 +264,18 @@ The smoke run exposed one real integration bug: Republic tools initially used on
     },
     "contracts": {
       "enabled": true
+    },
+    "scheduler": {
+      "enabled": true,
+      "auto_dispatch": true,
+      "message_types": ["question", "handoff", "objection"],
+      "default_agent": "sisyphus",
+      "supervisor_agent": "hephaestus",
+      "seat_agents": {
+        "api-seat": "atlas",
+        "docs-seat": "hephaestus"
+      },
+      "prompt_max_messages": 8
     }
   }
 }
@@ -272,6 +286,8 @@ Modes:
 - `manual`: Republic governance is off.
 - `advisory`: default; record Commons/ledger events and show warnings, but do not block writes.
 - `governed`: enables stronger gates. The first implemented hard gate is `dependency_gate.mode: "block"` for cross-workgroup explicit write tools.
+
+`scheduler.seat_agents` maps conceptual seats to concrete OMO agents. If no mapping exists, OMO infers common agent names from the target seat ID, uses `scheduler.supervisor_agent` for supervisor seats, and falls back to `scheduler.default_agent`.
 
 Per-seat worktrees, automatic merge orchestration, and true live agent-to-agent streaming remain future work.
 
