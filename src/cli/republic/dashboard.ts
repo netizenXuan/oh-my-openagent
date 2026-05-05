@@ -674,44 +674,58 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>OMO Republic Dashboard</title>
   <style>
-    :root { color-scheme: dark; --bg:#0d1117; --panel:#151b23; --line:#30363d; --text:#e6edf3; --muted:#8b949e; --accent:#2f81f7; --green:#3fb950; --red:#f85149; --yellow:#d29922; }
+    :root { color-scheme: dark; --bg:#0d1117; --panel:#151b23; --panel2:#0f141b; --line:#30363d; --text:#e6edf3; --muted:#8b949e; --accent:#2f81f7; --green:#3fb950; --red:#f85149; --yellow:#d29922; --purple:#a371f7; --cyan:#39c5cf; }
     * { box-sizing: border-box; }
     body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; }
     header { height:56px; display:flex; align-items:center; justify-content:space-between; padding:0 20px; border-bottom:1px solid var(--line); background:#010409; }
-    main { display:grid; grid-template-columns: 320px 1fr 360px; height:calc(100vh - 56px); min-height:680px; }
+    main { display:grid; grid-template-columns: 300px 1fr 420px; height:calc(100vh - 56px); min-height:700px; }
     aside { border-right:1px solid var(--line); background:var(--panel); overflow:auto; }
     section { overflow:auto; }
     .right { border-left:1px solid var(--line); border-right:0; }
     .pad { padding:18px; }
     h1 { margin:0; font-size:17px; letter-spacing:0; }
     h2 { margin:0 0 12px; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:0; }
+    h3 { margin:0 0 10px; font-size:14px; }
     .metric { display:flex; justify-content:space-between; gap:16px; padding:9px 0; border-bottom:1px solid rgba(48,54,61,.7); }
     .metric span:first-child { color:var(--muted); }
     .pill { display:inline-flex; align-items:center; border:1px solid var(--line); border-radius:999px; padding:3px 9px; color:var(--muted); font-size:12px; }
-    .graph-wrap { height:100%; min-height:680px; padding:16px; }
-    svg { width:100%; height:100%; min-height:640px; background:#0d1117; border:1px solid var(--line); border-radius:8px; }
-    .edge { stroke:#546170; stroke-width:1.2; opacity:.75; }
-    .edge-label { fill:var(--muted); font-size:10px; }
-    .node rect { rx:7; ry:7; stroke:var(--line); stroke-width:1.1; }
-    .node text { fill:var(--text); font-size:12px; pointer-events:none; }
-    .node .sub { fill:var(--muted); font-size:10px; }
-    .repository rect { fill:#10233d; }
-    .deliberation rect { fill:#152d25; }
-    .phase rect { fill:#1f2f3d; }
-    .chamber rect { fill:#292b15; }
-    .workgroup rect { fill:#123326; }
-    .seat rect { fill:#271f3a; }
-    .agent rect { fill:#1f2937; }
-    .message rect { fill:#2b1d22; }
-    .module rect { fill:#132f32; }
-    .file rect { fill:#172033; }
-    .tool rect { fill:#2b2416; }
-    .task rect { fill:#302614; }
-    .decision rect { fill:#281b30; }
-    .timeline { display:flex; flex-direction:column; gap:10px; }
+    .board-wrap { height:100%; min-height:700px; padding:16px; overflow:auto; }
+    .board { min-width:880px; display:flex; flex-direction:column; gap:14px; }
+    .phase-strip { display:grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap:12px; }
+    .phase-card { border:1px solid var(--line); border-radius:8px; padding:12px; background:var(--panel2); min-height:88px; }
+    .phase-card.active { border-color:var(--accent); box-shadow:0 0 0 1px rgba(47,129,247,.25) inset; }
+    .phase-title { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
+    .phase-title strong { font-size:13px; text-transform:uppercase; }
+    .phase-title span { color:var(--muted); font-size:12px; }
+    .workgroup-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:14px; }
+    .workgroup-card { border:1px solid var(--line); border-radius:8px; background:var(--panel2); overflow:hidden; }
+    .workgroup-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px; border-bottom:1px solid var(--line); background:#111822; }
+    .workgroup-head strong { font-size:14px; }
+    .seat-list { display:flex; flex-direction:column; gap:8px; padding:12px; }
+    .seat-card { width:100%; text-align:left; border:1px solid var(--line); border-radius:8px; padding:10px; background:#0d1117; color:var(--text); cursor:pointer; transition:border-color .12s ease, background .12s ease; }
+    .seat-card:hover, .seat-card.selected { border-color:var(--accent); background:#101a28; }
+    .seat-top { display:flex; justify-content:space-between; gap:10px; align-items:center; margin-bottom:5px; }
+    .seat-name { font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .seat-meta { color:var(--muted); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .status { display:inline-flex; border-radius:999px; padding:2px 8px; font-size:11px; border:1px solid var(--line); color:var(--muted); }
+    .status-running { color:var(--cyan); border-color:rgba(57,197,207,.45); }
+    .status-waiting { color:var(--yellow); border-color:rgba(210,153,34,.45); }
+    .status-blocked, .status-error { color:var(--red); border-color:rgba(248,81,73,.45); }
+    .status-done { color:var(--green); border-color:rgba(63,185,80,.45); }
+    .status-standby { color:var(--muted); }
+    .supervisor-zone { border:1px solid rgba(163,113,247,.45); border-radius:8px; padding:12px; background:#151222; }
+    .supervisor-zone .seat-card { border-color:rgba(163,113,247,.35); }
+    .timeline, .inspector-list { display:flex; flex-direction:column; gap:10px; }
     .item { border:1px solid var(--line); border-radius:8px; padding:10px; background:#0d1117; }
     .item strong { display:block; margin-bottom:4px; }
     .item p { margin:0; color:var(--muted); }
+    .item small { color:var(--muted); }
+    .inspector { display:flex; flex-direction:column; gap:16px; }
+    .inspector-title { border:1px solid var(--line); border-radius:8px; padding:12px; background:#0d1117; }
+    .inspector-title strong { display:block; font-size:16px; margin-bottom:4px; }
+    .progress { height:8px; border-radius:999px; overflow:hidden; background:#1f2937; }
+    .progress div { height:100%; background:var(--green); width:0; }
+    .empty { border:1px dashed var(--line); border-radius:8px; padding:14px; color:var(--muted); background:#0d1117; }
     .muted { color:var(--muted); }
     .status-approved { color:var(--green); }
     .status-blocked { color:var(--red); }
@@ -729,17 +743,18 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       <h2>Execution State</h2>
       <div id="metrics"></div>
     </aside>
-    <section class="graph-wrap">
-      <svg id="graph" role="img" aria-label="OMO Republic agent collaboration graph"></svg>
+    <section class="board-wrap">
+      <div id="team-board" class="board" aria-label="OMO Republic team board"></div>
     </section>
     <aside class="pad right">
-      <h2>Commons Timeline</h2>
-      <div id="timeline" class="timeline"></div>
+      <div id="seat-inspector" class="inspector"></div>
     </aside>
   </main>
   <script>
     const typeOrder = ["repository","deliberation","phase","chamber","workgroup","seat","agent","task","message","module","file","tool","decision"];
     const colors = { approved:"status-approved", blocked:"status-blocked", "needs-quorum":"status-needs-quorum", revise:"status-revise" };
+    let currentData = null;
+    let selectedSeatID = null;
     ${liveLoader}
 
     function metric(label, value) {
@@ -750,6 +765,8 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       return String(value ?? "").replace(/[&<>"']/g, (ch) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch]));
     }
 
+    /* Legacy all-edge graph renderer is disabled. The dashboard now renders a
+       simplified team board and keeps dense relationship data in JSON only.
     function layoutNodes(nodes) {
       const byType = new Map();
       for (const node of nodes) {
@@ -830,24 +847,160 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       }
     }
 
+    */
+
+    function statusClass(status) {
+      return "status status-" + safe(status || "standby");
+    }
+
+    function seatStateByID(data) {
+      const states = new Map();
+      for (const state of data.seatStates ?? []) states.set(state.seatID, state);
+      return states;
+    }
+
+    function seatDefs(data) {
+      return data.teamManifest?.seats ?? [];
+    }
+
+    function seatStatus(data, seat) {
+      return seatStateByID(data).get(seat.seatID)?.status ?? "standby";
+    }
+
+    function messagesForSeat(data, seatID) {
+      return (data.commonsMessages ?? []).filter((message) => {
+        if (message.authorSeatID === seatID || message.targetSeatID === seatID) return true;
+        return (message.references ?? []).some((reference) => {
+          const source = (data.commonsMessages ?? []).find((candidate) => candidate.messageID === reference);
+          return source?.authorSeatID === seatID || source?.targetSeatID === seatID;
+        });
+      });
+    }
+
+    function completionForSeat(data, seatID) {
+      const messages = data.commonsMessages ?? [];
+      const authoredQuestions = messages.filter((message) => message.authorSeatID === seatID && message.messageType === "question");
+      const inboundQuestions = messages.filter((message) => message.targetSeatID === seatID && message.messageType === "question");
+      const answeredAuthored = authoredQuestions.filter((question) => messages.some((message) => (message.references ?? []).includes(question.messageID) && ["answer","revision","consensus","contract"].includes(message.messageType))).length;
+      const answeredInbound = inboundQuestions.filter((question) => messages.some((message) => (message.references ?? []).includes(question.messageID) && message.authorSeatID === seatID)).length;
+      const total = authoredQuestions.length + inboundQuestions.length;
+      const done = answeredAuthored + answeredInbound;
+      return {
+        total,
+        done,
+        percent: total === 0 ? 100 : Math.round((done / total) * 100),
+        authoredQuestions: authoredQuestions.length,
+        inboundQuestions: inboundQuestions.length,
+      };
+    }
+
+    function renderSeatCard(data, seat) {
+      const state = seatStateByID(data).get(seat.seatID);
+      const status = state?.status ?? "standby";
+      const selected = selectedSeatID === seat.seatID ? " selected" : "";
+      return '<button class="seat-card' + selected + '" data-seat-id="' + safe(seat.seatID) + '">'
+        + '<div class="seat-top"><span class="seat-name">' + safe(seat.seatID) + '</span><span class="' + statusClass(status) + '">' + safe(status) + '</span></div>'
+        + '<div class="seat-meta">' + safe(seat.role) + (seat.module ? ' / ' + safe(seat.module) : '') + '</div>'
+        + '</button>';
+    }
+
+    function renderPhaseStrip(data) {
+      const activePhase = data.teamPhase?.phase ?? "idle";
+      const phases = ["planning", "execution", "review", "idle"];
+      return '<div class="phase-strip">' + phases.map((phase) => {
+        const count = seatDefs(data).filter((seat) => seat.phase === phase || (phase === "idle" && seat.role === "supervisor")).length;
+        const active = phase === activePhase ? " active" : "";
+        return '<div class="phase-card' + active + '"><div class="phase-title"><strong>' + safe(phase) + '</strong><span>' + count + ' seats</span></div><div class="muted">' + safe(phase === activePhase ? (data.teamPhase?.status ?? "active") : "standby") + '</div></div>';
+      }).join("") + '</div>';
+    }
+
+    function renderTeamBoard(data) {
+      const seats = seatDefs(data);
+      const supervisors = seats.filter((seat) => seat.role === "supervisor");
+      const workerSeats = seats.filter((seat) => seat.role !== "supervisor");
+      const workgroups = new Map();
+      for (const seat of workerSeats) {
+        const key = seat.workgroupID ?? "unassigned";
+        if (!workgroups.has(key)) workgroups.set(key, []);
+        workgroups.get(key).push(seat);
+      }
+      const board = document.getElementById("team-board");
+      if (seats.length === 0) {
+        board.innerHTML = '<div class="empty">No persistent Republic team has been initialized yet.</div>';
+        return;
+      }
+      const supervisorHtml = supervisors.length
+        ? '<div class="supervisor-zone"><h3>Supervisor</h3><div class="seat-list">' + supervisors.map((seat) => renderSeatCard(data, seat)).join("") + '</div></div>'
+        : "";
+      const workgroupHtml = '<div class="workgroup-grid">' + Array.from(workgroups.entries()).map(([workgroupID, group]) => {
+        const running = group.filter((seat) => seatStatus(data, seat) === "running").length;
+        const waiting = group.filter((seat) => seatStatus(data, seat) === "waiting").length;
+        return '<div class="workgroup-card"><div class="workgroup-head"><strong>' + safe(workgroupID) + '</strong><span class="pill">' + running + ' running / ' + waiting + ' waiting</span></div><div class="seat-list">' + group.map((seat) => renderSeatCard(data, seat)).join("") + '</div></div>';
+      }).join("") + '</div>';
+      board.innerHTML = renderPhaseStrip(data) + supervisorHtml + workgroupHtml;
+      for (const button of board.querySelectorAll("[data-seat-id]")) {
+        button.addEventListener("click", () => {
+          selectedSeatID = button.getAttribute("data-seat-id");
+          renderTeamBoard(currentData);
+          renderInspector(currentData);
+        });
+      }
+    }
+
     function renderMetrics(data) {
       const decision = data.report.decision;
       document.getElementById("repo-pill").textContent = data.repository ? data.repository.repoRoot : "No git repository";
       document.getElementById("refresh-pill").textContent = "Updated " + new Date(data.generatedAt).toLocaleTimeString();
+      const seats = seatDefs(data);
+      const states = seatStateByID(data);
+      const statusCount = (status) => seats.filter((seat) => (states.get(seat.seatID)?.status ?? "standby") === status).length;
+      const workgroupCount = new Set(seats.map((seat) => seat.workgroupID).filter(Boolean)).size;
       document.getElementById("metrics").innerHTML = [
         metric("Decision", '<span class="' + (colors[decision.status] ?? "") + '">' + safe(decision.status) + '</span>'),
         metric("Team model", safe(data.teamManifest?.teamModel ?? "none")),
         metric("Team phase", safe(data.teamPhase ? data.teamPhase.phase + "/" + data.teamPhase.status : "none")),
-        metric("Team seats", data.teamManifest?.seats.length ?? 0),
-        metric("Ledger records", data.report.republic.recordCount),
+        metric("Workgroups", workgroupCount),
+        metric("Seats", seats.length),
+        metric("Running", statusCount("running")),
+        metric("Waiting", statusCount("waiting")),
+        metric("Blocked", statusCount("blocked") + statusCount("error")),
+        metric("Done", statusCount("done")),
         metric("Commons messages", data.report.commons.messageCount),
         metric("Native git records", data.report.nativeGit.recordCount),
-        metric("Nodes", data.nodes.length),
-        metric("Edges", data.edges.length),
         metric("Targeted messages", data.report.commons.targetedMessages),
         metric("Referenced messages", data.report.commons.referencedMessages),
         metric("Reason", safe(decision.reason))
       ].join("");
+    }
+
+    function renderInspector(data) {
+      const inspector = document.getElementById("seat-inspector");
+      const seats = seatDefs(data);
+      if (!selectedSeatID && seats.length > 0) {
+        const activeSeat = seats.find((seat) => ["blocked","waiting","running"].includes(seatStatus(data, seat))) ?? seats[0];
+        selectedSeatID = activeSeat.seatID;
+      }
+      const seat = seats.find((candidate) => candidate.seatID === selectedSeatID);
+      if (!seat) {
+        inspector.innerHTML = '<h2>Seat Inspector</h2><div class="empty">Click a seat to inspect status, inbox, and interaction completion.</div>';
+        return;
+      }
+      const state = seatStateByID(data).get(seat.seatID);
+      const related = messagesForSeat(data, seat.seatID).sort((left, right) => String(right.timestamp ?? "").localeCompare(String(left.timestamp ?? "")));
+      const completion = completionForSeat(data, seat.seatID);
+      inspector.innerHTML = '<h2>Seat Inspector</h2>'
+        + '<div class="inspector-title"><strong>' + safe(seat.seatID) + '</strong><span class="' + statusClass(state?.status ?? "standby") + '">' + safe(state?.status ?? "standby") + '</span><p class="muted">' + safe(seat.role) + '</p></div>'
+        + '<div>' + [
+          metric("Phase", safe(state?.phase ?? seat.phase ?? "none")),
+          metric("Workgroup", safe(state?.workgroupID ?? seat.workgroupID ?? "none")),
+          metric("Module", safe(state?.module ?? seat.module ?? "none")),
+          metric("Runtime agent", safe(state?.runtimeAgent ?? seat.runtimeAgent ?? "none")),
+          metric("Conceptual agent", safe(state?.conceptualAgent ?? seat.conceptualAgent ?? "none")),
+          metric("Waiting on", safe((state?.waitingOn ?? []).join(", ") || "none")),
+          metric("Task", safe(state?.taskID ?? seat.taskID ?? "none")),
+        ].join("") + '</div>'
+        + '<div><h3>Interaction Completion</h3><div class="progress"><div style="width:' + completion.percent + '%"></div></div><p class="muted">' + completion.done + ' / ' + completion.total + ' question threads completed. Authored questions: ' + completion.authoredQuestions + '. Inbound questions: ' + completion.inboundQuestions + '.</p></div>'
+        + '<div><h3>Recent Seat Interactions</h3><div class="inspector-list">' + (related.length ? related.slice(0, 10).map((message) => '<div class="item"><strong>' + safe(message.messageType) + (message.targetSeatID ? ' to ' + safe(message.targetSeatID) : '') + '</strong><p>' + safe(message.content) + '</p><small>' + safe(message.channel) + ' / ' + safe(message.phase) + ' / round ' + safe(message.round ?? "n/a") + '</small></div>').join("") : '<div class="empty">No direct interactions for this seat yet.</div>') + '</div></div>';
     }
 
     function renderTimeline(data) {
@@ -859,9 +1012,10 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
 
     async function render() {
       const data = await loadData();
+      currentData = data;
       renderMetrics(data);
-      renderGraph(data);
-      renderTimeline(data);
+      renderTeamBoard(data);
+      renderInspector(data);
     }
 
     render();

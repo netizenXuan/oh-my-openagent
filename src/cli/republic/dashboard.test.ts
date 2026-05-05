@@ -190,6 +190,9 @@ describe("republic dashboard", () => {
     const html = readFileSync(outputPath, "utf-8")
     expect(html).toContain("OMO Republic Dashboard")
     expect(html).toContain("republic-data")
+    expect(html).toContain("team-board")
+    expect(html).toContain("Seat Inspector")
+    expect(html).not.toContain('id="graph"')
     expect(git(directory, ["status", "--porcelain"])).toBe("")
   })
 
