@@ -1097,6 +1097,14 @@ describe("RepublicConfigSchema", () => {
       expect(result.data.supermajority).toBe(0.67)
       expect(result.data.veto_on_blocker).toBe(true)
       expect(result.data.git_summary).toBe(true)
+      expect(result.data.team_model).toBe("advisory")
+      expect(result.data.team.seat_allocation).toBe("auto")
+      expect(result.data.team.planner_seat_count).toBe("auto")
+      expect(result.data.team.executor_seat_count).toBe("auto")
+      expect(result.data.team.reviewer_seat_count).toBe(2)
+      expect(result.data.team.max_parallel_seats).toBe(4)
+      expect(result.data.team.default_runtime_agent).toBe("general")
+      expect(result.data.seats.supervisors).toEqual(["republic-supervisor"])
       expect(result.data.commons.auto_publish).toBe(true)
       expect(result.data.supervisor.intervention).toBe(true)
       expect(result.data.supervisor.file_threshold).toBe(5)
@@ -1135,6 +1143,11 @@ describe("RepublicConfigSchema", () => {
     expect(RepublicConfigSchema.safeParse({ dependency_gate: { mode: "warn" } }).success).toBe(false)
     expect(RepublicConfigSchema.safeParse({ scheduler: { default_agent: "" } }).success).toBe(false)
     expect(RepublicConfigSchema.safeParse({ scheduler: { message_types: ["note"] } }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ team_model: "committee" }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ team: { seat_allocation: "fixed" } }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ team: { planner_seat_count: 0 } }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ team: { executor_seat_count: 21 } }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ team: { max_parallel_seats: 0 } }).success).toBe(false)
   })
 
   test("accepts scheduler seat agent mapping", () => {
@@ -1155,6 +1168,39 @@ describe("RepublicConfigSchema", () => {
       expect(result.data.scheduler.seat_agents["docs-seat"]).toBe("hephaestus")
     }
   })
+
+  test("accepts dynamic persistent team controls", () => {
+    //#when
+    const result = RepublicConfigSchema.safeParse({
+      team_model: "parliament_squad",
+      team: {
+        seat_allocation: "count",
+        planner_seat_count: 6,
+        executor_seat_count: 4,
+        reviewer_seat_count: "auto",
+        max_parallel_seats: 5,
+        default_runtime_agent: "general",
+      },
+      seats: {
+        planners: ["protocol-seat"],
+        executors: ["runtime-seat"],
+        reviewers: ["security-seat"],
+        supervisors: ["chief-supervisor"],
+      },
+    })
+
+    //#then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.team_model).toBe("parliament_squad")
+      expect(result.data.team.seat_allocation).toBe("count")
+      expect(result.data.team.planner_seat_count).toBe(6)
+      expect(result.data.team.executor_seat_count).toBe(4)
+      expect(result.data.team.reviewer_seat_count).toBe("auto")
+      expect(result.data.seats.planners).toEqual(["protocol-seat"])
+      expect(result.data.seats.supervisors).toEqual(["chief-supervisor"])
+    }
+  })
 })
 
 describe("OhMyOpenCodeConfigSchema - republic defaults", () => {
@@ -1169,6 +1215,7 @@ describe("OhMyOpenCodeConfigSchema - republic defaults", () => {
       expect(result.data.republic.mode).toBe("advisory")
       expect(result.data.republic.ledger).toBe(true)
       expect(result.data.republic.scheduler.enabled).toBe(true)
+      expect(result.data.republic.team.seat_allocation).toBe("auto")
     }
   })
 })

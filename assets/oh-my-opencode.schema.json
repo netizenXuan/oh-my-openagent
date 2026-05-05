@@ -5982,6 +5982,25 @@
         "supermajority": 0.67,
         "veto_on_blocker": true,
         "git_summary": true,
+        "team_model": "advisory",
+        "team": {
+          "seat_allocation": "auto",
+          "seat_memory": true,
+          "persistent_sessions": true,
+          "planner_seat_count": "auto",
+          "executor_seat_count": "auto",
+          "reviewer_seat_count": 2,
+          "max_parallel_seats": 4,
+          "default_runtime_agent": "general"
+        },
+        "seats": {
+          "planners": [],
+          "executors": [],
+          "reviewers": [],
+          "supervisors": [
+            "republic-supervisor"
+          ]
+        },
         "commons": {
           "auto_publish": true,
           "inbox": true,
@@ -6079,6 +6098,167 @@
         "git_summary": {
           "default": true,
           "type": "boolean"
+        },
+        "team_model": {
+          "default": "advisory",
+          "type": "string",
+          "enum": [
+            "single",
+            "advisory",
+            "parliament",
+            "squad",
+            "parliament_squad"
+          ]
+        },
+        "team": {
+          "default": {
+            "seat_allocation": "auto",
+            "seat_memory": true,
+            "persistent_sessions": true,
+            "planner_seat_count": "auto",
+            "executor_seat_count": "auto",
+            "reviewer_seat_count": 2,
+            "max_parallel_seats": 4,
+            "default_runtime_agent": "general"
+          },
+          "type": "object",
+          "properties": {
+            "seat_allocation": {
+              "default": "auto",
+              "type": "string",
+              "enum": [
+                "auto",
+                "count",
+                "explicit"
+              ]
+            },
+            "seat_memory": {
+              "default": true,
+              "type": "boolean"
+            },
+            "persistent_sessions": {
+              "default": true,
+              "type": "boolean"
+            },
+            "planner_seat_count": {
+              "default": "auto",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "const": "auto"
+                },
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 20
+                }
+              ]
+            },
+            "executor_seat_count": {
+              "default": "auto",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "const": "auto"
+                },
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 20
+                }
+              ]
+            },
+            "reviewer_seat_count": {
+              "default": 2,
+              "anyOf": [
+                {
+                  "type": "string",
+                  "const": "auto"
+                },
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 20
+                }
+              ]
+            },
+            "max_parallel_seats": {
+              "default": 4,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20
+            },
+            "default_runtime_agent": {
+              "default": "general",
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "seat_allocation",
+            "seat_memory",
+            "persistent_sessions",
+            "planner_seat_count",
+            "executor_seat_count",
+            "reviewer_seat_count",
+            "max_parallel_seats",
+            "default_runtime_agent"
+          ],
+          "additionalProperties": false
+        },
+        "seats": {
+          "default": {
+            "planners": [],
+            "executors": [],
+            "reviewers": [],
+            "supervisors": [
+              "republic-supervisor"
+            ]
+          },
+          "type": "object",
+          "properties": {
+            "planners": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "executors": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "reviewers": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "supervisors": {
+              "default": [
+                "republic-supervisor"
+              ],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "planners",
+            "executors",
+            "reviewers",
+            "supervisors"
+          ],
+          "additionalProperties": false
         },
         "commons": {
           "default": {
@@ -6312,6 +6492,9 @@
         "supermajority",
         "veto_on_blocker",
         "git_summary",
+        "team_model",
+        "team",
+        "seats",
         "commons",
         "supervisor",
         "dependency_gate",

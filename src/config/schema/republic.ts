@@ -3,6 +3,12 @@ import { z } from "zod"
 export const RepublicModeSchema = z.enum(["manual", "advisory", "governed"])
 export const RepublicDependencyGateModeSchema = z.enum(["advisory", "block"])
 export const RepublicSchedulerMessageTypeSchema = z.enum(["question", "handoff", "objection"])
+export const RepublicTeamModelSchema = z.enum(["single", "advisory", "parliament", "squad", "parliament_squad"])
+export const RepublicSeatAllocationSchema = z.enum(["auto", "count", "explicit"])
+export const RepublicSeatCountSchema = z.union([
+  z.literal("auto"),
+  z.number().int().min(1).max(20),
+])
 
 const DEFAULT_HIGH_RISK_PATHS = [
   "package.json",
@@ -34,6 +40,40 @@ export const RepublicConfigSchema = z.object({
   veto_on_blocker: z.boolean().default(true),
   /** Include native-git audit summary when building republic status reports. */
   git_summary: z.boolean().default(true),
+  /** Optional persistent-team orchestration model. */
+  team_model: RepublicTeamModelSchema.default("advisory"),
+  /** Persistent team and dynamic seat allocation controls. */
+  team: z.object({
+    seat_allocation: RepublicSeatAllocationSchema.default("auto"),
+    seat_memory: z.boolean().default(true),
+    persistent_sessions: z.boolean().default(true),
+    planner_seat_count: RepublicSeatCountSchema.default("auto"),
+    executor_seat_count: RepublicSeatCountSchema.default("auto"),
+    reviewer_seat_count: RepublicSeatCountSchema.default(2),
+    max_parallel_seats: z.number().int().min(1).max(20).default(4),
+    default_runtime_agent: z.string().min(1).default("general"),
+  }).default({
+    seat_allocation: "auto",
+    seat_memory: true,
+    persistent_sessions: true,
+    planner_seat_count: "auto",
+    executor_seat_count: "auto",
+    reviewer_seat_count: 2,
+    max_parallel_seats: 4,
+    default_runtime_agent: "general",
+  }),
+  /** Optional explicit seat lists for advanced users. */
+  seats: z.object({
+    planners: z.array(z.string().min(1)).default([]),
+    executors: z.array(z.string().min(1)).default([]),
+    reviewers: z.array(z.string().min(1)).default([]),
+    supervisors: z.array(z.string().min(1)).default(["republic-supervisor"]),
+  }).default({
+    planners: [],
+    executors: [],
+    reviewers: [],
+    supervisors: ["republic-supervisor"],
+  }),
   /** Publish native-git tool changes into the Republic Commons automatically. */
   commons: z.object({
     auto_publish: z.boolean().default(true),
@@ -97,4 +137,7 @@ export const RepublicConfigSchema = z.object({
 export type RepublicMode = z.infer<typeof RepublicModeSchema>
 export type RepublicDependencyGateMode = z.infer<typeof RepublicDependencyGateModeSchema>
 export type RepublicSchedulerMessageType = z.infer<typeof RepublicSchedulerMessageTypeSchema>
+export type RepublicTeamModel = z.infer<typeof RepublicTeamModelSchema>
+export type RepublicSeatAllocation = z.infer<typeof RepublicSeatAllocationSchema>
+export type RepublicSeatCount = z.infer<typeof RepublicSeatCountSchema>
 export type RepublicConfig = z.infer<typeof RepublicConfigSchema>

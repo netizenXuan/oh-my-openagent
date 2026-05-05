@@ -53,6 +53,23 @@ const pluginConfig = {
     supermajority: 0.67,
     veto_on_blocker: true,
     git_summary: true,
+    team_model: "advisory",
+    team: {
+      seat_allocation: "auto",
+      seat_memory: true,
+      persistent_sessions: true,
+      planner_seat_count: "auto",
+      executor_seat_count: "auto",
+      reviewer_seat_count: 2,
+      max_parallel_seats: 4,
+      default_runtime_agent: "general",
+    },
+    seats: {
+      planners: [],
+      executors: [],
+      reviewers: [],
+      supervisors: ["republic-supervisor"],
+    },
     commons: {
       auto_publish: true,
       inbox: true,
