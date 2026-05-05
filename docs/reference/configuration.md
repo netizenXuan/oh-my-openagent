@@ -602,25 +602,52 @@ Configure the deliberative multi-agent workflow and ledger:
     "quorum": 4,
     "supermajority": 0.67,
     "veto_on_blocker": true,
-    "git_summary": true
+    "git_summary": true,
+    "commons": {
+      "auto_publish": true
+    },
+    "supervisor": {
+      "intervention": true,
+      "file_threshold": 5,
+      "high_risk_paths": [
+        "package.json",
+        "bun.lock",
+        "src/config/",
+        "src/plugin/",
+        "src/shared/git-worktree/",
+        ".github/workflows/"
+      ]
+    },
+    "dependency_gate": {
+      "enabled": true,
+      "mode": "advisory",
+      "cross_module_threshold": 2
+    }
   }
 }
 ```
 
-| Option               | Default      | Description                                                                 |
-| -------------------- | ------------ | --------------------------------------------------------------------------- |
-| `enabled`            | `true`       | Enable OMO Republic command helpers                                         |
-| `mode`               | `"advisory"` | `"manual"` disables workflow guidance, `"advisory"` records recommendations, `"governed"` is reserved for stronger future gates |
-| `ledger`             | `true`       | Write deliberation records under `.git/omo/republic/`                       |
-| `house_seats`        | `3`          | Fast same-role planner seats                                                |
-| `senate_seats`       | `2`          | Conservative same-role planner seats                                        |
-| `review_bench_seats` | `2`          | Reviewer seats for blocker, rollback, and test scrutiny                     |
-| `quorum`             | `4`          | Minimum seat records expected before conference synthesis                   |
-| `supermajority`      | `0.67`       | Approval ratio used for high-confidence execution recommendations           |
-| `veto_on_blocker`    | `true`       | Treat reject/blocker review votes as final-plan blockers                    |
-| `git_summary`        | `true`       | Include native-git audit information in Republic status reports             |
+| Option                                   | Default      | Description                                                                 |
+| ---------------------------------------- | ------------ | --------------------------------------------------------------------------- |
+| `enabled`                                | `true`       | Enable OMO Republic command helpers                                         |
+| `mode`                                   | `"advisory"` | `"manual"` disables governance, `"advisory"` records and warns, `"governed"` enables configured hard gates |
+| `ledger`                                 | `true`       | Write deliberation records under `.git/omo/republic/`                       |
+| `house_seats`                            | `3`          | Fast same-role planner seats                                                |
+| `senate_seats`                           | `2`          | Conservative same-role planner seats                                        |
+| `review_bench_seats`                     | `2`          | Reviewer seats for blocker, rollback, and test scrutiny                     |
+| `quorum`                                 | `4`          | Minimum seat records expected before conference synthesis                   |
+| `supermajority`                          | `0.67`       | Approval ratio used for high-confidence execution recommendations           |
+| `veto_on_blocker`                        | `true`       | Treat reject/blocker review votes as final-plan blockers                    |
+| `git_summary`                            | `true`       | Include native-git audit information in Republic status reports             |
+| `commons.auto_publish`                   | `true`       | Publish native-git tool-change events to Republic Commons automatically     |
+| `supervisor.intervention`                | `true`       | Record supervisor intervention messages for high-risk or boundary-crossing changes |
+| `supervisor.file_threshold`              | `5`          | Trigger supervisor intervention when one tool call changes this many files  |
+| `supervisor.high_risk_paths`             | see example  | Path prefixes or files that require supervisor intervention                 |
+| `dependency_gate.enabled`                | `true`       | Enable preflight checks for cross-workgroup explicit write tools            |
+| `dependency_gate.mode`                   | `"advisory"` | `"advisory"` warns and records; `"block"` blocks only when `republic.mode` is `"governed"` |
+| `dependency_gate.cross_module_threshold` | `2`          | Number of inferred modules that triggers the dependency gate                 |
 
-Deliberation ledgers live under the Git common dir at `.git/omo/republic/ledger.jsonl`. Agent-to-agent Commons messages live beside them at `.git/omo/republic/commons.jsonl`, so parallel seats can publish proposals, questions, objections, answers, revisions, and consensus without dirtying the worktree. Tool-caused dirty Git changes are audited separately at `.git/omo/native-git/audit.jsonl`. Use `/republic-status` or `oh-my-opencode republic status` to combine all three views.
+Deliberation ledgers live under the Git common dir at `.git/omo/republic/ledger.jsonl`. Agent-to-agent Commons messages live beside them at `.git/omo/republic/commons.jsonl`, so parallel seats can publish proposals, questions, objections, answers, revisions, status updates, dependency-gate events, and supervisor interventions without dirtying the worktree. Tool-caused dirty Git changes are audited separately at `.git/omo/native-git/audit.jsonl`. Use `/republic-status` or `oh-my-opencode republic status` to combine all three views.
 
 ### Git Master
 

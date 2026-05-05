@@ -540,7 +540,7 @@ The command uses multiple independent seats for the same role rather than adding
 - Conference Committee: synthesis and conflict resolution
 - Review Bench: blocker and rollback review
 
-When run inside a Git repository, deliberation records are written under the Git common dir at `.git/omo/republic/ledger.jsonl`, `.git/omo/republic/commons.jsonl`, and `.git/omo/republic/deliberations/<id>/`, so the deliberation audit does not dirty the worktree. The commons log lets parallel seats publish proposals, targeted questions, objections, answers, revisions, and consensus messages. The first version is deliberation-only: it does not automatically edit source files, commit, stash, or create worktrees.
+When run inside a Git repository, deliberation records are written under the Git common dir at `.git/omo/republic/ledger.jsonl`, `.git/omo/republic/commons.jsonl`, and `.git/omo/republic/deliberations/<id>/`, so the deliberation audit does not dirty the worktree. The commons log lets parallel seats publish proposals, targeted questions, objections, answers, revisions, consensus messages, native-git status events, dependency-gate events, and supervisor interventions. Republic governance does not automatically commit, stash, or create worktrees.
 
 ### /republic-status
 

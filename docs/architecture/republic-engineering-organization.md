@@ -41,6 +41,8 @@ One or two supervisor seats hold the global project state. Their role is not to 
 
 Supervisor interventions are written as Commons messages with `supervisorSeatID`, `targetSeatID`, `taskID`, and `status`.
 
+The current implementation records these interventions automatically when a native-git tracked tool call touches high-risk paths, changes many files, or when planner/orchestrator seats cross execution boundaries.
+
 ### Workgroups
 
 Workgroups represent module-level teams:
@@ -58,6 +60,8 @@ Each workgroup owns one or more modules and task IDs. Workgroup members should p
 - a task changes status
 - a local implementation choice affects another module
 - a supervisor redirects the group
+
+The dependency gate now performs a lightweight preflight check for explicit path tools. If one call touches multiple inferred modules, it writes a dependency-gate Commons message before execution. In advisory mode that is a warning; in governed block mode it becomes a hard gate.
 
 ### Same-Role Seats
 
@@ -110,7 +114,11 @@ This graph is intentionally close to a future visual editor. A later UI can let 
 
 1. Advisory recording:
    - ledger, commons, native-git audit, status, dashboard
+   - automatic Commons publication from native-git changes
+   - automatic supervisor intervention records
+   - advisory dependency gate for cross-workgroup writes
 2. Governed execution:
+   - hard dependency gate for cross-workgroup explicit write tools
    - enforce supervisor approval before high-risk execution
    - require dependency acknowledgements before dependent modules proceed
 3. Worktree isolation:
@@ -132,4 +140,4 @@ The first OpenCode smoke pass used `kimi-for-coding/k2p6` with a local plugin pa
 - Prometheus remains constrained to planning files under `.sisyphus/`, and its allowed plan write is still audited.
 - The dashboard can render native-git audit records into agent, tool, file, and module nodes even before a Republic ledger exists.
 
-This is not yet the full governed execution system. It is the foundation: durable records, communication data structures, same-role/workgroup metadata, and an inspectable graph. The next step is to make Commons publication and supervisor interventions automatic during multi-agent execution.
+The current layer has moved from recording into first-stage collaborative governance: automatic Commons publication, supervisor intervention, and dependency preflight records are live. It is still not a complete engineering operating system; per-workgroup worktrees, merge orchestration, and dependency acknowledgement protocols remain next-stage work.

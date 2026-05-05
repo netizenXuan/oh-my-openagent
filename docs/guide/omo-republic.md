@@ -39,6 +39,11 @@ This matters because parallel agents are otherwise isolated workers: the main ag
 
 Commons messages are JSONL records with a `deliberationID`, `channel`, `phase`, `round`, `authorSeatID`, `messageType`, optional `targetSeatID`, optional `references`, touched `files`, and concise `content`.
 
+Native Git tracking now auto-publishes tool-caused changes into Commons as `messageType: "status"` and mirrors them into the ledger. A write/edit/bash/apply_patch call that changes Git state therefore creates both:
+
+- `.git/omo/native-git/audit.jsonl`: the raw file-change audit
+- `.git/omo/republic/commons.jsonl`: the collaboration event visible to other seats and the dashboard
+
 For large engineering projects, Commons and ledger records can also carry organization fields:
 
 - `workgroupID`: a module workgroup such as `api-workgroup` or `ui-workgroup`
@@ -54,6 +59,16 @@ The expected deliberation rhythm is:
 2. Round 1: cross-examination. Each seat reads the commons and responds to at least one other message by ID.
 3. Round 2: revision or consensus. Seats update their position, preserve dissent, or confirm agreement.
 4. Conference report: the synthesizer reads both `ledger.jsonl` and `commons.jsonl`.
+
+## Governed Execution Hooks
+
+Republic execution has three live governance hooks:
+
+- **Automatic Commons publication**: native-git changes are published to Commons with agent, model, session, call, files, module, workgroup, and task metadata.
+- **Supervisor intervention**: high-risk file paths, large change sets, or role-boundary crossings create `messageType: "intervention"` records from `republic-supervisor` and append a visible system reminder to the tool output.
+- **Workgroup dependency gate**: before explicit multi-file tools run, OMO infers touched modules. If a call crosses the configured module threshold, advisory mode records a `dependency-blocked` preflight message and warns; governed block mode records the same message and blocks the tool call.
+
+These hooks still do not auto-commit, auto-stash, or create worktrees. Git history remains under user or `git-master` control.
 
 ## Commands
 
@@ -145,12 +160,38 @@ The same smoke repository rendered `republic status` and `republic dashboard` fr
     "quorum": 4,
     "supermajority": 0.67,
     "veto_on_blocker": true,
-    "git_summary": true
+    "git_summary": true,
+    "commons": {
+      "auto_publish": true
+    },
+    "supervisor": {
+      "intervention": true,
+      "file_threshold": 5,
+      "high_risk_paths": [
+        "package.json",
+        "bun.lock",
+        "src/config/",
+        "src/plugin/",
+        "src/shared/git-worktree/",
+        ".github/workflows/"
+      ]
+    },
+    "dependency_gate": {
+      "enabled": true,
+      "mode": "advisory",
+      "cross_module_threshold": 2
+    }
   }
 }
 ```
 
-The current implementation is advisory. It records, summarizes, and recommends. Strong enforcement, per-seat worktrees, and automatic execution gates belong in later governed mode work.
+Modes:
+
+- `manual`: Republic governance is off.
+- `advisory`: default; record Commons/ledger events and show warnings, but do not block writes.
+- `governed`: enables stronger gates. The first implemented hard gate is `dependency_gate.mode: "block"` for cross-workgroup explicit write tools.
+
+Per-seat worktrees and automatic merge orchestration remain future work.
 
 For the larger engineering-organization design, see [OMO Republic Engineering Organization](../architecture/republic-engineering-organization.md).
 
