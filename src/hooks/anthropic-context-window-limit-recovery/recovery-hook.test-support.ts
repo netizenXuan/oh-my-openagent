@@ -53,6 +53,26 @@ const pluginConfig = {
     supermajority: 0.67,
     veto_on_blocker: true,
     git_summary: true,
+    commons: {
+      auto_publish: true,
+    },
+    supervisor: {
+      intervention: true,
+      file_threshold: 5,
+      high_risk_paths: [
+        "package.json",
+        "bun.lock",
+        "src/config/",
+        "src/plugin/",
+        "src/shared/git-worktree/",
+        ".github/workflows/",
+      ],
+    },
+    dependency_gate: {
+      enabled: true,
+      mode: "advisory",
+      cross_module_threshold: 2,
+    },
   },
 } satisfies OhMyOpenCodeConfig
 

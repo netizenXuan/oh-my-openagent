@@ -82,7 +82,7 @@ describe("native git hook", () => {
     const hook = createNativeGitHook({ directory } as never, { mode: "tracked", audit_log: true })
     await captureToolBaseline(hook, { tool: "edit", sessionID: "ses_test", callID: "call_1" })
     writeFileSync(join(directory, "README.md"), "changed\n", "utf-8")
-    const output = {
+    const output: { output?: string; metadata?: Record<string, unknown> } = {
       output: "updated",
       metadata: {
         agent: "atlas",
@@ -140,6 +140,124 @@ describe("native git hook", () => {
     expect(ledger[0]?.model).toBe("kimi-for-coding/k2p6")
     expect(git(directory, ["status", "--porcelain"])).toContain("src/")
     expect(git(directory, ["status", "--porcelain"])).not.toContain(".git/omo/republic")
+  })
+
+  test("tracked mode records supervisor intervention for high-risk changes", async () => {
+    const hook = createNativeGitHook(
+      { directory } as never,
+      { mode: "tracked", audit_log: true },
+      {
+        enabled: true,
+        mode: "advisory",
+        ledger: true,
+        commons: { auto_publish: true },
+        supervisor: {
+          intervention: true,
+          file_threshold: 5,
+          high_risk_paths: ["package.json"],
+        },
+      } as never,
+    )
+    await captureToolBaseline(hook, { tool: "write", sessionID: "ses_supervisor", callID: "call_supervisor" })
+    writeFileSync(join(directory, "package.json"), "{\"scripts\":{\"test\":\"bun test\"}}\n", "utf-8")
+    const output: { output?: string; metadata?: Record<string, unknown> } = {
+      output: "created",
+      metadata: {
+        agent: "atlas",
+        model: "kimi-for-coding/k2p6",
+      },
+    }
+
+    await hook["tool.execute.after"](
+      { tool: "write", sessionID: "ses_supervisor", callID: "call_supervisor" },
+      output,
+    )
+
+    const repository = getNativeGitRepository(directory)
+    const commons = readRepublicCommonsMessages(repository!, "session-ses_supervisor")
+    const intervention = commons.find((message) => message.messageType === "intervention")
+
+    expect(intervention?.authorAgent).toBe("republic-supervisor")
+    expect(intervention?.targetSeatID).toBe("atlas-executor")
+    expect(intervention?.content).toContain("high-risk path touched")
+    expect(intervention?.content).toContain("orchestrator agent modified implementation files directly")
+    expect(output.output).toContain("Republic supervisor intervention recorded")
+  })
+
+  test("dependency gate records advisory commons messages before cross-workgroup writes", async () => {
+    const hook = createNativeGitHook(
+      { directory } as never,
+      { mode: "tracked", audit_log: true },
+      {
+        enabled: true,
+        mode: "advisory",
+        ledger: true,
+        dependency_gate: {
+          enabled: true,
+          mode: "advisory",
+          cross_module_threshold: 2,
+        },
+      } as never,
+    )
+    const output: { args: Record<string, unknown>; message?: string } = {
+      args: {
+        edits: [
+          { filePath: "src/api/routes.ts" },
+          { filePath: "docs/api/contract.md" },
+        ],
+      },
+    }
+
+    await hook["tool.execute.before"]?.(
+      { tool: "multiedit", sessionID: "ses_gate", callID: "call_gate" },
+      output,
+    )
+
+    const repository = getNativeGitRepository(directory)
+    const commons = readRepublicCommonsMessages(repository!, "session-ses_gate")
+
+    expect(output.message).toContain("Republic workgroup dependency gate")
+    expect(commons).toHaveLength(1)
+    expect(commons[0]?.messageType).toBe("dependency-blocked")
+    expect(commons[0]?.status).toBe("review-required")
+    expect(commons[0]?.files).toEqual(["docs/api/contract.md", "src/api/routes.ts"])
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
+  test("dependency gate blocks in governed block mode", async () => {
+    const hook = createNativeGitHook(
+      { directory } as never,
+      { mode: "tracked", audit_log: true },
+      {
+        enabled: true,
+        mode: "governed",
+        ledger: true,
+        dependency_gate: {
+          enabled: true,
+          mode: "block",
+          cross_module_threshold: 2,
+        },
+      } as never,
+    )
+    const output: { args: Record<string, unknown>; message?: string } = {
+      args: {
+        edits: [
+          { filePath: "src/api/routes.ts" },
+          { filePath: "docs/api/contract.md" },
+        ],
+      },
+    }
+
+    await expect(
+      hook["tool.execute.before"]?.(
+        { tool: "multiedit", sessionID: "ses_block", callID: "call_block" },
+        output,
+      ),
+    ).rejects.toThrow("Republic workgroup dependency gate")
+
+    const repository = getNativeGitRepository(directory)
+    const commons = readRepublicCommonsMessages(repository!, "session-ses_block")
+    expect(commons[0]?.status).toBe("blocked")
   })
 
   test("tracked mode attributes changes from chat session context when tool metadata is missing", async () => {

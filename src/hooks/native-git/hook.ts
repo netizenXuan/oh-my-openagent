@@ -48,6 +48,7 @@ type NativeGitTrackResult = {
   dirty: boolean
   changedSinceLastCheck: boolean
   summary?: string
+  supervisorMessage?: string
 }
 
 type NativeGitDirtyState = {
@@ -143,6 +144,85 @@ function isRepublicLedgerEnabled(config: RepublicConfig | undefined): boolean {
 
 function isRepublicAutoCommonsEnabled(config: RepublicConfig | undefined): boolean {
   return isRepublicLedgerEnabled(config) && (config?.commons?.auto_publish ?? true)
+}
+
+function appendBeforeMessage(output: { message?: string }, text: string): void {
+  output.message = `${output.message ?? ""}${text}`
+}
+
+function buildSupervisorInterventionMessage(message: string): string {
+  return `
+<system-reminder>
+Republic supervisor intervention recorded.
+
+${message.trim()}
+</system-reminder>`
+}
+
+function buildDependencyGateMessage(modules: string[], files: string[]): string {
+  return `
+<system-reminder>
+Republic workgroup dependency gate: this tool call touches ${modules.length} inferred workgroups (${modules.join(", ")}).
+Record a Commons note or split the work before continuing if these modules depend on each other.
+
+Files:
+${files.map((file) => `- ${file}`).join("\n")}
+</system-reminder>`
+}
+
+function getStringArray(value: unknown): string[] {
+  if (typeof value === "string" && value.length > 0) {
+    return [value]
+  }
+  if (!Array.isArray(value)) {
+    return []
+  }
+  return value.filter((item): item is string => typeof item === "string" && item.length > 0)
+}
+
+function getToolTargetPaths(tool: string, args: Record<string, unknown>): string[] {
+  const paths = new Set<string>()
+  for (const key of ["filePath", "file_path", "path", "file", "movePath", "move_path"]) {
+    for (const value of getStringArray(args[key])) {
+      paths.add(normalizePath(value))
+    }
+  }
+
+  const edits = args.edits
+  if (Array.isArray(edits)) {
+    for (const edit of edits) {
+      if (!isRecord(edit)) {
+        continue
+      }
+      for (const key of ["filePath", "file_path", "path", "file", "movePath", "move_path"]) {
+        const value = edit[key]
+        if (typeof value === "string" && value.length > 0) {
+          paths.add(normalizePath(value))
+        }
+      }
+    }
+  }
+
+  if (tool.toLowerCase() === "apply_patch") {
+    const patch = typeof args.patch === "string" ? args.patch : typeof args.content === "string" ? args.content : ""
+    for (const line of patch.split(/\r?\n/)) {
+      const match = line.match(/^\*\*\* (?:Add|Update|Delete) File: (.+)$/) ?? line.match(/^\*\*\* Move to: (.+)$/)
+      if (match?.[1]) {
+        paths.add(normalizePath(match[1].trim()))
+      }
+    }
+  }
+
+  return Array.from(paths).sort()
+}
+
+function matchesPathPattern(filePath: string, pattern: string): boolean {
+  const normalizedFile = normalizePath(filePath)
+  const normalizedPattern = normalizePath(pattern)
+  if (normalizedPattern.endsWith("/")) {
+    return normalizedFile.startsWith(normalizedPattern)
+  }
+  return normalizedFile === normalizedPattern || normalizedFile.startsWith(`${normalizedPattern}/`)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -285,7 +365,9 @@ export function createNativeGitHook(
   const changedResultByCall = new Map<string, NativeGitTrackResult>()
   const auditedCallKeys = new Set<string>()
   const republicPublishedCallKeys = new Set<string>()
+  const supervisorPublishedCallKeys = new Set<string>()
   const outputReminderCallKeys = new Set<string>()
+  const supervisorReminderCallKeys = new Set<string>()
   const taskReminderCallKeys = new Set<string>()
   const initialStatusByRepo = new Map<string, string>()
   const sessionContextBySession = new Map<string, NativeGitSessionContext>()
@@ -303,7 +385,14 @@ export function createNativeGitHook(
     deleteSessionMapEntries(baselineByCall, sessionID)
     deleteSessionMapEntries(changedResultByCall, sessionID)
 
-    for (const set of [auditedCallKeys, republicPublishedCallKeys, outputReminderCallKeys, taskReminderCallKeys]) {
+    for (const set of [
+      auditedCallKeys,
+      republicPublishedCallKeys,
+      supervisorPublishedCallKeys,
+      outputReminderCallKeys,
+      supervisorReminderCallKeys,
+      taskReminderCallKeys,
+    ]) {
       for (const key of set) {
         if (key.startsWith(`${sessionID}:`)) {
           set.delete(key)
@@ -459,6 +548,187 @@ export function createNativeGitHook(
     }
   }
 
+  function recordDependencyGate(input: NativeGitToolInput, files: string[], modules: string[], blocked: boolean): void {
+    if (!isRepublicLedgerEnabled(republicConfig)) {
+      return
+    }
+
+    const status = getNativeGitStatus(ctx.directory)
+    if (!status) {
+      return
+    }
+
+    const moduleName = modules[0] ?? "workspace"
+    const workgroupID = getWorkgroupID(moduleName)
+    const deliberationID = getDeliberationID(input)
+    const taskID = getTaskID(input, moduleName)
+    const summary = `Dependency gate ${blocked ? "blocked" : "flagged"} a ${input.tool} call across ${modules.length} workgroups: ${modules.join(", ")}.`
+
+    appendRepublicCommonsMessage(status.repository, {
+      deliberationID,
+      channel: "dependency-gate",
+      phase: "preflight",
+      authorSeatID: "dependency-gate",
+      authorAgent: "republic-supervisor",
+      authorRole: "supervisor",
+      targetSeatID: getSeatID(input),
+      workgroupID,
+      module: moduleName,
+      taskID,
+      dependsOn: modules.slice(1).map(getWorkgroupID),
+      supervisorSeatID: "republic-supervisor",
+      status: blocked ? "blocked" : "review-required",
+      messageType: "dependency-blocked",
+      files,
+      content: summary,
+    })
+
+    appendRepublicLedgerRecord(status.repository, {
+      deliberationID,
+      phase: "preflight",
+      chamber: "supervisor",
+      seatID: "dependency-gate",
+      role: "supervisor",
+      agent: "republic-supervisor",
+      sessionID: input.sessionID,
+      callID: input.callID,
+      workgroupID,
+      module: moduleName,
+      taskID,
+      dependsOn: modules.slice(1).map(getWorkgroupID),
+      supervisorSeatID: "republic-supervisor",
+      status: blocked ? "blocked" : "review-required",
+      files,
+      summary,
+    })
+  }
+
+  function evaluateDependencyGate(
+    input: NativeGitToolInput,
+    output: { args: Record<string, unknown>; message?: string },
+  ): void {
+    if (mode === "manual" || !isRepublicLedgerEnabled(republicConfig) || !(republicConfig?.dependency_gate?.enabled ?? true)) {
+      return
+    }
+
+    const files = getToolTargetPaths(input.tool, output.args)
+    const modules = getModules(files)
+    const threshold = republicConfig?.dependency_gate?.cross_module_threshold ?? 2
+    if (modules.length < threshold) {
+      return
+    }
+
+    const blocked = (republicConfig?.mode ?? "advisory") === "governed"
+      && (republicConfig?.dependency_gate?.mode ?? "advisory") === "block"
+    recordDependencyGate(input, files, modules, blocked)
+
+    const message = buildDependencyGateMessage(modules, files)
+    if (blocked) {
+      throw new Error(message.replace(/<\/?system-reminder>/g, "").trim())
+    }
+
+    appendBeforeMessage(output, message)
+  }
+
+  function getSupervisorReasons(input: NativeGitToolInput, files: string[]): string[] {
+    if (!isRepublicLedgerEnabled(republicConfig) || !(republicConfig?.supervisor?.intervention ?? true)) {
+      return []
+    }
+
+    const reasons: string[] = []
+    const fileThreshold = republicConfig?.supervisor?.file_threshold ?? 5
+    if (files.length >= fileThreshold) {
+      reasons.push(`large change set (${files.length} files)`)
+    }
+
+    const highRiskPaths = republicConfig?.supervisor?.high_risk_paths ?? []
+    const highRiskMatches = files.filter((file) => highRiskPaths.some((pattern) => matchesPathPattern(file, pattern)))
+    if (highRiskMatches.length > 0) {
+      reasons.push(`high-risk path touched (${highRiskMatches.slice(0, 5).join(", ")})`)
+    }
+
+    const agent = input.agent?.toLowerCase()
+    const writesOutsidePlanning = files.some((file) => !normalizePath(file).startsWith(".sisyphus/"))
+    if (agent === "prometheus" && writesOutsidePlanning) {
+      reasons.push("planner agent modified non-planning files")
+    }
+    if (agent === "atlas" && writesOutsidePlanning) {
+      reasons.push("orchestrator agent modified implementation files directly")
+    }
+
+    return reasons
+  }
+
+  function publishSupervisorIntervention(
+    repository: NativeGitRepository,
+    input: NativeGitToolInput,
+    files: string[],
+    summary: string,
+  ): string | undefined {
+    const callKey = getCallKey(input)
+    if (callKey && supervisorPublishedCallKeys.has(callKey)) {
+      return undefined
+    }
+
+    const reasons = getSupervisorReasons(input, files)
+    if (reasons.length === 0) {
+      return undefined
+    }
+
+    const moduleName = getPrimaryModule(files)
+    const workgroupID = getWorkgroupID(moduleName)
+    const deliberationID = getDeliberationID(input)
+    const targetSeatID = getSeatID(input)
+    const taskID = getTaskID(input, moduleName)
+    const message = [
+      `Supervisor review is required because ${reasons.join("; ")}.`,
+      "Coordinate affected workgroups through the Republic Commons before treating the task as complete.",
+      summary.trim(),
+    ].join("\n\n")
+
+    appendRepublicCommonsMessage(repository, {
+      deliberationID,
+      channel: "supervisor",
+      phase: "intervention",
+      authorSeatID: "republic-supervisor",
+      authorAgent: "republic-supervisor",
+      authorRole: "supervisor",
+      targetSeatID,
+      workgroupID,
+      module: moduleName,
+      taskID,
+      supervisorSeatID: "republic-supervisor",
+      status: "review-required",
+      messageType: "intervention",
+      files,
+      content: message,
+    })
+
+    appendRepublicLedgerRecord(repository, {
+      deliberationID,
+      phase: "intervention",
+      chamber: "supervisor",
+      seatID: "republic-supervisor",
+      role: "supervisor",
+      agent: "republic-supervisor",
+      sessionID: input.sessionID,
+      callID: input.callID,
+      workgroupID,
+      module: moduleName,
+      taskID,
+      supervisorSeatID: "republic-supervisor",
+      status: "review-required",
+      files,
+      summary: message,
+    })
+
+    if (callKey) {
+      supervisorPublishedCallKeys.add(callKey)
+    }
+
+    return message
+  }
+
   function trackNativeGitChanges(input: NativeGitToolInput): NativeGitTrackResult {
     input = enrichToolInput(input)
     const tool = input.tool.toLowerCase()
@@ -506,6 +776,7 @@ export function createNativeGitHook(
       fileCount: status.files.length,
     })
 
+    let supervisorMessage: string | undefined
     if (changedSinceLastCheck) {
       if (auditLog && (!callKey || !auditedCallKeys.has(callKey))) {
         appendNativeGitAuditRecord(status.repository, {
@@ -525,6 +796,7 @@ export function createNativeGitHook(
       }
 
       publishRepublicChange(status.repository, input, status.files, summary)
+      supervisorMessage = publishSupervisorIntervention(status.repository, input, status.files, summary)
 
       log("[native-git] tracked uncommitted changes", {
         tool,
@@ -533,7 +805,7 @@ export function createNativeGitHook(
       })
     }
 
-    const result = { dirty: true, changedSinceLastCheck, summary }
+    const result = { dirty: true, changedSinceLastCheck, summary, supervisorMessage }
     if (callKey && changedSinceLastCheck) {
       changedResultByCall.set(callKey, result)
     }
@@ -546,6 +818,12 @@ export function createNativeGitHook(
       if (mode !== "manual") {
         rememberSessionContext(input)
       }
+    },
+    "tool.execute.before": async (
+      input: { tool: string; sessionID: string; callID: string },
+      output: { args: Record<string, unknown>; message?: string },
+    ): Promise<void> => {
+      evaluateDependencyGate(enrichToolInput(input), output)
     },
     event: async (input: NativeGitEventInput): Promise<void> => {
       if (mode === "manual") {
@@ -605,6 +883,13 @@ export function createNativeGitHook(
         }
         if (callKey) {
           outputReminderCallKeys.add(callKey)
+        }
+      }
+
+      if (result.supervisorMessage && (!callKey || !supervisorReminderCallKeys.has(callKey))) {
+        appendOutput(output, buildSupervisorInterventionMessage(result.supervisorMessage))
+        if (callKey) {
+          supervisorReminderCallKeys.add(callKey)
         }
       }
 

@@ -88,6 +88,34 @@ describe("createToolExecuteBeforeHandler", () => {
     expect(called).toBe(false)
   })
 
+  test("runs native git preflight hook", async () => {
+    let called = false
+    const ctx = {
+      client: {
+        session: {
+          messages: async () => ({ data: [] }),
+        },
+      },
+    }
+
+    const hooks = {
+      nativeGit: {
+        "tool.execute.before": async (_input: unknown, output: { message?: string }) => {
+          called = true
+          output.message = "native git preflight"
+        },
+      },
+    }
+
+    const handler = createToolExecuteBeforeHandler({ ctx, hooks })
+    const output = { args: { filePath: "src/a.ts" } as Record<string, unknown>, message: undefined as string | undefined }
+
+    await handler({ tool: "write", sessionID: "ses_git", callID: "call_git" }, output)
+
+    expect(called).toBe(true)
+    expect(output.message).toBe("native git preflight")
+  })
+
   describe("task tool subagent_type normalization", () => {
     const emptyHooks = {}
 
