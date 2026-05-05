@@ -29,12 +29,14 @@ type NativeGitChatInput = {
   agent?: string
   model?: { providerID: string; modelID: string }
   category?: string
+  promptText?: string
 }
 
 type NativeGitSessionContext = {
   agent?: string
   model?: string
   category?: string
+  requestedPaths?: string[]
 }
 
 type NativeGitEventInput = {
@@ -213,6 +215,25 @@ function getBashTargetPaths(command: string): string[] {
   }
 
   return Array.from(paths).sort()
+}
+
+function getPromptMentionedPaths(promptText: string | undefined): string[] {
+  if (!promptText) {
+    return []
+  }
+
+  const paths = new Set<string>()
+  const normalizedText = promptText.replace(/\\/g, "/")
+  const pathPattern = /(?<![A-Za-z0-9_-])((?:\.sisyphus|\.github|\.opencode|src|docs|test|tests|packages|apps|config|scripts|assets)\/[A-Za-z0-9_./-]+|(?:package\.json|bun\.lock|README\.md|tsconfig\.json))/g
+  let match: RegExpExecArray | null
+  while ((match = pathPattern.exec(normalizedText)) !== null) {
+    const candidate = match[1]?.replace(/[`"'),;:]+$/g, "")
+    if (candidate) {
+      paths.add(normalizePath(candidate))
+    }
+  }
+
+  return Array.from(paths).slice(0, 50).sort()
 }
 
 function getToolTargetPaths(tool: string, args: Record<string, unknown>): string[] {
@@ -447,10 +468,12 @@ export function createNativeGitHook(
   }
 
   function rememberSessionContext(input: NativeGitChatInput): void {
+    const requestedPaths = getPromptMentionedPaths(input.promptText)
     sessionContextBySession.set(input.sessionID, {
       agent: normalizeAgent(input.agent),
       model: formatModelID(input.model),
       category: input.category,
+      requestedPaths: requestedPaths.length > 0 ? requestedPaths : undefined,
     })
   }
 
@@ -731,6 +754,16 @@ export function createNativeGitHook(
     }
     if (agent === "atlas" && writesOutsidePlanning) {
       reasons.push("orchestrator agent modified implementation files directly")
+    }
+
+    const requestedPaths = input.sessionID ? sessionContextBySession.get(input.sessionID)?.requestedPaths ?? [] : []
+    const changedOutsideRequest = requestedPaths.length > 0
+      ? files.filter((file) => !requestedPaths.some((requestedPath) => matchesPathPattern(file, requestedPath)))
+      : []
+    if (changedOutsideRequest.length > 0) {
+      reasons.push(
+        `changed files outside explicit user-mentioned paths (${changedOutsideRequest.slice(0, 5).join(", ")}; requested ${requestedPaths.slice(0, 5).join(", ")})`,
+      )
     }
 
     return reasons

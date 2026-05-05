@@ -65,7 +65,7 @@ The expected deliberation rhythm is:
 Republic execution has three live governance hooks:
 
 - **Automatic Commons publication**: native-git changes are published to Commons with agent, model, session, call, files, module, workgroup, and task metadata.
-- **Supervisor intervention**: high-risk file paths, large change sets, or role-boundary crossings create `messageType: "intervention"` records from `republic-supervisor` and append a visible system reminder to the tool output.
+- **Supervisor intervention**: high-risk file paths, large change sets, role-boundary crossings, or edits outside explicit user-mentioned paths create `messageType: "intervention"` records from `republic-supervisor` and append a visible system reminder to the tool output.
 - **Workgroup dependency gate**: before explicit multi-file tools run, OMO infers touched modules. If a call crosses the configured module threshold, advisory mode records a `dependency-blocked` preflight message and warns; governed block mode records the same message and blocks the tool call.
 
 These hooks still do not auto-commit, auto-stash, or create worktrees. Git history remains under user or `git-master` control.
@@ -160,7 +160,7 @@ Verified behavior:
 Observed model behavior:
 
 - Kimi K2.6 reliably produced real file edits and the plugin tracked them with `agent` and `model` attribution.
-- Kimi K2.6 did not reliably obey a prompt that required a specific Shell tool call. In that case, the plugin still recorded the actual write, but a preflight block can only evaluate the tool call the model actually attempts.
+- Kimi K2.6 did not reliably obey a prompt that required a specific Shell tool call. In that case, the plugin still recorded the actual write, and supervisor path-drift detection can now flag edits outside paths explicitly named by the user. A preflight block can only evaluate the tool call the model actually attempts.
 
 That distinction is intentional for the first governed implementation: preflight gates block explicit cross-workgroup tool calls, while post-change gates catch cumulative multi-module edits that happen through several single-file tool calls.
 

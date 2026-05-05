@@ -217,6 +217,7 @@ export function createChatMessageHandler(args: {
     if (isFirstMessage) {
       firstMessageVariantGate.markApplied(input.sessionID)
     }
+    const promptTextBeforeHookMutation = extractPromptText(output.parts)
 
     const storedMainSessionModel = getStoredMainSessionModel(
       input,
@@ -249,6 +250,7 @@ export function createChatMessageHandler(args: {
     await hooks.nativeGit?.["chat.message"]?.({
       ...input,
       model: input.model ?? modelOverride,
+      promptText: promptTextBeforeHookMutation,
     })
     if (hooks.startWork && isStartWorkHookOutput(output)) {
       const promptText = extractPromptText(output.parts)

@@ -184,6 +184,53 @@ describe("native git hook", () => {
     expect(output.output).toContain("Republic supervisor intervention recorded")
   })
 
+  test("tracked mode records supervisor intervention for prompt path drift", async () => {
+    const hook = createNativeGitHook(
+      { directory } as never,
+      { mode: "tracked", audit_log: true },
+      {
+        enabled: true,
+        mode: "advisory",
+        ledger: true,
+        commons: { auto_publish: true },
+        supervisor: {
+          intervention: true,
+          file_threshold: 5,
+          high_risk_paths: [],
+        },
+      } as never,
+    )
+    await hook["chat.message"]?.({
+      sessionID: "ses_drift",
+      agent: "sisyphus",
+      model: { providerID: "kimi-for-coding", modelID: "k2p6" },
+      promptText: "Only update src/api/orders.ts and docs/api/orders.md.",
+    })
+    await captureToolBaseline(hook, { tool: "write", sessionID: "ses_drift", callID: "call_drift" })
+    mkdirSync(join(directory, "src", "utils"), { recursive: true })
+    writeFileSync(join(directory, "src", "utils", "dateUtils.ts"), "export const today = () => new Date()\n", "utf-8")
+    const output: { output?: string; metadata?: Record<string, unknown> } = {
+      output: "created",
+      metadata: {
+        agent: "sisyphus",
+        model: "kimi-for-coding/k2p6",
+      },
+    }
+
+    await hook["tool.execute.after"](
+      { tool: "write", sessionID: "ses_drift", callID: "call_drift" },
+      output,
+    )
+
+    const repository = getNativeGitRepository(directory)
+    const commons = readRepublicCommonsMessages(repository!, "session-ses_drift")
+    const intervention = commons.find((message) => message.messageType === "intervention")
+
+    expect(intervention?.content).toContain("changed files outside explicit user-mentioned paths")
+    expect(intervention?.content).toContain("src/utils/dateUtils.ts")
+    expect(output.output).toContain("Republic supervisor intervention recorded")
+  })
+
   test("dependency gate records advisory commons messages before cross-workgroup writes", async () => {
     const hook = createNativeGitHook(
       { directory } as never,
