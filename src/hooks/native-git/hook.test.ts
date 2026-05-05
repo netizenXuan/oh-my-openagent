@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
+  appendRepublicCommonsMessage,
   getNativeGitAuditPath,
   getNativeGitRepository,
   readRepublicCommonsMessages,
@@ -140,6 +141,95 @@ describe("native git hook", () => {
     expect(ledger[0]?.model).toBe("kimi-for-coding/k2p6")
     expect(git(directory, ["status", "--porcelain"])).toContain("src/")
     expect(git(directory, ["status", "--porcelain"])).not.toContain(".git/omo/republic")
+  })
+
+  test("tracked mode injects relevant republic inbox messages into chat prompt", async () => {
+    const hook = createNativeGitHook(
+      { directory } as never,
+      { mode: "tracked", audit_log: true },
+      {
+        enabled: true,
+        mode: "advisory",
+        ledger: true,
+        commons: {
+          auto_publish: true,
+          inbox: true,
+          inject_max_messages: 4,
+          agent_docs: true,
+        },
+      } as never,
+    )
+    const repository = getNativeGitRepository(directory)!
+    appendRepublicCommonsMessage(repository, {
+      deliberationID: "session-ses_inbox",
+      channel: "commons",
+      phase: "cross-examination",
+      authorSeatID: "docs-seat",
+      targetSeatID: "sisyphus-executor",
+      workgroupID: "wg-src-api",
+      module: "src/api",
+      messageType: "question",
+      content: "Should the API expose cancellationReason?",
+    })
+    const output = {
+      parts: [{ type: "text", text: "Implement src/api/orders.ts" }],
+    }
+
+    await hook["chat.message"]?.({
+      sessionID: "ses_inbox",
+      agent: "sisyphus",
+      model: { providerID: "kimi-for-coding", modelID: "k2p6" },
+      promptText: "Implement src/api/orders.ts",
+    }, output)
+
+    expect(output.parts[0]?.text).toContain("<republic-commons-inbox>")
+    expect(output.parts[0]?.text).toContain("Should the API expose cancellationReason")
+  })
+
+  test("session idle records supervisor policy for unresolved commons questions", async () => {
+    const hook = createNativeGitHook(
+      { directory } as never,
+      { mode: "tracked", audit_log: true },
+      {
+        enabled: true,
+        mode: "advisory",
+        ledger: true,
+        supervisor: {
+          intervention: true,
+          policy_loop: true,
+          file_threshold: 5,
+          high_risk_paths: [],
+        },
+      } as never,
+    )
+    const repository = getNativeGitRepository(directory)!
+    appendRepublicCommonsMessage(repository, {
+      messageID: "question-1",
+      deliberationID: "session-ses_policy",
+      channel: "commons",
+      phase: "cross-examination",
+      authorSeatID: "api-seat",
+      targetSeatID: "docs-seat",
+      messageType: "question",
+      content: "Can docs confirm the public API contract?",
+    })
+
+    await hook.event({
+      event: {
+        type: "session.idle",
+        properties: {
+          sessionID: "ses_policy",
+        },
+      },
+    })
+
+    const commons = readRepublicCommonsMessages(repository, "session-ses_policy")
+    const policy = commons.find((message) => message.messageType === "supervisor-policy")
+    const ledger = readRepublicLedgerRecords(repository, "session-ses_policy")
+
+    expect(policy?.content).toContain("unresolved question")
+    expect(policy?.references).toContain("question-1")
+    expect(ledger.some((record) => record.phase === "policy-loop")).toBe(true)
   })
 
   test("tracked mode records supervisor intervention for high-risk changes", async () => {

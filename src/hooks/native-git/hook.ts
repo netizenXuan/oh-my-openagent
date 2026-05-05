@@ -6,8 +6,11 @@ import {
   appendRepublicLedgerRecord,
   getNativeGitChangeSummary,
   getNativeGitStatus,
+  readRepublicCommonsMessages,
+  readRepublicInboxMessages,
   sanitizeRepublicDeliberationID,
   type NativeGitRepository,
+  type RepublicCommonsMessage,
 } from "../../shared/git-worktree"
 import { log } from "../../shared/logger"
 import { getSessionAgent } from "../../features/claude-code-session-state"
@@ -30,6 +33,10 @@ type NativeGitChatInput = {
   model?: { providerID: string; modelID: string }
   category?: string
   promptText?: string
+}
+
+type NativeGitChatOutput = {
+  parts: Array<{ type: string; text?: string; [key: string]: unknown }>
 }
 
 type NativeGitSessionContext = {
@@ -435,6 +442,7 @@ export function createNativeGitHook(
   const taskReminderCallKeys = new Set<string>()
   const initialStatusByRepo = new Map<string, string>()
   const sessionContextBySession = new Map<string, NativeGitSessionContext>()
+  const policyLoopStatusBySession = new Map<string, string>()
 
   const initialStatus = mode === "manual" ? null : getNativeGitStatus(ctx.directory)
   if (initialStatus) {
@@ -445,6 +453,7 @@ export function createNativeGitHook(
     dirtyStateBySession.delete(sessionID)
     lastToastStatusBySession.delete(sessionID)
     sessionContextBySession.delete(sessionID)
+    policyLoopStatusBySession.delete(sessionID)
     deleteSessionMapEntries(lastStatusBySessionRepo, sessionID)
     deleteSessionMapEntries(baselineByCall, sessionID)
     deleteSessionMapEntries(changedResultByCall, sessionID)
@@ -488,6 +497,149 @@ export function createNativeGitHook(
       model: input.model ?? sessionContext?.model,
       category: input.category ?? sessionContext?.category,
     }
+  }
+
+  function prependChatContext(output: NativeGitChatOutput, text: string): void {
+    const textPart = output.parts.find((part) => part.type === "text" && typeof part.text === "string")
+    if (!textPart) {
+      return
+    }
+    textPart.text = `${text.trim()}\n\n---\n\n${textPart.text ?? ""}`
+  }
+
+  function formatInboxInjection(messages: RepublicCommonsMessage[]): string {
+    const lines: Array<string | undefined> = [
+      "<republic-commons-inbox>",
+      "Relevant Republic Commons messages for this seat. Use republic_publish for answers, objections, revisions, handoffs, or supervisor responses.",
+      "",
+    ]
+    for (const message of messages) {
+      lines.push(
+        `- id: ${message.messageID ?? "unknown"}`,
+        `  type: ${message.messageType}`,
+        `  from: ${message.authorSeatID}${message.targetSeatID ? ` -> ${message.targetSeatID}` : ""}`,
+        message.workgroupID ? `  workgroup: ${message.workgroupID}` : undefined,
+        message.module ? `  module: ${message.module}` : undefined,
+        message.taskID ? `  task: ${message.taskID}` : undefined,
+        message.files?.length ? `  files: ${message.files.join(", ")}` : undefined,
+        `  content: ${message.content.trim().replace(/\s+/g, " ")}`,
+        "",
+      )
+    }
+    lines.push("</republic-commons-inbox>")
+    return lines.filter((line): line is string => typeof line === "string").join("\n")
+  }
+
+  function injectRepublicInbox(input: NativeGitChatInput, output: NativeGitChatOutput | undefined): void {
+    if (!output || !isRepublicLedgerEnabled(republicConfig) || !(republicConfig?.commons?.inbox ?? true)) {
+      return
+    }
+
+    const status = getNativeGitStatus(ctx.directory)
+    if (!status) {
+      return
+    }
+
+    const enriched = enrichToolInput({
+      tool: "chat",
+      sessionID: input.sessionID,
+      agent: input.agent,
+      model: input.model ? formatModelID(input.model) : undefined,
+      category: input.category,
+    })
+    const seatID = getSeatID(enriched)
+    const sessionContext = sessionContextBySession.get(input.sessionID)
+    const modules = getModules(sessionContext?.requestedPaths ?? [])
+    const moduleName = modules[0]
+    const messages = readRepublicInboxMessages(status.repository, {
+      seatID,
+      deliberationID: getDeliberationID(enriched),
+      workgroupID: moduleName ? getWorkgroupID(moduleName) : undefined,
+      module: moduleName,
+      limit: republicConfig?.commons?.inject_max_messages ?? 6,
+    })
+
+    if (messages.length > 0) {
+      prependChatContext(output, formatInboxInjection(messages))
+    }
+  }
+
+  function findUnresolvedQuestions(messages: RepublicCommonsMessage[]): RepublicCommonsMessage[] {
+    const answeredReferences = new Set<string>()
+    for (const message of messages) {
+      if (message.messageType === "answer" || message.messageType === "revision" || message.messageType === "consensus") {
+        for (const reference of message.references ?? []) {
+          answeredReferences.add(reference)
+        }
+      }
+    }
+    return messages.filter((message) => message.messageType === "question" && message.messageID && !answeredReferences.has(message.messageID))
+  }
+
+  function runSupervisorPolicyLoop(sessionID: string): void {
+    if (!isRepublicLedgerEnabled(republicConfig) || !(republicConfig?.supervisor?.policy_loop ?? true)) {
+      return
+    }
+
+    const status = getNativeGitStatus(ctx.directory)
+    if (!status) {
+      return
+    }
+
+    const deliberationID = sanitizeRepublicDeliberationID(`session-${sessionID}`)
+    const messages = readRepublicCommonsMessages(status.repository, deliberationID)
+    if (messages.length === 0) {
+      return
+    }
+
+    const unresolvedQuestions = findUnresolvedQuestions(messages)
+    const unresolvedSupervisorMessages = messages.filter((message) =>
+      message.messageType === "intervention" || message.messageType === "dependency-blocked"
+    )
+    if (unresolvedQuestions.length === 0 && unresolvedSupervisorMessages.length === 0) {
+      return
+    }
+
+    const latestTimestamp = messages.at(-1)?.timestamp ?? ""
+    const policyKey = `${deliberationID}:${messages.length}:${latestTimestamp}:${unresolvedQuestions.length}:${unresolvedSupervisorMessages.length}`
+    if (policyLoopStatusBySession.get(sessionID) === policyKey) {
+      return
+    }
+    policyLoopStatusBySession.set(sessionID, policyKey)
+
+    const references = [
+      ...unresolvedQuestions.map((message) => message.messageID).filter((id): id is string => Boolean(id)),
+      ...unresolvedSupervisorMessages.map((message) => message.messageID).filter((id): id is string => Boolean(id)),
+    ].slice(0, 20)
+    const summary = [
+      `Supervisor policy loop found ${unresolvedQuestions.length} unresolved question(s) and ${unresolvedSupervisorMessages.length} unresolved governance warning(s).`,
+      "Before continuing execution, affected seats should read republic_inbox and answer, revise, or hand off through republic_publish.",
+    ].join("\n")
+
+    appendRepublicCommonsMessage(status.repository, {
+      deliberationID,
+      channel: "supervisor",
+      phase: "policy-loop",
+      authorSeatID: "republic-supervisor",
+      authorAgent: "republic-supervisor",
+      authorRole: "supervisor",
+      status: "review-required",
+      messageType: "supervisor-policy",
+      references,
+      content: summary,
+    })
+
+    appendRepublicLedgerRecord(status.repository, {
+      deliberationID,
+      phase: "policy-loop",
+      chamber: "supervisor",
+      seatID: "republic-supervisor",
+      role: "supervisor",
+      agent: "republic-supervisor",
+      sessionID,
+      status: "review-required",
+      summary,
+    })
   }
 
   async function showNativeGitReminder(sessionID: string): Promise<void> {
@@ -926,9 +1078,10 @@ export function createNativeGitHook(
   }
 
   return {
-    "chat.message": async (input: NativeGitChatInput): Promise<void> => {
+    "chat.message": async (input: NativeGitChatInput, output?: NativeGitChatOutput): Promise<void> => {
       if (mode !== "manual") {
         rememberSessionContext(input)
+        injectRepublicInbox(input, output)
       }
     },
     "tool.execute.before": async (
@@ -956,6 +1109,7 @@ export function createNativeGitHook(
       if (input.event.type === "session.idle" && isRecord(input.event.properties)) {
         const sessionID = getStringProperty(input.event.properties, ["sessionID", "sessionId"])
         if (sessionID) {
+          runSupervisorPolicyLoop(sessionID)
           await showNativeGitReminder(sessionID)
         }
         return

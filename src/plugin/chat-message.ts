@@ -251,7 +251,7 @@ export function createChatMessageHandler(args: {
       ...input,
       model: input.model ?? modelOverride,
       promptText: promptTextBeforeHookMutation,
-    })
+    }, output)
     if (hooks.startWork && isStartWorkHookOutput(output)) {
       const promptText = extractPromptText(output.parts)
       if (isStartWorkFallbackTemplate(promptText)) {
