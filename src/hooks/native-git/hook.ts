@@ -8,6 +8,10 @@ import {
   getNativeGitStatus,
   readRepublicCommonsMessages,
   readRepublicInboxMessages,
+  readRepublicSeatMemory,
+  readRepublicSeatState,
+  readRepublicTeamManifest,
+  readRepublicTeamPhase,
   sanitizeRepublicDeliberationID,
   type NativeGitRepository,
   type RepublicCommonsMessage,
@@ -197,6 +201,13 @@ function getStringArray(value: unknown): string[] {
     return []
   }
   return value.filter((item): item is string => typeof item === "string" && item.length > 0)
+}
+
+function tailText(value: string, maxChars: number): string {
+  if (value.length <= maxChars) {
+    return value
+  }
+  return value.slice(value.length - maxChars)
 }
 
 function isBashMutationCommand(command: string): boolean {
@@ -530,6 +541,49 @@ export function createNativeGitHook(
     return lines.filter((line): line is string => typeof line === "string").join("\n")
   }
 
+  function formatTeamInjection(repository: NativeGitRepository, seatID: string): string | undefined {
+    const manifest = readRepublicTeamManifest(repository)
+    const phase = readRepublicTeamPhase(repository)
+    if (!manifest && !phase) {
+      return undefined
+    }
+
+    const state = readRepublicSeatState(repository, seatID)
+    const definition = manifest?.seats.find((seat) => seat.seatID === seatID)
+    const memory = state || definition ? readRepublicSeatMemory(repository, seatID).trim() : ""
+    const roster = manifest?.seats.slice(0, 12).map((seat) => {
+      const seatState = readRepublicSeatState(repository, seat.seatID)
+      return `- ${seat.seatID}: ${seat.role}${seat.phase ? `/${seat.phase}` : ""}${seat.workgroupID ? ` workgroup=${seat.workgroupID}` : ""}${seat.module ? ` module=${seat.module}` : ""}${seatState?.status ? ` status=${seatState.status}` : ""}`
+    }) ?? []
+
+    const lines: Array<string | undefined> = [
+      "<republic-team-state>",
+      "Persistent Republic team state for this repository. Use republic_seat_update when your status changes, republic_team_status for the full read model, and republic_phase_update when supervisor locks phase transitions.",
+      phase ? `phase: ${phase.phase}/${phase.status}${phase.activeRound !== undefined ? ` round=${phase.activeRound}` : ""}` : undefined,
+      phase?.lockedContracts?.length ? `locked_contracts: ${phase.lockedContracts.join(", ")}` : undefined,
+      phase?.blockedBy?.length ? `blocked_by: ${phase.blockedBy.join(", ")}` : undefined,
+      manifest ? `team_model: ${manifest.teamModel}` : undefined,
+      manifest ? `seat_allocation: ${manifest.seatAllocation}` : undefined,
+      "",
+      state || definition ? `current_seat: ${seatID}` : `current_seat: ${seatID} (not in current team manifest)`,
+      definition?.role ? `role: ${definition.role}` : state?.role ? `role: ${state.role}` : undefined,
+      state?.status ? `status: ${state.status}` : undefined,
+      state?.workgroupID || definition?.workgroupID ? `workgroup: ${state?.workgroupID ?? definition?.workgroupID}` : undefined,
+      state?.module || definition?.module ? `module: ${state?.module ?? definition?.module}` : undefined,
+      state?.taskID || definition?.taskID ? `task: ${state?.taskID ?? definition?.taskID}` : undefined,
+      state?.waitingOn?.length ? `waiting_on: ${state.waitingOn.join(", ")}` : undefined,
+      memory ? "" : undefined,
+      memory ? "memory_tail:" : undefined,
+      memory ? tailText(memory, 1200) : undefined,
+      roster.length ? "" : undefined,
+      roster.length ? "team_roster:" : undefined,
+      ...roster,
+      "</republic-team-state>",
+    ]
+
+    return lines.filter((line): line is string => typeof line === "string").join("\n")
+  }
+
   function injectRepublicInbox(input: NativeGitChatInput, output: NativeGitChatOutput | undefined): void {
     if (!output || !isRepublicLedgerEnabled(republicConfig) || !(republicConfig?.commons?.inbox ?? true)) {
       return
@@ -559,8 +613,17 @@ export function createNativeGitHook(
       limit: republicConfig?.commons?.inject_max_messages ?? 6,
     })
 
+    const injections: string[] = []
+    const teamInjection = formatTeamInjection(status.repository, seatID)
+    if (teamInjection) {
+      injections.push(teamInjection)
+    }
     if (messages.length > 0) {
-      prependChatContext(output, formatInboxInjection(messages))
+      injections.push(formatInboxInjection(messages))
+    }
+
+    if (injections.length > 0) {
+      prependChatContext(output, injections.join("\n\n"))
     }
   }
 

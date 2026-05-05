@@ -7,10 +7,13 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
   appendRepublicCommonsMessage,
+  appendRepublicSeatMemory,
   getNativeGitAuditPath,
   getNativeGitRepository,
+  initializeRepublicTeam,
   readRepublicCommonsMessages,
   readRepublicLedgerRecords,
+  writeRepublicSeatState,
 } from "../../shared/git-worktree"
 import { createNativeGitHook, NATIVE_GIT_TASK_REMINDER } from "./hook"
 
@@ -184,6 +187,86 @@ describe("native git hook", () => {
 
     expect(output.parts[0]?.text).toContain("<republic-commons-inbox>")
     expect(output.parts[0]?.text).toContain("Should the API expose cancellationReason")
+  })
+
+  test("tracked mode injects persistent republic team state into chat prompt", async () => {
+    const hook = createNativeGitHook(
+      { directory } as never,
+      { mode: "tracked", audit_log: true },
+      {
+        enabled: true,
+        mode: "advisory",
+        ledger: true,
+        commons: {
+          auto_publish: true,
+          inbox: true,
+          inject_max_messages: 4,
+          agent_docs: true,
+        },
+      } as never,
+    )
+    const repository = getNativeGitRepository(directory)!
+    initializeRepublicTeam(repository, {
+      manifest: {
+        teamModel: "parliament_squad",
+        seatAllocation: "auto",
+        maxParallelSeats: 4,
+        defaultRuntimeAgent: "general",
+        seats: [
+          {
+            seatID: "sisyphus-executor",
+            role: "executor",
+            phase: "execution",
+            workgroupID: "wg-src-api",
+            module: "src/api",
+            runtimeAgent: "sisyphus",
+            reason: "Current OpenCode agent owns API implementation.",
+          },
+          {
+            seatID: "docs-seat",
+            role: "planner",
+            phase: "planning",
+            workgroupID: "wg-docs-api",
+            module: "docs/api",
+            runtimeAgent: "hephaestus",
+          },
+        ],
+      },
+      phase: {
+        phase: "execution",
+        status: "in-progress",
+        deliberationID: "session-ses_team",
+        activeRound: 2,
+        lockedContracts: ["wg-src-api"],
+      },
+    })
+    writeRepublicSeatState(repository, {
+      seatID: "sisyphus-executor",
+      role: "executor",
+      runtimeAgent: "sisyphus",
+      status: "waiting",
+      phase: "execution",
+      workgroupID: "wg-src-api",
+      module: "src/api",
+      waitingOn: ["docs-seat"],
+    })
+    appendRepublicSeatMemory(repository, "sisyphus-executor", "Use the locked order API contract before editing routes.")
+    const output = {
+      parts: [{ type: "text", text: "Continue src/api/orders.ts" }],
+    }
+
+    await hook["chat.message"]?.({
+      sessionID: "ses_team",
+      agent: "sisyphus",
+      model: { providerID: "kimi-for-coding", modelID: "k2p6" },
+      promptText: "Continue src/api/orders.ts",
+    }, output)
+
+    expect(output.parts[0]?.text).toContain("<republic-team-state>")
+    expect(output.parts[0]?.text).toContain("phase: execution/in-progress")
+    expect(output.parts[0]?.text).toContain("current_seat: sisyphus-executor")
+    expect(output.parts[0]?.text).toContain("waiting_on: docs-seat")
+    expect(output.parts[0]?.text).toContain("Use the locked order API contract")
   })
 
   test("session idle records supervisor policy for unresolved commons questions", async () => {
