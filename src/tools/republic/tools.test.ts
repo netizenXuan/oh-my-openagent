@@ -303,6 +303,42 @@ describe("republic tools", () => {
     expect(git(directory, ["status", "--porcelain"])).toBe("")
   })
 
+  test("reserves a round slot for supervisor when requested", async () => {
+    const launched: Array<{ agent: string; prompt: string; description: string }> = []
+    const tools = createRepublicTools({ directory } as PluginInput, {
+      manager: createDispatchManager(launched),
+    })
+    const context = createToolContext(directory)
+
+    await tools.republic_team_init.execute({
+      goal: "Build order API with database, tests, and docs",
+      files: ["src/api/orders.ts", "src/db/orders.ts", "tests/orders.test.ts", "docs/orders.md"],
+      deliberation_id: "order-system-team",
+      team_model: "parliament_squad",
+      seat_allocation: "auto",
+    }, context)
+
+    const result = await tools.republic_round_start.execute({
+      goal: "Execution seats implement while supervisor watches blockers.",
+      phase: "execution",
+      deliberation_id: "order-system-team",
+      include_supervisor: true,
+      max_seats: 3,
+      round: 2,
+    }, context)
+
+    const parsed = JSON.parse(String(result))
+    const dispatchedSeats = parsed.dispatches.map((dispatch: { seat_id: string }) => dispatch.seat_id)
+
+    expect(parsed.ok).toBe(true)
+    expect(parsed.dispatches).toHaveLength(3)
+    expect(dispatchedSeats).toContain("republic-supervisor")
+    expect(dispatchedSeats.filter((seatID: string) => seatID.endsWith("-executor-seat"))).toHaveLength(2)
+    expect(launched).toHaveLength(3)
+    expect(launched.some((launch) => launch.prompt.includes('persistent Republic seat "republic-supervisor"'))).toBe(true)
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
   test("resolves repository from tool context when plugin input directory is unavailable", async () => {
     const tools = createRepublicTools({} as PluginInput)
     const context = createToolContext(directory)

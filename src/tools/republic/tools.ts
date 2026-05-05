@@ -415,29 +415,34 @@ function selectRoundSeats(args: {
   maxSeats: number
 }): RepublicTeamSeatDefinition[] {
   const explicitSeatIDs = new Set(args.explicitSeatIDs?.map(sanitizeRepublicDeliberationID) ?? [])
-  const selected = args.seats.filter((seat) => {
+  const supervisorSeats = args.seats.filter((seat) => seat.role === "supervisor")
+  const nonSupervisorSeats = args.seats.filter((seat) => seat.role !== "supervisor")
+  const selected = nonSupervisorSeats.filter((seat) => {
     if (explicitSeatIDs.size > 0 && !explicitSeatIDs.has(seat.seatID)) {
       return false
     }
     if (args.workgroupID && seat.workgroupID !== args.workgroupID) {
       return false
     }
-    if (!args.includeSupervisor && seat.role === "supervisor") {
-      return false
-    }
     if (explicitSeatIDs.size > 0) {
       return true
-    }
-    if (seat.role === "supervisor") {
-      return args.includeSupervisor
     }
     return seat.phase === args.phase
   })
 
   const phaseMatched = selected.length > 0
     ? selected
-    : args.seats.filter((seat) => seat.role !== "supervisor" || args.includeSupervisor)
-  return phaseMatched.slice(0, args.maxSeats)
+    : nonSupervisorSeats.filter((seat) => !args.workgroupID || seat.workgroupID === args.workgroupID)
+  if (!args.includeSupervisor || supervisorSeats.length === 0) {
+    return phaseMatched.slice(0, args.maxSeats)
+  }
+
+  const supervisor = supervisorSeats[0]
+  const nonSupervisorLimit = Math.max(0, args.maxSeats - 1)
+  return [
+    ...phaseMatched.slice(0, nonSupervisorLimit),
+    supervisor,
+  ].slice(0, args.maxSeats)
 }
 
 async function dispatchRepublicSeatResponse(args: {
