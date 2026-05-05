@@ -260,6 +260,69 @@ describe("native git hook", () => {
     expect(commons[0]?.status).toBe("blocked")
   })
 
+  test("dependency gate detects mutating bash commands with cross-workgroup paths", async () => {
+    const hook = createNativeGitHook(
+      { directory } as never,
+      { mode: "tracked", audit_log: true },
+      {
+        enabled: true,
+        mode: "advisory",
+        ledger: true,
+        dependency_gate: {
+          enabled: true,
+          mode: "advisory",
+          cross_module_threshold: 2,
+        },
+      } as never,
+    )
+    const output: { args: Record<string, unknown>; message?: string } = {
+      args: {
+        command: "Set-Content src/api/orders.ts 'api'; Add-Content docs/api/orders.md 'docs'",
+      },
+    }
+
+    await hook["tool.execute.before"]?.(
+      { tool: "bash", sessionID: "ses_bash_gate", callID: "call_bash_gate" },
+      output,
+    )
+
+    const repository = getNativeGitRepository(directory)
+    const commons = readRepublicCommonsMessages(repository!, "session-ses_bash_gate")
+    expect(output.message).toContain("Republic workgroup dependency gate")
+    expect(commons[0]?.files).toEqual(["docs/api/orders.md", "src/api/orders.ts"])
+  })
+
+  test("dependency gate ignores read-only bash commands", async () => {
+    const hook = createNativeGitHook(
+      { directory } as never,
+      { mode: "tracked", audit_log: true },
+      {
+        enabled: true,
+        mode: "advisory",
+        ledger: true,
+        dependency_gate: {
+          enabled: true,
+          mode: "advisory",
+          cross_module_threshold: 2,
+        },
+      } as never,
+    )
+    const output: { args: Record<string, unknown>; message?: string } = {
+      args: {
+        command: "Get-Content src/api/orders.ts; Get-Content docs/api/orders.md",
+      },
+    }
+
+    await hook["tool.execute.before"]?.(
+      { tool: "bash", sessionID: "ses_read_gate", callID: "call_read_gate" },
+      output,
+    )
+
+    const repository = getNativeGitRepository(directory)
+    expect(output.message).toBeUndefined()
+    expect(readRepublicCommonsMessages(repository!, "session-ses_read_gate")).toEqual([])
+  })
+
   test("tracked mode attributes changes from chat session context when tool metadata is missing", async () => {
     const hook = createNativeGitHook({ directory } as never, { mode: "tracked", audit_log: true })
     await hook["chat.message"]?.({

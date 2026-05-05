@@ -180,6 +180,31 @@ function getStringArray(value: unknown): string[] {
   return value.filter((item): item is string => typeof item === "string" && item.length > 0)
 }
 
+function isBashMutationCommand(command: string): boolean {
+  return /(?:^|[\s;&|])(?:Set-Content|Add-Content|Out-File|New-Item|Remove-Item|Copy-Item|Move-Item|mkdir|md|ni|rm|cp|mv)(?=\s|$)/i.test(command)
+    || /(^|[^>])>{1,2}[^>]/.test(command)
+    || /\b(node|python|python3|bun)\b[\s\S]*\b(writeFileSync|writeFile|open\s*\()/i.test(command)
+}
+
+function getBashTargetPaths(command: string): string[] {
+  if (!isBashMutationCommand(command)) {
+    return []
+  }
+
+  const paths = new Set<string>()
+  const normalizedCommand = command.replace(/\\/g, "/")
+  const pathPattern = /(?<![A-Za-z0-9_-])((?:\.sisyphus|\.github|src|docs|test|tests|packages|apps|config|scripts|assets)\/[A-Za-z0-9_./-]+(?:\.[A-Za-z0-9_-]+)?)/g
+  let match: RegExpExecArray | null
+  while ((match = pathPattern.exec(normalizedCommand)) !== null) {
+    const candidate = match[1]?.replace(/[),;]+$/g, "")
+    if (candidate) {
+      paths.add(normalizePath(candidate))
+    }
+  }
+
+  return Array.from(paths).sort()
+}
+
 function getToolTargetPaths(tool: string, args: Record<string, unknown>): string[] {
   const paths = new Set<string>()
   for (const key of ["filePath", "file_path", "path", "file", "movePath", "move_path"]) {
@@ -210,6 +235,12 @@ function getToolTargetPaths(tool: string, args: Record<string, unknown>): string
       if (match?.[1]) {
         paths.add(normalizePath(match[1].trim()))
       }
+    }
+  }
+
+  if (tool.toLowerCase() === "bash" && typeof args.command === "string") {
+    for (const filePath of getBashTargetPaths(args.command)) {
+      paths.add(filePath)
     }
   }
 
