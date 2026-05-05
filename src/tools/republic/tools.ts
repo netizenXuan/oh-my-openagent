@@ -10,6 +10,7 @@ import {
   appendRepublicLedgerRecord,
   getNativeGitRepository,
   readRepublicAgentDoc,
+  readRepublicCommonsMessages,
   readRepublicInboxMessages,
   sanitizeRepublicDeliberationID,
   writeRepublicContract,
@@ -30,6 +31,7 @@ const MESSAGE_TYPES = [
 
 const DISPATCHABLE_MESSAGE_TYPES = new Set(["question", "handoff", "objection"])
 const SUPERVISOR_REVIEW_STATUSES = new Set(["blocked", "review-required"])
+const DEFAULT_WAIT_MESSAGE_TYPES = ["answer", "revision", "objection", "consensus", "contract", "handoff"]
 
 type ToolContextLike = {
   sessionID?: string
@@ -98,6 +100,17 @@ function safeStringArray(value: unknown): string[] | undefined {
   return values.length > 0 ? values : undefined
 }
 
+function boundedNumber(value: unknown, fallback: number, min: number, max: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return fallback
+  }
+  return Math.min(max, Math.max(min, value))
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 function formatInboxMessage(message: RepublicCommonsMessage): string {
   const lines = [
     `- ${message.timestamp ?? ""} [${message.messageType}] ${message.authorSeatID}${message.targetSeatID ? ` -> ${message.targetSeatID}` : ""}`,
@@ -109,6 +122,17 @@ function formatInboxMessage(message: RepublicCommonsMessage): string {
   if (message.files?.length) lines.push(`  files: ${message.files.join(", ")}`)
   lines.push(`  ${message.content.trim().replace(/\s+/g, " ")}`)
   return lines.join("\n")
+}
+
+function findReferencedResponses(args: {
+  repository: NativeGitRepository
+  messageID: string
+  deliberationID?: string
+  messageTypes: Set<string>
+}): RepublicCommonsMessage[] {
+  return readRepublicCommonsMessages(args.repository, args.deliberationID)
+    .filter((message) => (message.references ?? []).includes(args.messageID))
+    .filter((message) => args.messageTypes.has(message.messageType))
 }
 
 function resolveDispatchAgent(
@@ -608,6 +632,68 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
     },
   })
 
+  const republic_wait: ToolDefinition = tool({
+    description:
+      "Wait for Republic Commons responses that reference an earlier message. Use this after publishing a targeted question, handoff, or objection when the current seat should block until another seat or supervisor replies.",
+    args: {
+      message_id: tool.schema.string().describe("Original Commons message ID to wait on"),
+      deliberation_id: tool.schema.string().optional().describe("Optional deliberation filter"),
+      message_types: tool.schema.array(tool.schema.string()).optional().describe("Response message types to accept; defaults to answer, revision, objection, consensus, contract, handoff"),
+      timeout_ms: tool.schema.number().optional().describe("Maximum wait in milliseconds, default 30000"),
+      poll_interval_ms: tool.schema.number().optional().describe("Polling interval in milliseconds, default 1000"),
+    },
+    execute: async (args, context) => {
+      const repository = getToolRepository(ctx, context as ToolContextLike)
+      if (!repository) {
+        return JSON.stringify({ ok: false, error: "not_git_repository" })
+      }
+
+      const messageID = String(args.message_id ?? "").trim()
+      if (!messageID) {
+        return JSON.stringify({ ok: false, error: "missing_message_id" })
+      }
+
+      const deliberationID = typeof args.deliberation_id === "string" ? args.deliberation_id : undefined
+      const messageTypes = new Set(safeStringArray(args.message_types) ?? DEFAULT_WAIT_MESSAGE_TYPES)
+      const timeoutMs = boundedNumber(args.timeout_ms, 30_000, 100, 300_000)
+      const pollIntervalMs = boundedNumber(args.poll_interval_ms, 1_000, 25, 10_000)
+      const startedAt = Date.now()
+
+      while (Date.now() - startedAt <= timeoutMs) {
+        const responses = findReferencedResponses({
+          repository,
+          messageID,
+          deliberationID,
+          messageTypes,
+        })
+        if (responses.length > 0) {
+          return JSON.stringify({
+            ok: true,
+            message_id: messageID,
+            responses: responses.map((message) => ({
+              message_id: message.messageID,
+              message_type: message.messageType,
+              author_seat_id: message.authorSeatID,
+              target_seat_id: message.targetSeatID,
+              status: message.status,
+              references: message.references,
+              content: message.content,
+            })),
+          })
+        }
+
+        await sleep(pollIntervalMs)
+      }
+
+      return JSON.stringify({
+        ok: false,
+        timeout: true,
+        message_id: messageID,
+        waited_ms: Date.now() - startedAt,
+      })
+    },
+  })
+
   const republic_contract: ToolDefinition = tool({
     description:
       "Write or revise a workgroup contract before adjacent modules implement against each other. Use for API shape, test boundaries, data schemas, handoff rules, and shared responsibilities.",
@@ -680,6 +766,7 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
   return {
     republic_publish,
     republic_inbox,
+    republic_wait,
     republic_contract,
   }
 }

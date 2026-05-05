@@ -9,6 +9,7 @@ import type { PluginInput } from "@opencode-ai/plugin"
 import type { ToolContext } from "@opencode-ai/plugin/tool"
 import type { BackgroundTask } from "../../features/background-agent"
 import {
+  appendRepublicCommonsMessage,
   getNativeGitRepository,
   getRepublicAgentDocPath,
   getRepublicContractPath,
@@ -366,6 +367,65 @@ describe("republic tools", () => {
     expect(messages[1]?.targetSeatID).toBe("republic-supervisor")
     expect(messages[1]?.references).toEqual([messages[0]?.messageID])
     expect(ledger.map((record) => record.phase)).toEqual(["collaboration", "supervisor-dispatch"])
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
+  test("waits for a referenced republic response", async () => {
+    const tools = createRepublicTools({ directory } as PluginInput)
+    const context = createToolContext(directory)
+    const publishResult = await tools.republic_publish.execute({
+      message_type: "question",
+      content: "Should the public status be a string enum?",
+      author_seat_id: "api-seat",
+      target_seat_id: "docs-seat",
+      deliberation_id: "status-enum-wait",
+    }, context)
+    const messageID = JSON.parse(String(publishResult)).message_id as string
+    const repository = getNativeGitRepository(directory)!
+
+    setTimeout(() => {
+      appendRepublicCommonsMessage(repository, {
+        deliberationID: "status-enum-wait",
+        channel: "commons",
+        phase: "collaboration",
+        authorSeatID: "docs-seat",
+        targetSeatID: "api-seat",
+        messageType: "answer",
+        references: [messageID],
+        content: "Use a string enum for public status.",
+      })
+    }, 25)
+
+    const waitResult = await tools.republic_wait.execute({
+      message_id: messageID,
+      deliberation_id: "status-enum-wait",
+      timeout_ms: 1000,
+      poll_interval_ms: 25,
+    }, context)
+
+    const parsed = JSON.parse(String(waitResult))
+    expect(parsed.ok).toBe(true)
+    expect(parsed.responses).toHaveLength(1)
+    expect(parsed.responses[0].message_type).toBe("answer")
+    expect(parsed.responses[0].content).toContain("string enum")
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
+  test("times out when no referenced republic response appears", async () => {
+    const tools = createRepublicTools({ directory } as PluginInput)
+    const context = createToolContext(directory)
+
+    const waitResult = await tools.republic_wait.execute({
+      message_id: "missing-message",
+      deliberation_id: "status-enum-wait",
+      timeout_ms: 100,
+      poll_interval_ms: 25,
+    }, context)
+
+    const parsed = JSON.parse(String(waitResult))
+    expect(parsed.ok).toBe(false)
+    expect(parsed.timeout).toBe(true)
+    expect(parsed.message_id).toBe("missing-message")
     expect(git(directory, ["status", "--porcelain"])).toBe("")
   })
 

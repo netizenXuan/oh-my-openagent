@@ -83,14 +83,14 @@ This supports the intended workflow:
 
 1. `api-seat` is unsure about an interface and publishes a targeted `question` to `docs-seat`.
 2. The Republic scheduler immediately launches a background seat session for `docs-seat` when `scheduler.auto_dispatch` is enabled.
-3. `docs-seat` reads `republic_inbox`, replies with `answer`, and references the original message ID.
+3. `api-seat` can call `republic_wait` on the original message ID to block within the same session while `docs-seat` reads `republic_inbox`, replies with `answer`, and references the original message ID.
 4. If a seat publishes an `objection` or marks a message `blocked` / `review-required`, the scheduler launches a supervisor review seat.
 5. On the next agent turn, relevant inbox messages are injected into the prompt inside `<republic-commons-inbox>`.
 6. The affected seats answer, revise, hand off, or write a `republic_contract`.
 
 This is still not a live mid-token chat bus. It is now an active Git-native scheduler: targeted Commons messages create background response sessions, all coordination is stored under `.git/omo/republic`, and OMO injects relevant messages before the next turn. When a configured seat agent is not available in the current OpenCode runtime, the scheduler falls back to a registered runtime agent such as `general` while preserving the requested OMO role in the prompt and dispatch ledger.
 
-For real app usage, OpenCode is a long-lived host, so background response seats can finish after the original message is published. For short `opencode run` smoke tests, keep the parent process alive long enough for the background seat to answer before expecting an `answer`, `revision`, or `objection` record to appear in Commons.
+For real app usage, OpenCode is a long-lived host, so background response seats can finish after the original message is published. For short `opencode run` smoke tests, keep the parent process alive long enough for the background seat to answer before expecting an `answer`, `revision`, or `objection` record to appear in Commons. A direct way to do that is to call `republic_wait` with the published `message_id`.
 
 ## Workgroup Contracts
 
@@ -112,6 +112,7 @@ Republic execution has three live governance hooks:
 - **Supervisor intervention**: high-risk file paths, large change sets, role-boundary crossings, or edits outside explicit user-mentioned paths create `messageType: "intervention"` records from `republic-supervisor` and append a visible system reminder to the tool output.
 - **Workgroup dependency gate**: before explicit multi-file tools run, OMO infers touched modules. If a call crosses the configured module threshold, advisory mode records a `dependency-blocked` preflight message and warns; governed block mode records the same message and blocks the tool call.
 - **Active Republic scheduler**: targeted `question`, `handoff`, and `objection` messages launch background response sessions for the target seat. Objections and blocked/review-required Commons messages also launch a supervisor review seat. Dispatch records are written back to Commons and ledger with `channel: "scheduler"`. If the preferred OMO role is not registered as an OpenCode runtime agent, dispatch falls back to an available runtime agent and records both identities.
+- **Waitable collaboration**: `republic_wait` polls Commons for `answer`, `revision`, `objection`, `consensus`, `contract`, or `handoff` messages that reference an earlier Commons message, allowing a seat to block until another seat or supervisor responds.
 - **Supervisor policy loop**: on idle, OMO scans Commons for unresolved questions, unresolved objections, dependency blocks, and supervisor interventions, then records a `supervisor-policy` message that tells affected seats to read inbox and respond before continuing.
 - **Agent prompt injection**: before a new chat turn, OMO reads the current seat's relevant Commons inbox and injects a compact `<republic-commons-inbox>` block into context.
 
