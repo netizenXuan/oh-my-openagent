@@ -88,7 +88,7 @@ This supports the intended workflow:
 5. On the next agent turn, relevant inbox messages are injected into the prompt inside `<republic-commons-inbox>`.
 6. The affected seats answer, revise, hand off, or write a `republic_contract`.
 
-This is still not a live mid-token chat bus. It is now an active Git-native scheduler: targeted Commons messages create background response sessions, all coordination is stored under `.git/omo/republic`, and OMO injects relevant messages before the next turn.
+This is still not a live mid-token chat bus. It is now an active Git-native scheduler: targeted Commons messages create background response sessions, all coordination is stored under `.git/omo/republic`, and OMO injects relevant messages before the next turn. When a configured seat agent is not available in the current OpenCode runtime, the scheduler falls back to a registered runtime agent such as `general` while preserving the requested OMO role in the prompt and dispatch ledger.
 
 ## Workgroup Contracts
 
@@ -109,7 +109,7 @@ Republic execution has three live governance hooks:
 - **Automatic Commons publication**: native-git changes are published to Commons with agent, model, session, call, files, module, workgroup, and task metadata.
 - **Supervisor intervention**: high-risk file paths, large change sets, role-boundary crossings, or edits outside explicit user-mentioned paths create `messageType: "intervention"` records from `republic-supervisor` and append a visible system reminder to the tool output.
 - **Workgroup dependency gate**: before explicit multi-file tools run, OMO infers touched modules. If a call crosses the configured module threshold, advisory mode records a `dependency-blocked` preflight message and warns; governed block mode records the same message and blocks the tool call.
-- **Active Republic scheduler**: targeted `question`, `handoff`, and `objection` messages launch background response sessions for the target seat. Dispatch records are written back to Commons and ledger with `channel: "scheduler"`.
+- **Active Republic scheduler**: targeted `question`, `handoff`, and `objection` messages launch background response sessions for the target seat. Dispatch records are written back to Commons and ledger with `channel: "scheduler"`. If the preferred OMO role is not registered as an OpenCode runtime agent, dispatch falls back to an available runtime agent and records both identities.
 - **Supervisor policy loop**: on idle, OMO scans Commons for unresolved questions, unresolved objections, dependency blocks, and supervisor interventions, then records a `supervisor-policy` message that tells affected seats to read inbox and respond before continuing.
 - **Agent prompt injection**: before a new chat turn, OMO reads the current seat's relevant Commons inbox and injects a compact `<republic-commons-inbox>` block into context.
 
@@ -287,7 +287,7 @@ Modes:
 - `advisory`: default; record Commons/ledger events and show warnings, but do not block writes.
 - `governed`: enables stronger gates. The first implemented hard gate is `dependency_gate.mode: "block"` for cross-workgroup explicit write tools.
 
-`scheduler.seat_agents` maps conceptual seats to concrete OMO agents. If no mapping exists, OMO infers common agent names from the target seat ID, uses `scheduler.supervisor_agent` for supervisor seats, and falls back to `scheduler.default_agent`.
+`scheduler.seat_agents` maps conceptual seats to preferred concrete OMO/runtime agents. If no mapping exists, OMO infers common agent names from the target seat ID, uses `scheduler.supervisor_agent` for supervisor seats, and falls back to `scheduler.default_agent`. At dispatch time OMO checks the OpenCode runtime agent registry; if the preferred role is not callable in that environment, it runs the background session through an available runtime agent such as `general` and records the requested role separately.
 
 Per-seat worktrees, automatic merge orchestration, and true live agent-to-agent streaming remain future work.
 

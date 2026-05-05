@@ -3,6 +3,7 @@ import { tool } from "@opencode-ai/plugin/tool"
 import type { RepublicConfig } from "../../config"
 import type { BackgroundManager } from "../../features/background-agent"
 import { getSessionAgent } from "../../features/claude-code-session-state"
+import { normalizeSDKResponse } from "../../shared"
 import { getAgentConfigKey } from "../../shared/agent-display-names"
 import {
   appendRepublicCommonsMessage,
@@ -44,6 +45,16 @@ type ToolContextLike = {
 type RepublicToolOptions = {
   manager?: Pick<BackgroundManager, "launch">
   config?: RepublicConfig
+}
+
+type AgentInfo = {
+  name: string
+  mode?: "subagent" | "primary" | "all"
+}
+
+type DispatchAgentResolution = {
+  requestedAgent: string
+  runtimeAgent: string
 }
 
 function getToolRepository(ctx: PluginInput, context: ToolContextLike): NativeGitRepository | null {
@@ -130,6 +141,56 @@ function resolveDispatchAgent(
   return scheduler?.default_agent ?? "sisyphus"
 }
 
+async function getRuntimeAgentNames(ctx: PluginInput): Promise<string[]> {
+  const app = (ctx as { client?: { app?: { agents?: () => Promise<unknown> } } }).client?.app
+  if (!app?.agents) {
+    return []
+  }
+
+  try {
+    const agentsResult = await app.agents()
+    const agents = normalizeSDKResponse(agentsResult, [] as AgentInfo[], {
+      preferResponseOnMissingData: true,
+    })
+    return agents
+      .filter((agent) => agent && typeof agent.name === "string" && agent.name.trim().length > 0 && agent.mode !== "primary")
+      .map((agent) => agent.name.trim().toLowerCase())
+  } catch {
+    return []
+  }
+}
+
+async function resolveRuntimeDispatchAgent(args: {
+  ctx: PluginInput
+  requestedAgent: string
+  config?: RepublicConfig
+}): Promise<DispatchAgentResolution> {
+  const { ctx, requestedAgent, config } = args
+  const requested = requestedAgent.trim().toLowerCase()
+  const runtimeAgents = await getRuntimeAgentNames(ctx)
+  if (runtimeAgents.length === 0 || runtimeAgents.includes(requested)) {
+    return { requestedAgent, runtimeAgent: requestedAgent }
+  }
+
+  const candidates = [
+    config?.scheduler?.default_agent,
+    "general",
+    "explore",
+    "oracle",
+    "librarian",
+  ]
+    .filter((agent): agent is string => typeof agent === "string" && agent.trim().length > 0)
+    .map((agent) => agent.trim().toLowerCase())
+
+  for (const candidate of candidates) {
+    if (runtimeAgents.includes(candidate)) {
+      return { requestedAgent, runtimeAgent: candidate }
+    }
+  }
+
+  return { requestedAgent, runtimeAgent: requestedAgent }
+}
+
 function shouldAutoDispatch(
   message: RepublicCommonsMessage,
   config: RepublicConfig | undefined,
@@ -149,11 +210,12 @@ function shouldAutoDispatch(
     && DISPATCHABLE_MESSAGE_TYPES.has(message.messageType)
 }
 
-function buildDispatchPrompt(message: RepublicCommonsMessage, options: { targetAgent: string; maxMessages: number }): string {
+function buildDispatchPrompt(message: RepublicCommonsMessage, options: DispatchAgentResolution & { maxMessages: number }): string {
   const targetSeatID = message.targetSeatID ?? "target-seat"
   const responseType = message.messageType === "question" ? "answer" : "revision"
   const lines = [
-    `You are Republic seat "${targetSeatID}", running as agent "${options.targetAgent}".`,
+    `You are Republic seat "${targetSeatID}".`,
+    `Requested OMO role: "${options.requestedAgent}". Runtime OpenCode agent: "${options.runtimeAgent}".`,
     "A targeted Commons message needs an active response. This session was launched by the Republic scheduler.",
     "",
     "Incoming Commons message:",
@@ -189,28 +251,33 @@ async function dispatchRepublicSeatResponse(args: {
   toolArgs: Record<string, unknown>
   manager: Pick<BackgroundManager, "launch">
   config?: RepublicConfig
-}): Promise<{ taskID: string; agent: string } | null> {
-  const { repository, message, context, toolArgs, manager, config } = args
+  ctx: PluginInput
+}): Promise<{ taskID: string; agent: string; requested_agent?: string } | null> {
+  const { repository, message, context, toolArgs, manager, config, ctx } = args
   if (!shouldAutoDispatch(message, config) || !context.sessionID) {
     return null
   }
 
-  const targetAgent = resolveDispatchAgent(message.targetSeatID, toolArgs, config)
+  const requestedAgent = resolveDispatchAgent(message.targetSeatID, toolArgs, config)
+  const dispatchAgent = await resolveRuntimeDispatchAgent({ ctx, requestedAgent, config })
   const prompt = buildDispatchPrompt(message, {
-    targetAgent,
+    ...dispatchAgent,
     maxMessages: config?.scheduler?.prompt_max_messages ?? 8,
   })
   const task = await manager.launch({
     description: `Republic response for ${message.targetSeatID}`,
     prompt,
-    agent: targetAgent,
+    agent: dispatchAgent.runtimeAgent,
     parentSessionId: context.sessionID,
     parentMessageId: context.messageID ?? message.messageID ?? "",
     parentAgent: context.agent,
     category: "republic-response",
   })
 
-  const summary = `Republic scheduler dispatched ${message.targetSeatID} via ${targetAgent} to respond to ${message.messageID ?? "the targeted Commons message"} as background task ${task.id}.`
+  const agentSummary = dispatchAgent.runtimeAgent === dispatchAgent.requestedAgent
+    ? dispatchAgent.runtimeAgent
+    : `${dispatchAgent.runtimeAgent} (requested ${dispatchAgent.requestedAgent})`
+  const summary = `Republic scheduler dispatched ${message.targetSeatID} via ${agentSummary} to respond to ${message.messageID ?? "the targeted Commons message"} as background task ${task.id}.`
   appendRepublicCommonsMessage(repository, {
     deliberationID: message.deliberationID,
     channel: "scheduler",
@@ -244,7 +311,13 @@ async function dispatchRepublicSeatResponse(args: {
     summary,
   })
 
-  return { taskID: task.id, agent: targetAgent }
+  return {
+    taskID: task.id,
+    agent: dispatchAgent.runtimeAgent,
+    ...(dispatchAgent.runtimeAgent !== dispatchAgent.requestedAgent
+      ? { requested_agent: dispatchAgent.requestedAgent }
+      : {}),
+  }
 }
 
 function buildCommonsMessage(
@@ -299,7 +372,7 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
       files: tool.schema.array(tool.schema.string()).optional().describe("Related files"),
       status: tool.schema.string().optional().describe("Optional status such as blocked, proposed, accepted"),
       confidence: tool.schema.number().optional().describe("Optional confidence score"),
-      target_agent: tool.schema.string().optional().describe("Optional OMO agent to dispatch for the target seat"),
+      target_agent: tool.schema.string().optional().describe("Optional preferred OMO/runtime agent to dispatch for the target seat"),
     },
     execute: async (args, context) => {
       const repository = getToolRepository(ctx, context as ToolContextLike)
@@ -341,6 +414,7 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
           toolArgs: args,
           manager: options.manager,
           config: options.config,
+          ctx,
         })
       }
 

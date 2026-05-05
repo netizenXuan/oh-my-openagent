@@ -562,7 +562,7 @@ Interactive Republic collaboration is available through three tools:
 - `republic_inbox`: read targeted, referenced, workgroup, module, dependency-gate, and supervisor messages for a seat.
 - `republic_contract`: record shared API, schema, test, or handoff contracts before adjacent modules implement against each other.
 
-When enabled, targeted `question`, `handoff`, and `objection` messages published with `republic_publish` are actively dispatched to a background response seat. The scheduler records that dispatch in Commons and the ledger, then the background seat can answer, revise, object, hand off, or write a contract through the same Republic tools. The native-git hook injects relevant inbox messages into the next chat turn as `<republic-commons-inbox>`. The supervisor policy loop records `supervisor-policy` messages on idle when questions, objections, or governance warnings remain unresolved.
+When enabled, targeted `question`, `handoff`, and `objection` messages published with `republic_publish` are actively dispatched to a background response seat. The scheduler records that dispatch in Commons and the ledger, then the background seat can answer, revise, object, hand off, or write a contract through the same Republic tools. Preferred seat agents are checked against the current OpenCode runtime registry; unavailable OMO roles fall back to an available runtime agent while preserving the requested role in the dispatch prompt/output. The native-git hook injects relevant inbox messages into the next chat turn as `<republic-commons-inbox>`. The supervisor policy loop records `supervisor-policy` messages on idle when questions, objections, or governance warnings remain unresolved.
 
 ### /start-work
 
