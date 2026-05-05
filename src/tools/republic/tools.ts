@@ -21,6 +21,7 @@ import {
   readRepublicTeamPhase,
   sanitizeRepublicDeliberationID,
   writeRepublicSeatState,
+  writeRepublicTeamPhase,
   writeRepublicContract,
   type NativeGitRepository,
   type RepublicCommonsMessage,
@@ -44,6 +45,7 @@ const DEFAULT_WAIT_MESSAGE_TYPES = ["answer", "revision", "objection", "consensu
 const TEAM_MODELS = ["single", "advisory", "parliament", "squad", "parliament_squad"] as const
 const SEAT_ALLOCATIONS = ["auto", "count", "explicit"] as const
 const TEAM_PHASES = ["planning", "execution", "review", "idle"] as const
+const TEAM_STATUSES = ["planned", "in-progress", "blocked", "review", "done"] as const
 const SEAT_STATUSES = ["standby", "running", "waiting", "blocked", "done", "error"] as const
 
 type ToolContextLike = {
@@ -799,6 +801,88 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
     },
   })
 
+  const republic_phase_update: ToolDefinition = tool({
+    description:
+      "Update the persistent Republic team phase. Use this to move from planning to execution, enter review, mark the team blocked/done, or lock contracts that execution seats must follow.",
+    args: {
+      phase: tool.schema.enum(TEAM_PHASES).describe("planning, execution, review, or idle"),
+      status: tool.schema.enum(TEAM_STATUSES).optional().describe("planned, in-progress, blocked, review, or done"),
+      deliberation_id: tool.schema.string().optional().describe("Deliberation ID associated with the phase"),
+      active_round: tool.schema.number().optional().describe("Current planning/execution/review round"),
+      locked_contracts: tool.schema.array(tool.schema.string()).optional().describe("Contract IDs or paths locked for this phase"),
+      blocked_by: tool.schema.array(tool.schema.string()).optional().describe("Blocking message IDs, seats, workgroups, or contracts"),
+      author_seat_id: tool.schema.string().optional().describe("Seat updating the phase; defaults from current agent/session"),
+      reason: tool.schema.string().optional().describe("Short reason for the phase change"),
+    },
+    execute: async (args, context) => {
+      const repository = getToolRepository(ctx, context as ToolContextLike)
+      if (!repository) {
+        return JSON.stringify({ ok: false, error: "not_git_repository" })
+      }
+
+      const existing = readRepublicTeamPhase(repository)
+      const phase = args.phase as typeof TEAM_PHASES[number]
+      const status = typeof args.status === "string"
+        ? args.status as typeof TEAM_STATUSES[number]
+        : existing?.status ?? "in-progress"
+      const deliberationID = getDeliberationID({ deliberation_id: args.deliberation_id as string | undefined }, context as ToolContextLike)
+      const activeRound = typeof args.active_round === "number" && Number.isFinite(args.active_round)
+        ? Math.max(0, Math.floor(args.active_round))
+        : existing?.activeRound
+      const lockedContracts = safeStringArray(args.locked_contracts) ?? existing?.lockedContracts ?? []
+      const blockedBy = safeStringArray(args.blocked_by) ?? existing?.blockedBy ?? []
+      const authorSeatID = getSeatID({ author_seat_id: args.author_seat_id as string | undefined }, context as ToolContextLike)
+      const reason = typeof args.reason === "string" ? args.reason.trim() : ""
+
+      writeRepublicTeamPhase(repository, {
+        phase,
+        status,
+        deliberationID,
+        activeRound,
+        lockedContracts,
+        blockedBy,
+      })
+
+      const summaryParts = [
+        `Republic phase changed to ${phase}/${status}.`,
+        activeRound !== undefined ? `round=${activeRound}` : undefined,
+        lockedContracts.length ? `locked_contracts=${lockedContracts.join(",")}` : undefined,
+        blockedBy.length ? `blocked_by=${blockedBy.join(",")}` : undefined,
+      ].filter((part): part is string => typeof part === "string")
+      const summary = reason ? `${summaryParts.join(" ")}\n\n${reason}` : summaryParts.join(" ")
+      appendRepublicCommonsMessage(repository, {
+        deliberationID,
+        channel: "team",
+        phase: "phase-update",
+        authorSeatID,
+        authorRole: "orchestrator",
+        status,
+        messageType: "status",
+        content: summary,
+      })
+      appendRepublicLedgerRecord(repository, {
+        deliberationID,
+        phase: "phase-update",
+        chamber: "team",
+        seatID: authorSeatID,
+        role: "orchestrator",
+        sessionID: (context as ToolContextLike).sessionID,
+        status,
+        summary,
+      })
+
+      return JSON.stringify({
+        ok: true,
+        phase,
+        status,
+        deliberation_id: deliberationID,
+        active_round: activeRound,
+        locked_contracts: lockedContracts,
+        blocked_by: blockedBy,
+      })
+    },
+  })
+
   const republic_publish: ToolDefinition = tool({
     description:
       "Publish a Republic Commons message for agent-to-agent collaboration. Use this to ask questions, answer another seat, object, revise, hand off work, or record a proposal. Messages are stored under the Git common dir and mirrored into agent docs.",
@@ -1068,6 +1152,7 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
     republic_team_init,
     republic_team_status,
     republic_seat_update,
+    republic_phase_update,
     republic_publish,
     republic_inbox,
     republic_wait,

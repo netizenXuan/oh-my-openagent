@@ -215,6 +215,47 @@ describe("republic tools", () => {
     expect(git(directory, ["status", "--porcelain"])).toBe("")
   })
 
+  test("updates team phase and locks contracts", async () => {
+    const tools = createRepublicTools({ directory } as PluginInput)
+    const context = createToolContext(directory)
+
+    await tools.republic_team_init.execute({
+      goal: "Build order API with database, tests, and docs",
+      files: ["src/api/orders.ts", "src/db/orders.ts", "tests/orders.test.ts", "docs/orders.md"],
+      deliberation_id: "order-system-team",
+      team_model: "parliament_squad",
+      seat_allocation: "auto",
+    }, context)
+
+    const result = await tools.republic_phase_update.execute({
+      phase: "execution",
+      status: "in-progress",
+      deliberation_id: "order-system-team",
+      active_round: 2,
+      locked_contracts: ["api-workgroup"],
+      blocked_by: [],
+      author_seat_id: "republic-supervisor",
+      reason: "Planning consensus is locked; executor seats can implement against api-workgroup.",
+    }, context)
+
+    const parsed = JSON.parse(String(result))
+    const repository = getNativeGitRepository(directory)!
+    const phase = readRepublicTeamPhase(repository)!
+    const messages = readRepublicCommonsMessages(repository, "order-system-team")
+    const ledger = readRepublicLedgerRecords(repository, "order-system-team")
+
+    expect(parsed.ok).toBe(true)
+    expect(parsed.phase).toBe("execution")
+    expect(parsed.locked_contracts).toEqual(["api-workgroup"])
+    expect(phase.phase).toBe("execution")
+    expect(phase.status).toBe("in-progress")
+    expect(phase.activeRound).toBe(2)
+    expect(phase.lockedContracts).toEqual(["api-workgroup"])
+    expect(messages.map((message) => message.phase)).toContain("phase-update")
+    expect(ledger.map((record) => record.phase)).toContain("phase-update")
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
   test("resolves repository from tool context when plugin input directory is unavailable", async () => {
     const tools = createRepublicTools({} as PluginInput)
     const context = createToolContext(directory)
