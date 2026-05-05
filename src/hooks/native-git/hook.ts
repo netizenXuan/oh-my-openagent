@@ -576,6 +576,41 @@ export function createNativeGitHook(
     return messages.filter((message) => message.messageType === "question" && message.messageID && !answeredReferences.has(message.messageID))
   }
 
+  function policyAlreadyCovers(messages: RepublicCommonsMessage[], unresolvedMessages: RepublicCommonsMessage[]): boolean {
+    const unresolvedIDs = unresolvedMessages.map((message) => message.messageID).filter((id): id is string => Boolean(id))
+    if (unresolvedIDs.length === 0) {
+      return true
+    }
+
+    const latestUnresolvedTimestamp = unresolvedMessages
+      .map((message) => message.timestamp)
+      .filter((timestamp): timestamp is string => Boolean(timestamp))
+      .sort()
+      .at(-1)
+
+    return messages.some((message) => {
+      if (message.messageType !== "supervisor-policy") {
+        return false
+      }
+      if (latestUnresolvedTimestamp && message.timestamp && message.timestamp < latestUnresolvedTimestamp) {
+        return false
+      }
+      const references = new Set(message.references ?? [])
+      return unresolvedIDs.every((id) => references.has(id))
+    })
+  }
+
+  function groupMessagesByDeliberation(messages: RepublicCommonsMessage[]): Map<string, RepublicCommonsMessage[]> {
+    const groups = new Map<string, RepublicCommonsMessage[]>()
+    for (const message of messages) {
+      const deliberationID = sanitizeRepublicDeliberationID(message.deliberationID)
+      const group = groups.get(deliberationID) ?? []
+      group.push(message)
+      groups.set(deliberationID, group)
+    }
+    return groups
+  }
+
   function runSupervisorPolicyLoop(sessionID: string): void {
     if (!isRepublicLedgerEnabled(republicConfig) || !(republicConfig?.supervisor?.policy_loop ?? true)) {
       return
@@ -586,60 +621,62 @@ export function createNativeGitHook(
       return
     }
 
-    const deliberationID = sanitizeRepublicDeliberationID(`session-${sessionID}`)
-    const messages = readRepublicCommonsMessages(status.repository, deliberationID)
-    if (messages.length === 0) {
+    const allMessages = readRepublicCommonsMessages(status.repository)
+    if (allMessages.length === 0) {
       return
     }
 
-    const unresolvedQuestions = findUnresolvedQuestions(messages)
-    const unresolvedSupervisorMessages = messages.filter((message) =>
-      message.messageType === "intervention" || message.messageType === "dependency-blocked"
-    )
-    if (unresolvedQuestions.length === 0 && unresolvedSupervisorMessages.length === 0) {
-      return
+    for (const [deliberationID, messages] of groupMessagesByDeliberation(allMessages)) {
+      const unresolvedQuestions = findUnresolvedQuestions(messages)
+      const unresolvedSupervisorMessages = messages.filter((message) =>
+        message.messageType === "intervention" || message.messageType === "dependency-blocked"
+      )
+      const unresolvedMessages = [...unresolvedQuestions, ...unresolvedSupervisorMessages]
+      if (unresolvedMessages.length === 0 || policyAlreadyCovers(messages, unresolvedMessages)) {
+        continue
+      }
+
+      const latestTimestamp = messages.at(-1)?.timestamp ?? ""
+      const policyKey = `${deliberationID}:${messages.length}:${latestTimestamp}:${unresolvedQuestions.length}:${unresolvedSupervisorMessages.length}`
+      if (policyLoopStatusBySession.get(`${sessionID}:${deliberationID}`) === policyKey) {
+        continue
+      }
+      policyLoopStatusBySession.set(`${sessionID}:${deliberationID}`, policyKey)
+
+      const references = [
+        ...unresolvedQuestions.map((message) => message.messageID).filter((id): id is string => Boolean(id)),
+        ...unresolvedSupervisorMessages.map((message) => message.messageID).filter((id): id is string => Boolean(id)),
+      ].slice(0, 20)
+      const summary = [
+        `Supervisor policy loop found ${unresolvedQuestions.length} unresolved question(s) and ${unresolvedSupervisorMessages.length} unresolved governance warning(s).`,
+        "Before continuing execution, affected seats should read republic_inbox and answer, revise, or hand off through republic_publish.",
+      ].join("\n")
+
+      appendRepublicCommonsMessage(status.repository, {
+        deliberationID,
+        channel: "supervisor",
+        phase: "policy-loop",
+        authorSeatID: "republic-supervisor",
+        authorAgent: "republic-supervisor",
+        authorRole: "supervisor",
+        status: "review-required",
+        messageType: "supervisor-policy",
+        references,
+        content: summary,
+      })
+
+      appendRepublicLedgerRecord(status.repository, {
+        deliberationID,
+        phase: "policy-loop",
+        chamber: "supervisor",
+        seatID: "republic-supervisor",
+        role: "supervisor",
+        agent: "republic-supervisor",
+        sessionID,
+        status: "review-required",
+        summary,
+      })
     }
-
-    const latestTimestamp = messages.at(-1)?.timestamp ?? ""
-    const policyKey = `${deliberationID}:${messages.length}:${latestTimestamp}:${unresolvedQuestions.length}:${unresolvedSupervisorMessages.length}`
-    if (policyLoopStatusBySession.get(sessionID) === policyKey) {
-      return
-    }
-    policyLoopStatusBySession.set(sessionID, policyKey)
-
-    const references = [
-      ...unresolvedQuestions.map((message) => message.messageID).filter((id): id is string => Boolean(id)),
-      ...unresolvedSupervisorMessages.map((message) => message.messageID).filter((id): id is string => Boolean(id)),
-    ].slice(0, 20)
-    const summary = [
-      `Supervisor policy loop found ${unresolvedQuestions.length} unresolved question(s) and ${unresolvedSupervisorMessages.length} unresolved governance warning(s).`,
-      "Before continuing execution, affected seats should read republic_inbox and answer, revise, or hand off through republic_publish.",
-    ].join("\n")
-
-    appendRepublicCommonsMessage(status.repository, {
-      deliberationID,
-      channel: "supervisor",
-      phase: "policy-loop",
-      authorSeatID: "republic-supervisor",
-      authorAgent: "republic-supervisor",
-      authorRole: "supervisor",
-      status: "review-required",
-      messageType: "supervisor-policy",
-      references,
-      content: summary,
-    })
-
-    appendRepublicLedgerRecord(status.repository, {
-      deliberationID,
-      phase: "policy-loop",
-      chamber: "supervisor",
-      seatID: "republic-supervisor",
-      role: "supervisor",
-      agent: "republic-supervisor",
-      sessionID,
-      status: "review-required",
-      summary,
-    })
   }
 
   async function showNativeGitReminder(sessionID: string): Promise<void> {

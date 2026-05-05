@@ -230,6 +230,60 @@ describe("native git hook", () => {
     expect(policy?.content).toContain("unresolved question")
     expect(policy?.references).toContain("question-1")
     expect(ledger.some((record) => record.phase === "policy-loop")).toBe(true)
+
+    await hook.event({
+      event: {
+        type: "session.idle",
+        properties: {
+          sessionID: "ses_policy",
+        },
+      },
+    })
+
+    expect(readRepublicCommonsMessages(repository, "session-ses_policy").filter((message) => message.messageType === "supervisor-policy")).toHaveLength(1)
+  })
+
+  test("session idle scans custom deliberations for unresolved commons questions", async () => {
+    const hook = createNativeGitHook(
+      { directory } as never,
+      { mode: "tracked", audit_log: true },
+      {
+        enabled: true,
+        mode: "advisory",
+        ledger: true,
+        supervisor: {
+          intervention: true,
+          policy_loop: true,
+          file_threshold: 5,
+          high_risk_paths: [],
+        },
+      } as never,
+    )
+    const repository = getNativeGitRepository(directory)!
+    appendRepublicCommonsMessage(repository, {
+      messageID: "custom-question-1",
+      deliberationID: "custom-contract",
+      channel: "commons",
+      phase: "collaboration",
+      authorSeatID: "api-seat",
+      targetSeatID: "docs-seat",
+      messageType: "question",
+      content: "Should the API publish a shared response contract?",
+    })
+
+    await hook.event({
+      event: {
+        type: "session.idle",
+        properties: {
+          sessionID: "ses_policy_custom",
+        },
+      },
+    })
+
+    const commons = readRepublicCommonsMessages(repository, "custom-contract")
+    const policy = commons.find((message) => message.messageType === "supervisor-policy")
+
+    expect(policy?.references).toContain("custom-question-1")
   })
 
   test("tracked mode records supervisor intervention for high-risk changes", async () => {
