@@ -1,6 +1,7 @@
 import type { PluginInput, ToolDefinition } from "@opencode-ai/plugin"
 import { tool } from "@opencode-ai/plugin/tool"
 import type { RepublicConfig } from "../../config"
+import { RepublicConfigSchema } from "../../config/schema"
 import type { BackgroundManager } from "../../features/background-agent"
 import { getSessionAgent } from "../../features/claude-code-session-state"
 import { normalizeSDKResponse } from "../../shared"
@@ -9,14 +10,17 @@ import {
   appendRepublicCommonsMessage,
   appendRepublicLedgerRecord,
   getNativeGitRepository,
+  initializeRepublicTeam,
   readRepublicAgentDoc,
   readRepublicCommonsMessages,
   readRepublicInboxMessages,
+  readRepublicTeamManifest,
   sanitizeRepublicDeliberationID,
   writeRepublicContract,
   type NativeGitRepository,
   type RepublicCommonsMessage,
 } from "../../shared/git-worktree"
+import { allocateRepublicTeam } from "./seat-allocator"
 
 const MESSAGE_TYPES = [
   "proposal",
@@ -32,6 +36,8 @@ const MESSAGE_TYPES = [
 const DISPATCHABLE_MESSAGE_TYPES = new Set(["question", "handoff", "objection"])
 const SUPERVISOR_REVIEW_STATUSES = new Set(["blocked", "review-required"])
 const DEFAULT_WAIT_MESSAGE_TYPES = ["answer", "revision", "objection", "consensus", "contract", "handoff"]
+const TEAM_MODELS = ["single", "advisory", "parliament", "squad", "parliament_squad"] as const
+const SEAT_ALLOCATIONS = ["auto", "count", "explicit"] as const
 
 type ToolContextLike = {
   sessionID?: string
@@ -510,6 +516,98 @@ function buildCommonsMessage(
 }
 
 export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptions = {}): Record<string, ToolDefinition> {
+  const republic_team_init: ToolDefinition = tool({
+    description:
+      "Initialize a persistent Republic team for the current Git repository. Seats can be auto-allocated from the goal/files, generated from user-provided counts, or taken from explicit config.",
+    args: {
+      goal: tool.schema.string().describe("Project or task goal used to allocate seats"),
+      files: tool.schema.array(tool.schema.string()).optional().describe("Optional relevant files or paths"),
+      deliberation_id: tool.schema.string().optional().describe("Optional deliberation ID for the team phase"),
+      team_model: tool.schema.enum(TEAM_MODELS).optional().describe("single, advisory, parliament, squad, or parliament_squad"),
+      seat_allocation: tool.schema.enum(SEAT_ALLOCATIONS).optional().describe("auto, count, or explicit"),
+      planner_seat_count: tool.schema.number().optional().describe("Optional planner seat count"),
+      executor_seat_count: tool.schema.number().optional().describe("Optional executor seat count"),
+      reviewer_seat_count: tool.schema.number().optional().describe("Optional reviewer seat count"),
+    },
+    execute: async (args, context) => {
+      const repository = getToolRepository(ctx, context as ToolContextLike)
+      if (!repository) {
+        return JSON.stringify({ ok: false, error: "not_git_repository" })
+      }
+
+      const goal = String(args.goal ?? "").trim()
+      if (!goal) {
+        return JSON.stringify({ ok: false, error: "empty_goal" })
+      }
+
+      const config = options.config ?? RepublicConfigSchema.parse({})
+      const deliberationID = getDeliberationID({ deliberation_id: args.deliberation_id as string | undefined }, context as ToolContextLike)
+      const manifest = allocateRepublicTeam({
+        goal,
+        files: safeStringArray(args.files),
+        config,
+        teamModel: typeof args.team_model === "string" ? args.team_model : undefined,
+        seatAllocation: typeof args.seat_allocation === "string" ? args.seat_allocation as "auto" | "count" | "explicit" : undefined,
+        plannerSeatCount: typeof args.planner_seat_count === "number" ? args.planner_seat_count : undefined,
+        executorSeatCount: typeof args.executor_seat_count === "number" ? args.executor_seat_count : undefined,
+        reviewerSeatCount: typeof args.reviewer_seat_count === "number" ? args.reviewer_seat_count : undefined,
+      })
+
+      initializeRepublicTeam(repository, {
+        manifest,
+        phase: {
+          phase: manifest.teamModel === "squad" ? "execution" : "planning",
+          status: "planned",
+          deliberationID,
+          activeRound: 0,
+          lockedContracts: [],
+          blockedBy: [],
+        },
+      })
+
+      const summary = `Republic team initialized for "${goal}" with ${manifest.seats.length} seat(s) using ${manifest.seatAllocation} allocation and ${manifest.teamModel} model.`
+      appendRepublicCommonsMessage(repository, {
+        deliberationID,
+        channel: "team",
+        phase: "team-init",
+        authorSeatID: "republic-orchestrator",
+        authorAgent: "republic-orchestrator",
+        authorRole: "orchestrator",
+        status: "planned",
+        messageType: "status",
+        content: summary,
+      })
+      appendRepublicLedgerRecord(repository, {
+        deliberationID,
+        phase: "team-init",
+        chamber: "orchestrator",
+        seatID: "republic-orchestrator",
+        role: "orchestrator",
+        agent: "republic-orchestrator",
+        sessionID: (context as ToolContextLike).sessionID,
+        status: "planned",
+        summary,
+      })
+
+      return JSON.stringify({
+        ok: true,
+        deliberation_id: deliberationID,
+        team_model: manifest.teamModel,
+        seat_allocation: manifest.seatAllocation,
+        seats: manifest.seats.map((seat) => ({
+          seat_id: seat.seatID,
+          role: seat.role,
+          phase: seat.phase,
+          workgroup_id: seat.workgroupID,
+          module: seat.module,
+          runtime_agent: seat.runtimeAgent,
+          conceptual_agent: seat.conceptualAgent,
+          reason: seat.reason,
+        })),
+      })
+    },
+  })
+
   const republic_publish: ToolDefinition = tool({
     description:
       "Publish a Republic Commons message for agent-to-agent collaboration. Use this to ask questions, answer another seat, object, revise, hand off work, or record a proposal. Messages are stored under the Git common dir and mirrored into agent docs.",
@@ -627,6 +725,18 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
       if (args.include_agent_doc === true) {
         const doc = readRepublicAgentDoc(repository, seatID).trim()
         parts.push("", "## Agent Doc", doc || "No agent doc entries yet.")
+        const manifest = readRepublicTeamManifest(repository)
+        const teamSeat = manifest?.seats.find((seat) => seat.seatID === seatID)
+        if (teamSeat) {
+          const seatLines = [
+            `- role: ${teamSeat.role}`,
+            teamSeat.phase ? `- phase: ${teamSeat.phase}` : undefined,
+            teamSeat.workgroupID ? `- workgroup: ${teamSeat.workgroupID}` : undefined,
+            teamSeat.module ? `- module: ${teamSeat.module}` : undefined,
+            teamSeat.reason ? `- reason: ${teamSeat.reason}` : undefined,
+          ].filter((line): line is string => typeof line === "string")
+          parts.push("", "## Team Seat", seatLines.join("\n"))
+        }
       }
       return parts.join("\n")
     },
@@ -764,6 +874,7 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
   })
 
   return {
+    republic_team_init,
     republic_publish,
     republic_inbox,
     republic_wait,

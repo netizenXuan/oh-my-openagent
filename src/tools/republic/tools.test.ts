@@ -15,6 +15,9 @@ import {
   getRepublicContractPath,
   readRepublicCommonsMessages,
   readRepublicLedgerRecords,
+  readRepublicSeatState,
+  readRepublicTeamManifest,
+  readRepublicTeamPhase,
 } from "../../shared/git-worktree"
 import { createRepublicTools } from "./tools"
 
@@ -126,6 +129,39 @@ describe("republic tools", () => {
     expect(messages).toHaveLength(1)
     expect(ledger).toHaveLength(1)
     expect(existsSync(getRepublicAgentDocPath(repository, "api-seat"))).toBe(true)
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
+  test("initializes a dynamic republic team under the git common dir", async () => {
+    const tools = createRepublicTools({ directory } as PluginInput)
+    const context = createToolContext(directory)
+
+    const result = await tools.republic_team_init.execute({
+      goal: "Build order API with database, tests, and docs",
+      files: ["src/api/orders.ts", "src/db/orders.ts", "tests/orders.test.ts", "docs/orders.md"],
+      deliberation_id: "order-system-team",
+      team_model: "parliament_squad",
+      seat_allocation: "auto",
+    }, context)
+
+    const parsed = JSON.parse(String(result))
+    const repository = getNativeGitRepository(directory)!
+    const manifest = readRepublicTeamManifest(repository)!
+    const phase = readRepublicTeamPhase(repository)!
+    const apiState = readRepublicSeatState(repository, "api-planner-seat")!
+    const messages = readRepublicCommonsMessages(repository, "order-system-team")
+    const ledger = readRepublicLedgerRecords(repository, "order-system-team")
+
+    expect(parsed.ok).toBe(true)
+    expect(parsed.team_model).toBe("parliament_squad")
+    expect(parsed.seats.length).toBeGreaterThan(3)
+    expect(manifest.seats.map((seat) => seat.seatID)).toContain("api-planner-seat")
+    expect(phase.phase).toBe("planning")
+    expect(phase.deliberationID).toBe("order-system-team")
+    expect(apiState.status).toBe("standby")
+    expect(apiState.workgroupID).toBe("api-workgroup")
+    expect(messages[0]?.channel).toBe("team")
+    expect(ledger[0]?.phase).toBe("team-init")
     expect(git(directory, ["status", "--porcelain"])).toBe("")
   })
 
