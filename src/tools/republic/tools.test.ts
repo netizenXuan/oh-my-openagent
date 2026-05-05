@@ -256,6 +256,53 @@ describe("republic tools", () => {
     expect(git(directory, ["status", "--porcelain"])).toBe("")
   })
 
+  test("starts an active collaboration round for dynamic seats", async () => {
+    const launched: Array<{ agent: string; prompt: string; description: string }> = []
+    const tools = createRepublicTools({ directory } as PluginInput, {
+      manager: createDispatchManager(launched),
+    })
+    const context = createToolContext(directory)
+
+    await tools.republic_team_init.execute({
+      goal: "Build order API with database, tests, and docs",
+      files: ["src/api/orders.ts", "src/db/orders.ts", "tests/orders.test.ts", "docs/orders.md"],
+      deliberation_id: "order-system-team",
+      team_model: "parliament_squad",
+      seat_allocation: "auto",
+    }, context)
+
+    const result = await tools.republic_round_start.execute({
+      goal: "Each planning seat should propose its contract risks and ask adjacent seats about unclear boundaries.",
+      phase: "planning",
+      deliberation_id: "order-system-team",
+      max_seats: 3,
+      round: 1,
+    }, context)
+
+    const parsed = JSON.parse(String(result))
+    const repository = getNativeGitRepository(directory)!
+    const phase = readRepublicTeamPhase(repository)!
+    const apiState = readRepublicSeatState(repository, "api-planner-seat")!
+    const messages = readRepublicCommonsMessages(repository, "order-system-team")
+    const ledger = readRepublicLedgerRecords(repository, "order-system-team")
+
+    expect(parsed.ok).toBe(true)
+    expect(parsed.phase).toBe("planning")
+    expect(parsed.round).toBe(1)
+    expect(parsed.dispatches.length).toBeGreaterThan(1)
+    expect(launched.length).toBe(parsed.dispatches.length)
+    expect(launched[0]?.description).toContain("Republic planning round 1")
+    expect(launched[0]?.prompt).toContain("republic_team_status")
+    expect(launched[0]?.prompt).toContain("republic_publish")
+    expect(launched[0]?.prompt).toContain("republic_seat_update")
+    expect(launched[0]?.prompt).toContain("Do not edit project files")
+    expect(phase.activeRound).toBe(1)
+    expect(apiState.status).toBe("running")
+    expect(messages.map((message) => message.phase)).toContain("round-dispatch")
+    expect(ledger.map((record) => record.phase)).toContain("round-dispatch")
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
   test("resolves repository from tool context when plugin input directory is unavailable", async () => {
     const tools = createRepublicTools({} as PluginInput)
     const context = createToolContext(directory)

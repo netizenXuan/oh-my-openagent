@@ -25,6 +25,7 @@ import {
   writeRepublicContract,
   type NativeGitRepository,
   type RepublicCommonsMessage,
+  type RepublicTeamSeatDefinition,
 } from "../../shared/git-worktree"
 import { allocateRepublicTeam } from "./seat-allocator"
 
@@ -348,6 +349,95 @@ function buildSupervisorReviewPrompt(
   ]
 
   return lines.filter((line): line is string => typeof line === "string").join("\n")
+}
+
+function buildRoundPrompt(args: {
+  seat: RepublicTeamSeatDefinition
+  phase: typeof TEAM_PHASES[number]
+  deliberationID: string
+  goal: string
+  round: number
+  lockedContracts: string[]
+  blockedBy: string[]
+  requestedAgent: string
+  runtimeAgent: string
+}): string {
+  const { seat, phase, deliberationID, goal, round, lockedContracts, blockedBy, requestedAgent, runtimeAgent } = args
+  const allowedEdit = phase === "execution"
+  const lines = [
+    `You are persistent Republic seat "${seat.seatID}".`,
+    `Requested OMO role: "${requestedAgent}". Runtime OpenCode agent: "${runtimeAgent}".`,
+    `Current Republic phase: ${phase}. Round: ${round}.`,
+    `Deliberation: ${deliberationID}.`,
+    seat.role ? `Seat role: ${seat.role}.` : undefined,
+    seat.workgroupID ? `Workgroup: ${seat.workgroupID}.` : undefined,
+    seat.module ? `Module: ${seat.module}.` : undefined,
+    seat.reason ? `Allocation reason: ${seat.reason}.` : undefined,
+    lockedContracts.length ? `Locked contracts: ${lockedContracts.join(", ")}.` : undefined,
+    blockedBy.length ? `Known blockers: ${blockedBy.join(", ")}.` : undefined,
+    "",
+    "Round objective:",
+    goal.trim(),
+    "",
+    "Protocol:",
+    `1. Call republic_seat_update(seat_id="${seat.seatID}", status="running", phase="${phase}", deliberation_id="${deliberationID}", memory="...") when you start.`,
+    `2. Call republic_team_status(seat_id="${seat.seatID}", deliberation_id="${deliberationID}", include_memory=true) and republic_inbox(seat_id="${seat.seatID}", deliberation_id="${deliberationID}", include_agent_doc=true) before deciding.`,
+    phase === "planning"
+      ? `3. Publish a proposal, question, objection, or revision with republic_publish(author_seat_id="${seat.seatID}", deliberation_id="${deliberationID}", phase="planning", ...). If your module touches another module, ask the relevant seat instead of guessing.`
+      : undefined,
+    phase === "execution"
+      ? `3. Implement only after checking locked contracts and relevant inbox. If an interface/schema/test boundary is unclear, publish a targeted question and call republic_wait before editing.`
+      : undefined,
+    phase === "review"
+      ? `3. Review the current Commons, contracts, native-git evidence, and seat states. Publish consensus, revision, or objection with concrete blockers.`
+      : undefined,
+    phase === "idle"
+      ? `3. Summarize whether this seat has pending work and publish a status or handoff if needed.`
+      : undefined,
+    `4. Use republic_contract before adjacent modules depend on shared API shape, data schema, test boundary, or handoff rules.`,
+    `5. If blocked, call republic_seat_update(seat_id="${seat.seatID}", status="blocked" or "waiting", waiting_on=[...], deliberation_id="${deliberationID}", memory="...").`,
+    `6. When finished with this round, call republic_seat_update(seat_id="${seat.seatID}", status="done", phase="${phase}", deliberation_id="${deliberationID}", memory="...").`,
+    allowedEdit
+      ? "7. Execution edits are allowed only when they follow locked contracts or explicit Commons consensus; all edits are tracked by native Git."
+      : "7. Do not edit project files in this round; publish planning/review outputs through Republic tools.",
+    "8. Stop after completing the round protocol.",
+  ]
+
+  return lines.filter((line): line is string => typeof line === "string").join("\n")
+}
+
+function selectRoundSeats(args: {
+  seats: RepublicTeamSeatDefinition[]
+  phase: typeof TEAM_PHASES[number]
+  explicitSeatIDs?: string[]
+  workgroupID?: string
+  includeSupervisor: boolean
+  maxSeats: number
+}): RepublicTeamSeatDefinition[] {
+  const explicitSeatIDs = new Set(args.explicitSeatIDs?.map(sanitizeRepublicDeliberationID) ?? [])
+  const selected = args.seats.filter((seat) => {
+    if (explicitSeatIDs.size > 0 && !explicitSeatIDs.has(seat.seatID)) {
+      return false
+    }
+    if (args.workgroupID && seat.workgroupID !== args.workgroupID) {
+      return false
+    }
+    if (!args.includeSupervisor && seat.role === "supervisor") {
+      return false
+    }
+    if (explicitSeatIDs.size > 0) {
+      return true
+    }
+    if (seat.role === "supervisor") {
+      return args.includeSupervisor
+    }
+    return seat.phase === args.phase
+  })
+
+  const phaseMatched = selected.length > 0
+    ? selected
+    : args.seats.filter((seat) => seat.role !== "supervisor" || args.includeSupervisor)
+  return phaseMatched.slice(0, args.maxSeats)
 }
 
 async function dispatchRepublicSeatResponse(args: {
@@ -883,6 +973,176 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
     },
   })
 
+  const republic_round_start: ToolDefinition = tool({
+    description:
+      "Start an active Republic collaboration round by launching multiple persistent seats as background sessions for planning, execution, review, or idle coordination.",
+    args: {
+      goal: tool.schema.string().describe("Round objective or task brief"),
+      phase: tool.schema.enum(TEAM_PHASES).optional().describe("planning, execution, review, or idle; defaults from current team phase"),
+      deliberation_id: tool.schema.string().optional().describe("Deliberation ID; defaults from current team phase or session"),
+      seat_ids: tool.schema.array(tool.schema.string()).optional().describe("Optional explicit seats to launch"),
+      workgroup_id: tool.schema.string().optional().describe("Optional workgroup filter"),
+      include_supervisor: tool.schema.boolean().optional().describe("Whether to include supervisor seats"),
+      max_seats: tool.schema.number().optional().describe("Maximum seats to launch"),
+      round: tool.schema.number().optional().describe("Round number"),
+      dry_run: tool.schema.boolean().optional().describe("Return selected seats without launching"),
+    },
+    execute: async (args, context) => {
+      const repository = getToolRepository(ctx, context as ToolContextLike)
+      if (!repository) {
+        return JSON.stringify({ ok: false, error: "not_git_repository" })
+      }
+      if (!options.manager && args.dry_run !== true) {
+        return JSON.stringify({ ok: false, error: "scheduler_unavailable" })
+      }
+      const sessionID = (context as ToolContextLike).sessionID
+      if (!sessionID && args.dry_run !== true) {
+        return JSON.stringify({ ok: false, error: "missing_session" })
+      }
+
+      const manifest = readRepublicTeamManifest(repository)
+      if (!manifest) {
+        return JSON.stringify({ ok: false, error: "team_not_initialized" })
+      }
+      const phaseState = readRepublicTeamPhase(repository)
+      const phase = typeof args.phase === "string"
+        ? args.phase as typeof TEAM_PHASES[number]
+        : phaseState?.phase ?? "planning"
+      const goal = String(args.goal ?? "").trim()
+      if (!goal) {
+        return JSON.stringify({ ok: false, error: "empty_goal" })
+      }
+      const deliberationID = typeof args.deliberation_id === "string"
+        ? sanitizeRepublicDeliberationID(args.deliberation_id)
+        : phaseState?.deliberationID ?? getDeliberationID({}, context as ToolContextLike)
+      const round = typeof args.round === "number" && Number.isFinite(args.round)
+        ? Math.max(0, Math.floor(args.round))
+        : (phaseState?.activeRound ?? 0) + 1
+      const maxSeats = boundedNumber(args.max_seats, manifest.maxParallelSeats, 1, manifest.maxParallelSeats)
+      const selectedSeats = selectRoundSeats({
+        seats: manifest.seats,
+        phase,
+        explicitSeatIDs: safeStringArray(args.seat_ids),
+        workgroupID: typeof args.workgroup_id === "string" ? args.workgroup_id : undefined,
+        includeSupervisor: args.include_supervisor === true,
+        maxSeats,
+      })
+
+      if (args.dry_run === true) {
+        return JSON.stringify({
+          ok: true,
+          dry_run: true,
+          deliberation_id: deliberationID,
+          phase,
+          round,
+          seats: selectedSeats.map((seat) => seat.seatID),
+        })
+      }
+
+      writeRepublicTeamPhase(repository, {
+        phase,
+        status: "in-progress",
+        deliberationID,
+        activeRound: round,
+        lockedContracts: phaseState?.lockedContracts ?? [],
+        blockedBy: phaseState?.blockedBy ?? [],
+      })
+
+      const dispatches = []
+      for (const seat of selectedSeats) {
+        const requestedAgent = resolveDispatchAgent(seat.seatID, {
+          target_agent: seat.runtimeAgent,
+        }, options.config)
+        const dispatchAgent = await resolveRuntimeDispatchAgent({ ctx, requestedAgent, config: options.config })
+        writeRepublicSeatState(repository, {
+          seatID: seat.seatID,
+          role: seat.role,
+          runtimeAgent: dispatchAgent.runtimeAgent,
+          conceptualAgent: dispatchAgent.requestedAgent,
+          status: "running",
+          phase,
+          workgroupID: seat.workgroupID,
+          module: seat.module,
+          taskID: seat.taskID,
+          sessionID,
+        })
+        appendRepublicSeatMemory(repository, seat.seatID, `Round ${round} dispatched for ${phase}: ${goal}`)
+
+        const prompt = buildRoundPrompt({
+          seat,
+          phase,
+          deliberationID,
+          goal,
+          round,
+          lockedContracts: phaseState?.lockedContracts ?? [],
+          blockedBy: phaseState?.blockedBy ?? [],
+          requestedAgent: dispatchAgent.requestedAgent,
+          runtimeAgent: dispatchAgent.runtimeAgent,
+        })
+        const task = await options.manager!.launch({
+          description: `Republic ${phase} round ${round}: ${seat.seatID}`,
+          prompt,
+          agent: dispatchAgent.runtimeAgent,
+          parentSessionId: sessionID!,
+          parentMessageId: (context as ToolContextLike).messageID ?? "",
+          parentAgent: (context as ToolContextLike).agent,
+          category: `republic-${phase}-round`,
+        })
+
+        const agentSummary = dispatchAgent.runtimeAgent === dispatchAgent.requestedAgent
+          ? dispatchAgent.runtimeAgent
+          : `${dispatchAgent.runtimeAgent} (requested ${dispatchAgent.requestedAgent})`
+        const summary = `Republic scheduler launched ${seat.seatID} for ${phase} round ${round} via ${agentSummary} as background task ${task.id}.`
+        appendRepublicCommonsMessage(repository, {
+          deliberationID,
+          channel: "scheduler",
+          phase: "round-dispatch",
+          round,
+          authorSeatID: "republic-scheduler",
+          authorAgent: "republic-scheduler",
+          authorRole: "scheduler",
+          targetSeatID: seat.seatID,
+          workgroupID: seat.workgroupID,
+          module: seat.module,
+          taskID: task.id,
+          status: "dispatched",
+          messageType: "status",
+          content: summary,
+        })
+        appendRepublicLedgerRecord(repository, {
+          deliberationID,
+          phase: "round-dispatch",
+          chamber: "scheduler",
+          seatID: "republic-scheduler",
+          role: "scheduler",
+          agent: "republic-scheduler",
+          sessionID,
+          workgroupID: seat.workgroupID,
+          module: seat.module,
+          taskID: task.id,
+          status: "dispatched",
+          summary,
+        })
+        dispatches.push({
+          seat_id: seat.seatID,
+          task_id: task.id,
+          agent: dispatchAgent.runtimeAgent,
+          ...(dispatchAgent.runtimeAgent !== dispatchAgent.requestedAgent
+            ? { requested_agent: dispatchAgent.requestedAgent }
+            : {}),
+        })
+      }
+
+      return JSON.stringify({
+        ok: true,
+        deliberation_id: deliberationID,
+        phase,
+        round,
+        dispatches,
+      })
+    },
+  })
+
   const republic_publish: ToolDefinition = tool({
     description:
       "Publish a Republic Commons message for agent-to-agent collaboration. Use this to ask questions, answer another seat, object, revise, hand off work, or record a proposal. Messages are stored under the Git common dir and mirrored into agent docs.",
@@ -1153,6 +1413,7 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
     republic_team_status,
     republic_seat_update,
     republic_phase_update,
+    republic_round_start,
     republic_publish,
     republic_inbox,
     republic_wait,
