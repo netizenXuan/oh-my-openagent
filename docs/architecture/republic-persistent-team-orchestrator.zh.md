@@ -59,8 +59,12 @@
   "republic": {
     "team_model": "parliament_squad",
     "team": {
+      "seat_allocation": "auto",
       "seat_memory": true,
       "persistent_sessions": true,
+      "planner_seat_count": 4,
+      "executor_seat_count": "auto",
+      "reviewer_seat_count": 2,
       "max_parallel_seats": 4,
       "default_runtime_agent": "general"
     },
@@ -81,6 +85,82 @@
 | `parliament` | 只在 Planning Phase 启用多 seat 议会 | 复杂设计、架构选择、方案比较 |
 | `squad` | 只在 Execution Phase 启用多 workgroup 执行小队 | 明确方案下的大量编码任务 |
 | `parliament_squad` | Planning 用议会制，Execution 用执行小队 | 大型项目、长期维护、团队协作 |
+
+## 动态 Seat 分配
+
+Seat 不应该被固定成 `api-seat`、`db-seat`、`test-seat` 这几个名字。固定 seat 对典型 Web/API 项目有用，但对 CLI、编译器、论文工具、前端 dashboard、数据处理管线、机器学习训练脚本等任务会不适配。
+
+正确设计是让 seat topology 由 allocator 生成：
+
+```jsonc
+{
+  "republic": {
+    "team": {
+      "seat_allocation": "auto" // "auto" | "count" | "explicit"
+    }
+  }
+}
+```
+
+### `auto`
+
+系统根据用户目标、仓库结构和变更范围自动决定 seat：
+
+- 识别任务类型：API、UI、CLI、config、test、docs、infra、data、model、dashboard
+- 扫描仓库目录：`src/api`、`src/cli`、`docs`、`tests`、`packages/*`
+- 读取 native-git 变更和历史 Commons
+- 生成最小但覆盖关键边界的 seat 集合
+
+示例：
+
+- “做订单系统”：`api-seat`、`data-seat`、`test-seat`、`docs-seat`、`supervisor-seat`
+- “改 CLI 配置解析”：`cli-seat`、`config-seat`、`test-seat`、`review-seat`
+- “做可视化 dashboard”：`graph-seat`、`ui-seat`、`data-seat`、`ux-review-seat`
+
+### `count`
+
+用户只指定数量，不指定具体角色：
+
+```jsonc
+{
+  "republic": {
+    "team": {
+      "seat_allocation": "count",
+      "planner_seat_count": 5,
+      "executor_seat_count": 4,
+      "reviewer_seat_count": 2
+    }
+  }
+}
+```
+
+allocator 根据数量和任务自动命名 seat、分配 workgroup、生成职责说明。这样用户可以说“给我 6 个 planning seats”，但不需要提前知道它们该叫什么。
+
+### `explicit`
+
+高级用户可以完全指定：
+
+```jsonc
+{
+  "republic": {
+    "seats": {
+      "planners": ["protocol-seat", "storage-seat", "compat-seat"],
+      "executors": ["runtime-seat", "test-seat"],
+      "reviewers": ["security-seat"]
+    }
+  }
+}
+```
+
+### 分配原则
+
+allocator 应满足：
+
+- **最小充分**：不为了“多 agent”而制造无意义 seat。
+- **覆盖边界**：每个高耦合接口至少有两个 seat 共同关注。
+- **同角色多席位**：复杂 planning 可生成多个 planner seats，即使它们关注同一问题。
+- **任务适配**：seat 命名和职责来自任务/仓库，而不是写死角色。
+- **可解释**：每个自动 seat 必须有 reason，写入 `team/manifest.json`。
 
 ## 数据模型
 
@@ -681,4 +761,3 @@ $env:OPENCODE_CONFIG_DIR = "D:\OMO\.opencode-test-config"
 7. `/republic-execute` 按 task graph 调度 executor seats。
 
 这一步完成后，Republic 才真正从“主动协作工具”进入“项目团队编排器”。
-
