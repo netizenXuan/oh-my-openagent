@@ -6008,6 +6008,19 @@
         },
         "contracts": {
           "enabled": true
+        },
+        "scheduler": {
+          "enabled": true,
+          "auto_dispatch": true,
+          "message_types": [
+            "question",
+            "handoff",
+            "objection"
+          ],
+          "default_agent": "sisyphus",
+          "supervisor_agent": "hephaestus",
+          "seat_agents": {},
+          "prompt_max_messages": 8
         }
       },
       "type": "object",
@@ -6206,6 +6219,86 @@
             "enabled"
           ],
           "additionalProperties": false
+        },
+        "scheduler": {
+          "default": {
+            "enabled": true,
+            "auto_dispatch": true,
+            "message_types": [
+              "question",
+              "handoff",
+              "objection"
+            ],
+            "default_agent": "sisyphus",
+            "supervisor_agent": "hephaestus",
+            "seat_agents": {},
+            "prompt_max_messages": 8
+          },
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "type": "boolean"
+            },
+            "auto_dispatch": {
+              "default": true,
+              "type": "boolean"
+            },
+            "message_types": {
+              "default": [
+                "question",
+                "handoff",
+                "objection"
+              ],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "question",
+                  "handoff",
+                  "objection"
+                ]
+              }
+            },
+            "default_agent": {
+              "default": "sisyphus",
+              "type": "string",
+              "minLength": 1
+            },
+            "supervisor_agent": {
+              "default": "hephaestus",
+              "type": "string",
+              "minLength": 1
+            },
+            "seat_agents": {
+              "default": {},
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "minLength": 1
+              },
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "prompt_max_messages": {
+              "default": 8,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20
+            }
+          },
+          "required": [
+            "enabled",
+            "auto_dispatch",
+            "message_types",
+            "default_agent",
+            "supervisor_agent",
+            "seat_agents",
+            "prompt_max_messages"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -6222,7 +6315,8 @@
         "commons",
         "supervisor",
         "dependency_gate",
-        "contracts"
+        "contracts",
+        "scheduler"
       ],
       "additionalProperties": false
     },

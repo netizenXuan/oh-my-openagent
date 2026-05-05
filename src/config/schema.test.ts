@@ -1104,6 +1104,11 @@ describe("RepublicConfigSchema", () => {
       expect(result.data.dependency_gate.enabled).toBe(true)
       expect(result.data.dependency_gate.mode).toBe("advisory")
       expect(result.data.dependency_gate.cross_module_threshold).toBe(2)
+      expect(result.data.scheduler.enabled).toBe(true)
+      expect(result.data.scheduler.auto_dispatch).toBe(true)
+      expect(result.data.scheduler.message_types).toEqual(["question", "handoff", "objection"])
+      expect(result.data.scheduler.default_agent).toBe("sisyphus")
+      expect(result.data.scheduler.supervisor_agent).toBe("hephaestus")
     }
   })
 
@@ -1128,6 +1133,27 @@ describe("RepublicConfigSchema", () => {
     expect(RepublicConfigSchema.safeParse({ supervisor: { file_threshold: 0 } }).success).toBe(false)
     expect(RepublicConfigSchema.safeParse({ dependency_gate: { cross_module_threshold: 1 } }).success).toBe(false)
     expect(RepublicConfigSchema.safeParse({ dependency_gate: { mode: "warn" } }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ scheduler: { default_agent: "" } }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ scheduler: { message_types: ["note"] } }).success).toBe(false)
+  })
+
+  test("accepts scheduler seat agent mapping", () => {
+    //#when
+    const result = RepublicConfigSchema.safeParse({
+      scheduler: {
+        seat_agents: {
+          "api-seat": "atlas",
+          "docs-seat": "hephaestus",
+        },
+      },
+    })
+
+    //#then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.scheduler.seat_agents["api-seat"]).toBe("atlas")
+      expect(result.data.scheduler.seat_agents["docs-seat"]).toBe("hephaestus")
+    }
   })
 })
 
@@ -1142,6 +1168,7 @@ describe("OhMyOpenCodeConfigSchema - republic defaults", () => {
       expect(result.data.republic.enabled).toBe(true)
       expect(result.data.republic.mode).toBe("advisory")
       expect(result.data.republic.ledger).toBe(true)
+      expect(result.data.republic.scheduler.enabled).toBe(true)
     }
   })
 })

@@ -2,6 +2,7 @@ import { z } from "zod"
 
 export const RepublicModeSchema = z.enum(["manual", "advisory", "governed"])
 export const RepublicDependencyGateModeSchema = z.enum(["advisory", "block"])
+export const RepublicSchedulerMessageTypeSchema = z.enum(["question", "handoff", "objection"])
 
 const DEFAULT_HIGH_RISK_PATHS = [
   "package.json",
@@ -73,8 +74,27 @@ export const RepublicConfigSchema = z.object({
   }).default({
     enabled: true,
   }),
+  /** Actively dispatch targeted Commons messages to background seat sessions. */
+  scheduler: z.object({
+    enabled: z.boolean().default(true),
+    auto_dispatch: z.boolean().default(true),
+    message_types: z.array(RepublicSchedulerMessageTypeSchema).default(["question", "handoff", "objection"]),
+    default_agent: z.string().min(1).default("sisyphus"),
+    supervisor_agent: z.string().min(1).default("hephaestus"),
+    seat_agents: z.record(z.string().min(1), z.string().min(1)).default({}),
+    prompt_max_messages: z.number().int().min(1).max(20).default(8),
+  }).default({
+    enabled: true,
+    auto_dispatch: true,
+    message_types: ["question", "handoff", "objection"],
+    default_agent: "sisyphus",
+    supervisor_agent: "hephaestus",
+    seat_agents: {},
+    prompt_max_messages: 8,
+  }),
 })
 
 export type RepublicMode = z.infer<typeof RepublicModeSchema>
 export type RepublicDependencyGateMode = z.infer<typeof RepublicDependencyGateModeSchema>
+export type RepublicSchedulerMessageType = z.infer<typeof RepublicSchedulerMessageTypeSchema>
 export type RepublicConfig = z.infer<typeof RepublicConfigSchema>
