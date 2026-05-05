@@ -286,6 +286,50 @@ describe("native git hook", () => {
     expect(policy?.references).toContain("custom-question-1")
   })
 
+  test("session idle records supervisor policy for unresolved objections", async () => {
+    const hook = createNativeGitHook(
+      { directory } as never,
+      { mode: "tracked", audit_log: true },
+      {
+        enabled: true,
+        mode: "advisory",
+        ledger: true,
+        supervisor: {
+          intervention: true,
+          policy_loop: true,
+          file_threshold: 5,
+          high_risk_paths: [],
+        },
+      } as never,
+    )
+    const repository = getNativeGitRepository(directory)!
+    appendRepublicCommonsMessage(repository, {
+      messageID: "objection-1",
+      deliberationID: "session-ses_objection_policy",
+      channel: "commons",
+      phase: "collaboration",
+      authorSeatID: "docs-seat",
+      targetSeatID: "api-seat",
+      messageType: "objection",
+      content: "The proposed API response shape conflicts with the documentation contract.",
+    })
+
+    await hook.event({
+      event: {
+        type: "session.idle",
+        properties: {
+          sessionID: "ses_objection_policy",
+        },
+      },
+    })
+
+    const commons = readRepublicCommonsMessages(repository, "session-ses_objection_policy")
+    const policy = commons.find((message) => message.messageType === "supervisor-policy")
+
+    expect(policy?.content).toContain("unresolved objection")
+    expect(policy?.references).toContain("objection-1")
+  })
+
   test("tracked mode records supervisor intervention for high-risk changes", async () => {
     const hook = createNativeGitHook(
       { directory } as never,

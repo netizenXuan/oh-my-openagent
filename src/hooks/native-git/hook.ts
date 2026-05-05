@@ -576,6 +576,18 @@ export function createNativeGitHook(
     return messages.filter((message) => message.messageType === "question" && message.messageID && !answeredReferences.has(message.messageID))
   }
 
+  function findUnresolvedObjections(messages: RepublicCommonsMessage[]): RepublicCommonsMessage[] {
+    const resolvedReferences = new Set<string>()
+    for (const message of messages) {
+      if (message.messageType === "revision" || message.messageType === "consensus") {
+        for (const reference of message.references ?? []) {
+          resolvedReferences.add(reference)
+        }
+      }
+    }
+    return messages.filter((message) => message.messageType === "objection" && message.messageID && !resolvedReferences.has(message.messageID))
+  }
+
   function policyAlreadyCovers(messages: RepublicCommonsMessage[], unresolvedMessages: RepublicCommonsMessage[]): boolean {
     const unresolvedIDs = unresolvedMessages.map((message) => message.messageID).filter((id): id is string => Boolean(id))
     if (unresolvedIDs.length === 0) {
@@ -628,16 +640,17 @@ export function createNativeGitHook(
 
     for (const [deliberationID, messages] of groupMessagesByDeliberation(allMessages)) {
       const unresolvedQuestions = findUnresolvedQuestions(messages)
+      const unresolvedObjections = findUnresolvedObjections(messages)
       const unresolvedSupervisorMessages = messages.filter((message) =>
         message.messageType === "intervention" || message.messageType === "dependency-blocked"
       )
-      const unresolvedMessages = [...unresolvedQuestions, ...unresolvedSupervisorMessages]
+      const unresolvedMessages = [...unresolvedQuestions, ...unresolvedObjections, ...unresolvedSupervisorMessages]
       if (unresolvedMessages.length === 0 || policyAlreadyCovers(messages, unresolvedMessages)) {
         continue
       }
 
       const latestTimestamp = messages.at(-1)?.timestamp ?? ""
-      const policyKey = `${deliberationID}:${messages.length}:${latestTimestamp}:${unresolvedQuestions.length}:${unresolvedSupervisorMessages.length}`
+      const policyKey = `${deliberationID}:${messages.length}:${latestTimestamp}:${unresolvedQuestions.length}:${unresolvedObjections.length}:${unresolvedSupervisorMessages.length}`
       if (policyLoopStatusBySession.get(`${sessionID}:${deliberationID}`) === policyKey) {
         continue
       }
@@ -645,10 +658,11 @@ export function createNativeGitHook(
 
       const references = [
         ...unresolvedQuestions.map((message) => message.messageID).filter((id): id is string => Boolean(id)),
+        ...unresolvedObjections.map((message) => message.messageID).filter((id): id is string => Boolean(id)),
         ...unresolvedSupervisorMessages.map((message) => message.messageID).filter((id): id is string => Boolean(id)),
       ].slice(0, 20)
       const summary = [
-        `Supervisor policy loop found ${unresolvedQuestions.length} unresolved question(s) and ${unresolvedSupervisorMessages.length} unresolved governance warning(s).`,
+        `Supervisor policy loop found ${unresolvedQuestions.length} unresolved question(s), ${unresolvedObjections.length} unresolved objection(s), and ${unresolvedSupervisorMessages.length} unresolved governance warning(s).`,
         "Before continuing execution, affected seats should read republic_inbox and answer, revise, or hand off through republic_publish.",
       ].join("\n")
 
