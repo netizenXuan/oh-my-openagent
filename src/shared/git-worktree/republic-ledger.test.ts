@@ -10,16 +10,21 @@ import {
   appendRepublicCommonsMessage,
   appendRepublicLedgerRecord,
   evaluateRepublicDecision,
+  getRepublicAgentDocPath,
   getRepublicCommonsPath,
+  getRepublicContractPath,
   getRepublicDeliberationDir,
   getRepublicLedgerPath,
+  readRepublicAgentDoc,
   readRepublicCommonsMessages,
+  readRepublicInboxMessages,
   readRepublicLedgerRecords,
   sanitizeRepublicDeliberationID,
   summarizeRepublicCommons,
   summarizeRepublicCommonsMessages,
   summarizeRepublicLedger,
   summarizeRepublicLedgerRecords,
+  writeRepublicContract,
 } from "./republic-ledger"
 
 function git(cwd: string, args: string[]): string {
@@ -197,6 +202,76 @@ describe("republic ledger", () => {
     expect(commonsPath).toContain(join(".git", "omo", "republic", "commons.jsonl"))
     expect(existsSync(commonsPath)).toBe(true)
     expect(readFileSync(commonsPath, "utf-8")).toContain('"messageType":"proposal"')
+    expect(existsSync(getRepublicAgentDocPath(repository!, "planner-house-1"))).toBe(true)
+    expect(readRepublicAgentDoc(repository!, "planner-house-1")).toContain("Prefer a ledger-first implementation.")
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
+  test("writes targeted messages into both agent docs and filters inbox messages", () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")
+    commitAll(directory, "init")
+
+    const repository = getNativeGitRepository(directory)
+    expect(repository).not.toBeNull()
+
+    appendRepublicCommonsMessage(repository!, {
+      deliberationID: "agent republic",
+      channel: "commons",
+      phase: "cross-examination",
+      authorSeatID: "api-seat",
+      targetSeatID: "docs-seat",
+      workgroupID: "docs-workgroup",
+      module: "docs/api",
+      messageType: "question",
+      content: "Can docs publish the response shape before API implementation?",
+    })
+    appendRepublicCommonsMessage(repository!, {
+      deliberationID: "agent republic",
+      channel: "commons",
+      phase: "supervision",
+      authorSeatID: "republic-supervisor",
+      targetSeatID: "api-seat",
+      messageType: "supervisor-policy",
+      content: "Resolve the outstanding docs question before finalizing.",
+    })
+
+    const docsInbox = readRepublicInboxMessages(repository!, {
+      deliberationID: "agent republic",
+      seatID: "docs-seat",
+      workgroupID: "docs-workgroup",
+    })
+    const docsDoc = readRepublicAgentDoc(repository!, "docs-seat")
+    const apiDoc = readRepublicAgentDoc(repository!, "api-seat")
+
+    expect(docsInbox.map((message) => message.messageType)).toContain("question")
+    expect(docsDoc).toContain("Can docs publish")
+    expect(apiDoc).toContain("Can docs publish")
+    expect(apiDoc).toContain("Resolve the outstanding docs question")
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
+  test("writes workgroup contracts under git common dir", () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")
+    commitAll(directory, "init")
+
+    const repository = getNativeGitRepository(directory)
+    expect(repository).not.toBeNull()
+
+    const contractPath = writeRepublicContract(repository!, {
+      workgroupID: "api-workgroup",
+      module: "src/api",
+      title: "Order response shape",
+      content: "API returns id, status, and total.",
+      authorSeatID: "api-seat",
+      status: "proposed",
+      files: ["src/api/orders.ts", "docs/api/orders.md"],
+    })
+
+    expect(contractPath).toBe(getRepublicContractPath(repository!, "api-workgroup"))
+    expect(readFileSync(contractPath, "utf-8")).toContain("Order response shape")
+    expect(readFileSync(contractPath, "utf-8")).toContain("API returns id")
     expect(git(directory, ["status", "--porcelain"])).toBe("")
   })
 

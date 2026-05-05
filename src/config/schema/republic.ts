@@ -36,16 +36,24 @@ export const RepublicConfigSchema = z.object({
   /** Publish native-git tool changes into the Republic Commons automatically. */
   commons: z.object({
     auto_publish: z.boolean().default(true),
+    inbox: z.boolean().default(true),
+    inject_max_messages: z.number().int().min(1).max(20).default(6),
+    agent_docs: z.boolean().default(true),
   }).default({
     auto_publish: true,
+    inbox: true,
+    inject_max_messages: 6,
+    agent_docs: true,
   }),
   /** Record supervisor interventions when changes look high-risk or role boundaries are crossed. */
   supervisor: z.object({
     intervention: z.boolean().default(true),
+    policy_loop: z.boolean().default(true),
     file_threshold: z.number().int().min(1).max(50).default(5),
     high_risk_paths: z.array(z.string().min(1)).default(DEFAULT_HIGH_RISK_PATHS),
   }).default({
     intervention: true,
+    policy_loop: true,
     file_threshold: 5,
     high_risk_paths: DEFAULT_HIGH_RISK_PATHS,
   }),
@@ -58,6 +66,12 @@ export const RepublicConfigSchema = z.object({
     enabled: true,
     mode: "advisory",
     cross_module_threshold: 2,
+  }),
+  /** Store workgroup contracts for cross-module interface agreements. */
+  contracts: z.object({
+    enabled: z.boolean().default(true),
+  }).default({
+    enabled: true,
   }),
 })
 

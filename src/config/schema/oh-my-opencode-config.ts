@@ -88,9 +88,13 @@ export const OhMyOpenCodeConfigSchema = z.object({
     git_summary: true,
     commons: {
       auto_publish: true,
+      inbox: true,
+      inject_max_messages: 6,
+      agent_docs: true,
     },
     supervisor: {
       intervention: true,
+      policy_loop: true,
       file_threshold: 5,
       high_risk_paths: [
         "package.json",
@@ -105,6 +109,9 @@ export const OhMyOpenCodeConfigSchema = z.object({
       enabled: true,
       mode: "advisory",
       cross_module_threshold: 2,
+    },
+    contracts: {
+      enabled: true,
     },
   }),
   browser_automation_engine: BrowserAutomationConfigSchema.optional(),

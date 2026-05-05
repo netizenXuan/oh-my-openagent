@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs"
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import type { NativeGitRepository } from "./native-git"
 
@@ -63,11 +63,14 @@ export interface RepublicCommonsMessage {
     | "answer"
     | "objection"
     | "revision"
+    | "handoff"
     | "consensus"
+    | "contract"
     | "note"
     | "status"
     | "intervention"
     | "dependency-blocked"
+    | "supervisor-policy"
   references?: string[]
   files?: string[]
   confidence?: number
@@ -143,6 +146,14 @@ export function getRepublicCommonsPath(repository: NativeGitRepository): string 
   return join(repository.gitCommonDir, "omo", "republic", "commons.jsonl")
 }
 
+export function getRepublicAgentDocPath(repository: NativeGitRepository, seatID: string): string {
+  return join(repository.gitCommonDir, "omo", "republic", "agents", `${sanitizeRepublicDeliberationID(seatID)}.md`)
+}
+
+export function getRepublicContractPath(repository: NativeGitRepository, workgroupID: string): string {
+  return join(repository.gitCommonDir, "omo", "republic", "contracts", `${sanitizeRepublicDeliberationID(workgroupID)}.md`)
+}
+
 function incrementCounter(counter: Record<string, number>, key: string | undefined): void {
   if (!key) return
   counter[key] = (counter[key] ?? 0) + 1
@@ -192,6 +203,36 @@ function createRepublicMessageID(message: RepublicCommonsMessage, timestamp: str
   return sanitizeRepublicDeliberationID(base).slice(0, 120)
 }
 
+function formatCommonsDocEntry(message: RepublicCommonsMessage, timestamp: string): string {
+  const lines = [
+    `## ${timestamp} ${message.messageType} ${message.channel}/${message.phase}`,
+    "",
+    `- message: ${message.messageID ?? "pending"}`,
+    `- deliberation: ${sanitizeRepublicDeliberationID(message.deliberationID)}`,
+    `- author: ${message.authorSeatID}`,
+  ]
+
+  if (message.targetSeatID) lines.push(`- target: ${message.targetSeatID}`)
+  if (message.workgroupID) lines.push(`- workgroup: ${message.workgroupID}`)
+  if (message.module) lines.push(`- module: ${message.module}`)
+  if (message.taskID) lines.push(`- task: ${message.taskID}`)
+  if ((message.dependsOn?.length ?? 0) > 0) lines.push(`- depends_on: ${message.dependsOn!.join(", ")}`)
+  if ((message.files?.length ?? 0) > 0) lines.push(`- files: ${message.files!.join(", ")}`)
+  if ((message.references?.length ?? 0) > 0) lines.push(`- references: ${message.references!.join(", ")}`)
+
+  lines.push("", message.content.trim(), "")
+  return `${lines.join("\n")}\n`
+}
+
+function appendRepublicAgentDoc(repository: NativeGitRepository, seatID: string, message: RepublicCommonsMessage, timestamp: string): void {
+  const docPath = getRepublicAgentDocPath(repository, seatID)
+  mkdirSync(dirname(docPath), { recursive: true })
+  if (!existsSync(docPath)) {
+    writeFileSync(docPath, `# Republic Agent Doc: ${sanitizeRepublicDeliberationID(seatID)}\n\n`, "utf-8")
+  }
+  appendFileSync(docPath, formatCommonsDocEntry(message, timestamp), "utf-8")
+}
+
 export function readRepublicLedgerRecords(
   repository: NativeGitRepository,
   deliberationID?: string,
@@ -218,18 +259,23 @@ export function appendRepublicCommonsMessage(
   const commonsPath = getRepublicCommonsPath(repository)
   mkdirSync(dirname(commonsPath), { recursive: true })
   const timestamp = new Date().toISOString()
+  const normalizedMessage = {
+    version: 1,
+    timestamp,
+    repoRoot: repository.repoRoot,
+    ...message,
+    deliberationID: sanitizeRepublicDeliberationID(message.deliberationID),
+    messageID: message.messageID ?? createRepublicMessageID(message, timestamp),
+  }
   appendFileSync(
     commonsPath,
-    JSON.stringify({
-      version: 1,
-      timestamp,
-      repoRoot: repository.repoRoot,
-      ...message,
-      deliberationID: sanitizeRepublicDeliberationID(message.deliberationID),
-      messageID: message.messageID ?? createRepublicMessageID(message, timestamp),
-    }) + "\n",
+    JSON.stringify(normalizedMessage) + "\n",
     "utf-8",
   )
+  appendRepublicAgentDoc(repository, normalizedMessage.authorSeatID, normalizedMessage, timestamp)
+  if (normalizedMessage.targetSeatID && normalizedMessage.targetSeatID !== normalizedMessage.authorSeatID) {
+    appendRepublicAgentDoc(repository, normalizedMessage.targetSeatID, normalizedMessage, timestamp)
+  }
   return commonsPath
 }
 
@@ -315,6 +361,75 @@ export function summarizeRepublicCommons(
   deliberationID?: string,
 ): RepublicCommonsSummary {
   return summarizeRepublicCommonsMessages(readRepublicCommonsMessages(repository, deliberationID), deliberationID)
+}
+
+export function readRepublicAgentDoc(repository: NativeGitRepository, seatID: string): string {
+  const docPath = getRepublicAgentDocPath(repository, seatID)
+  return existsSync(docPath) ? readFileSync(docPath, "utf-8") : ""
+}
+
+export function readRepublicInboxMessages(
+  repository: NativeGitRepository,
+  options: {
+    seatID: string
+    deliberationID?: string
+    workgroupID?: string
+    module?: string
+    limit?: number
+  },
+): RepublicCommonsMessage[] {
+  const limit = options.limit && options.limit > 0 ? options.limit : 10
+  const seatID = sanitizeRepublicDeliberationID(options.seatID)
+  const messages = readRepublicCommonsMessages(repository, options.deliberationID)
+  const relevant = messages.filter((message) => {
+    if (message.authorSeatID === seatID) {
+      return false
+    }
+    if (message.targetSeatID === seatID) {
+      return true
+    }
+    if (options.workgroupID && message.workgroupID === options.workgroupID) {
+      return true
+    }
+    if (options.module && message.module === options.module) {
+      return true
+    }
+    return ["question", "objection", "handoff", "intervention", "dependency-blocked", "supervisor-policy"].includes(message.messageType)
+  })
+
+  return relevant.slice(-limit).reverse()
+}
+
+export function writeRepublicContract(
+  repository: NativeGitRepository,
+  input: {
+    workgroupID: string
+    module?: string
+    title: string
+    content: string
+    authorSeatID: string
+    status?: string
+    files?: string[]
+  },
+): string {
+  const contractPath = getRepublicContractPath(repository, input.workgroupID)
+  mkdirSync(dirname(contractPath), { recursive: true })
+  const timestamp = new Date().toISOString()
+  const existing = existsSync(contractPath) ? readFileSync(contractPath, "utf-8") : `# Workgroup Contract: ${sanitizeRepublicDeliberationID(input.workgroupID)}\n\n`
+  const entry = [
+    `## ${timestamp} ${input.title}`,
+    "",
+    `- author: ${input.authorSeatID}`,
+    `- status: ${input.status ?? "proposed"}`,
+    input.module ? `- module: ${input.module}` : undefined,
+    input.files?.length ? `- files: ${input.files.join(", ")}` : undefined,
+    "",
+    input.content.trim(),
+    "",
+  ].filter((line): line is string => typeof line === "string").join("\n")
+
+  writeFileSync(contractPath, `${existing.trimEnd()}\n\n${entry}\n`, "utf-8")
+  return contractPath
 }
 
 export function summarizeRepublicLedgerRecords(
