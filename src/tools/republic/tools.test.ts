@@ -1,0 +1,122 @@
+/// <reference types="bun-types" />
+
+import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { execFileSync } from "node:child_process"
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import type { PluginInput } from "@opencode-ai/plugin"
+import type { ToolContext } from "@opencode-ai/plugin/tool"
+import {
+  getNativeGitRepository,
+  getRepublicAgentDocPath,
+  getRepublicContractPath,
+  readRepublicCommonsMessages,
+  readRepublicLedgerRecords,
+} from "../../shared/git-worktree"
+import { createRepublicTools } from "./tools"
+
+function git(cwd: string, args: string[]): string {
+  return execFileSync("git", args, {
+    cwd,
+    encoding: "utf-8",
+    stdio: ["pipe", "pipe", "pipe"],
+  }).trimEnd()
+}
+
+function initRepo(cwd: string): void {
+  git(cwd, ["init"])
+  writeFileSync(join(cwd, "README.md"), "hello\n", "utf-8")
+  git(cwd, ["add", "."])
+  git(cwd, [
+    "-c",
+    "user.name=Republic Tool Test",
+    "-c",
+    "user.email=republic-tool@example.test",
+    "commit",
+    "--no-gpg-sign",
+    "-m",
+    "init",
+  ])
+}
+
+function createToolContext(directory: string): ToolContext {
+  return {
+    sessionID: "ses_republic_tools",
+    messageID: "msg_republic_tools",
+    agent: "sisyphus",
+    directory,
+    worktree: directory,
+    abort: new AbortController().signal,
+    metadata: () => {},
+    ask: async () => {},
+  }
+}
+
+describe("republic tools", () => {
+  let directory: string
+
+  beforeEach(() => {
+    directory = mkdtempSync(join(tmpdir(), "omo-republic-tools-"))
+    initRepo(directory)
+  })
+
+  afterEach(() => {
+    rmSync(directory, { recursive: true, force: true })
+  })
+
+  test("publishes targeted commons messages and reads inbox", async () => {
+    const tools = createRepublicTools({ directory } as PluginInput)
+    const context = createToolContext(directory)
+
+    const publishResult = await tools.republic_publish.execute({
+      message_type: "question",
+      content: "Can API publish the response contract before implementation?",
+      author_seat_id: "docs-seat",
+      target_seat_id: "api-seat",
+      workgroup_id: "wg-src-api",
+      module: "src/api",
+      files: ["src/api/orders.ts"],
+    }, context)
+    const inboxResult = await tools.republic_inbox.execute({
+      seat_id: "api-seat",
+      include_agent_doc: true,
+    }, context)
+
+    const repository = getNativeGitRepository(directory)!
+    const messages = readRepublicCommonsMessages(repository, "session-ses_republic_tools")
+    const ledger = readRepublicLedgerRecords(repository, "session-ses_republic_tools")
+
+    expect(JSON.parse(String(publishResult)).message_type).toBe("question")
+    expect(String(inboxResult)).toContain("Can API publish")
+    expect(messages).toHaveLength(1)
+    expect(ledger).toHaveLength(1)
+    expect(existsSync(getRepublicAgentDocPath(repository, "api-seat"))).toBe(true)
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
+  test("writes workgroup contracts and publishes contract messages", async () => {
+    const tools = createRepublicTools({ directory } as PluginInput)
+    const context = createToolContext(directory)
+
+    const result = await tools.republic_contract.execute({
+      workgroup_id: "wg-src-api",
+      title: "Order cancellation response",
+      content: "API returns id, status, and cancellationReason.",
+      author_seat_id: "api-seat",
+      target_seat_id: "docs-seat",
+      module: "src/api",
+      status: "proposed",
+      files: ["src/api/orders.ts", "docs/api/orders.md"],
+    }, context)
+
+    const parsed = JSON.parse(String(result))
+    const repository = getNativeGitRepository(directory)!
+    const messages = readRepublicCommonsMessages(repository, "session-ses_republic_tools")
+
+    expect(parsed.ok).toBe(true)
+    expect(readFileSync(getRepublicContractPath(repository, "wg-src-api"), "utf-8")).toContain("Order cancellation response")
+    expect(messages[0]?.messageType).toBe("contract")
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+})

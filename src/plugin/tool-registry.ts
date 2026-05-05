@@ -28,6 +28,7 @@ import {
   createTaskList,
   createTaskUpdateTool,
   createHashlineEditTool,
+  createRepublicTools,
 } from "../tools"
 import { getMainSessionID } from "../features/claude-code-session-state"
 import { filterDisabledTools } from "../shared/disabled-tools"
@@ -56,6 +57,7 @@ type ToolRegistryFactories = {
   createTaskList: typeof createTaskList
   createTaskUpdateTool: typeof createTaskUpdateTool
   createHashlineEditTool: typeof createHashlineEditTool
+  createRepublicTools: typeof createRepublicTools
 }
 
 const defaultToolRegistryFactories: ToolRegistryFactories = {
@@ -77,6 +79,7 @@ const defaultToolRegistryFactories: ToolRegistryFactories = {
   createTaskList,
   createTaskUpdateTool,
   createHashlineEditTool,
+  createRepublicTools,
 }
 
 export type ToolRegistryResult = {
@@ -96,6 +99,9 @@ const LOW_PRIORITY_TOOL_ORDER = [
   "task_get",
   "task_list",
   "task_update",
+  "republic_inbox",
+  "republic_publish",
+  "republic_contract",
   "background_output",
   "background_cancel",
   "edit",
@@ -267,6 +273,7 @@ export function createToolRegistry(args: {
     ...factories.createGlobTools(ctx),
     ...factories.createAstGrepTools(ctx),
     ...factories.createSessionManagerTools(ctx),
+    ...factories.createRepublicTools(ctx),
     ...backgroundTools,
     call_omo_agent: callOmoAgent,
     ...(lookAt ? { look_at: lookAt } : {}),
