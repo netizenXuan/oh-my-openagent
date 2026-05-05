@@ -9,13 +9,18 @@ import { getAgentConfigKey } from "../../shared/agent-display-names"
 import {
   appendRepublicCommonsMessage,
   appendRepublicLedgerRecord,
+  appendRepublicSeatMemory,
   getNativeGitRepository,
   initializeRepublicTeam,
   readRepublicAgentDoc,
   readRepublicCommonsMessages,
   readRepublicInboxMessages,
+  readRepublicSeatMemory,
+  readRepublicSeatState,
   readRepublicTeamManifest,
+  readRepublicTeamPhase,
   sanitizeRepublicDeliberationID,
+  writeRepublicSeatState,
   writeRepublicContract,
   type NativeGitRepository,
   type RepublicCommonsMessage,
@@ -38,6 +43,8 @@ const SUPERVISOR_REVIEW_STATUSES = new Set(["blocked", "review-required"])
 const DEFAULT_WAIT_MESSAGE_TYPES = ["answer", "revision", "objection", "consensus", "contract", "handoff"]
 const TEAM_MODELS = ["single", "advisory", "parliament", "squad", "parliament_squad"] as const
 const SEAT_ALLOCATIONS = ["auto", "count", "explicit"] as const
+const TEAM_PHASES = ["planning", "execution", "review", "idle"] as const
+const SEAT_STATUSES = ["standby", "running", "waiting", "blocked", "done", "error"] as const
 
 type ToolContextLike = {
   sessionID?: string
@@ -128,6 +135,13 @@ function formatInboxMessage(message: RepublicCommonsMessage): string {
   if (message.files?.length) lines.push(`  files: ${message.files.join(", ")}`)
   lines.push(`  ${message.content.trim().replace(/\s+/g, " ")}`)
   return lines.join("\n")
+}
+
+function tailText(value: string, maxChars: number): string {
+  if (value.length <= maxChars) {
+    return value
+  }
+  return value.slice(value.length - maxChars)
 }
 
 function findReferencedResponses(args: {
@@ -608,6 +622,183 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
     },
   })
 
+  const republic_team_status: ToolDefinition = tool({
+    description:
+      "Read the persistent Republic team manifest, phase, seat states, optional seat memory, and recent Commons activity for supervisor review or a visual dashboard.",
+    args: {
+      seat_id: tool.schema.string().optional().describe("Optional seat to filter"),
+      deliberation_id: tool.schema.string().optional().describe("Optional deliberation filter for recent Commons messages"),
+      include_memory: tool.schema.boolean().optional().describe("Include each selected seat's memory tail"),
+      memory_chars: tool.schema.number().optional().describe("Maximum memory characters per seat, default 2000"),
+      limit: tool.schema.number().optional().describe("Recent Commons message count, default 10"),
+    },
+    execute: async (args, context) => {
+      const repository = getToolRepository(ctx, context as ToolContextLike)
+      if (!repository) {
+        return JSON.stringify({ ok: false, error: "not_git_repository" })
+      }
+
+      const manifest = readRepublicTeamManifest(repository)
+      if (!manifest) {
+        return JSON.stringify({ ok: false, error: "team_not_initialized" })
+      }
+
+      const phase = readRepublicTeamPhase(repository)
+      const seatFilter = typeof args.seat_id === "string" && args.seat_id.trim()
+        ? sanitizeRepublicDeliberationID(args.seat_id)
+        : undefined
+      const memoryChars = boundedNumber(args.memory_chars, 2_000, 100, 20_000)
+      const limit = boundedNumber(args.limit, 10, 0, 100)
+      const deliberationID = typeof args.deliberation_id === "string"
+        ? args.deliberation_id
+        : phase?.deliberationID
+      const selectedSeats = manifest.seats.filter((seat) => !seatFilter || seat.seatID === seatFilter)
+      const recentMessages = limit > 0
+        ? readRepublicCommonsMessages(repository, deliberationID).slice(-limit)
+        : []
+
+      return JSON.stringify({
+        ok: true,
+        team: {
+          team_model: manifest.teamModel,
+          seat_allocation: manifest.seatAllocation,
+          max_parallel_seats: manifest.maxParallelSeats,
+          default_runtime_agent: manifest.defaultRuntimeAgent,
+        },
+        phase,
+        seats: selectedSeats.map((seat) => {
+          const state = readRepublicSeatState(repository, seat.seatID)
+          return {
+            ...seat,
+            state,
+            ...(args.include_memory === true
+              ? { memory: tailText(readRepublicSeatMemory(repository, seat.seatID), memoryChars) }
+              : {}),
+          }
+        }),
+        recent_messages: recentMessages.map((message) => ({
+          message_id: message.messageID,
+          message_type: message.messageType,
+          author_seat_id: message.authorSeatID,
+          target_seat_id: message.targetSeatID,
+          phase: message.phase,
+          channel: message.channel,
+          status: message.status,
+          references: message.references,
+          content: message.content,
+        })),
+      })
+    },
+  })
+
+  const republic_seat_update: ToolDefinition = tool({
+    description:
+      "Update the current Republic seat's persistent status and memory. Use this when a seat starts work, waits on another seat, becomes blocked, completes a task, or records a durable handoff note.",
+    args: {
+      seat_id: tool.schema.string().optional().describe("Seat to update; defaults from current agent/session"),
+      status: tool.schema.enum(SEAT_STATUSES).optional().describe("standby, running, waiting, blocked, done, or error"),
+      phase: tool.schema.enum(TEAM_PHASES).optional().describe("planning, execution, review, or idle"),
+      workgroup_id: tool.schema.string().optional().describe("Current workgroup"),
+      module: tool.schema.string().optional().describe("Current module or subsystem"),
+      task_id: tool.schema.string().optional().describe("Current task ID"),
+      waiting_on: tool.schema.array(tool.schema.string()).optional().describe("Message IDs, seat IDs, or workgroups this seat is waiting on"),
+      last_message_id: tool.schema.string().optional().describe("Most recent Commons message ID handled by this seat"),
+      memory: tool.schema.string().optional().describe("Durable memory note appended to this seat"),
+      deliberation_id: tool.schema.string().optional().describe("Deliberation ID for audit messages"),
+    },
+    execute: async (args, context) => {
+      const repository = getToolRepository(ctx, context as ToolContextLike)
+      if (!repository) {
+        return JSON.stringify({ ok: false, error: "not_git_repository" })
+      }
+
+      const manifest = readRepublicTeamManifest(repository)
+      const seatID = getSeatID({ author_seat_id: args.seat_id as string | undefined }, context as ToolContextLike)
+      const existing = readRepublicSeatState(repository, seatID)
+      const definition = manifest?.seats.find((seat) => seat.seatID === seatID)
+      const status = typeof args.status === "string" ? args.status as typeof SEAT_STATUSES[number] : existing?.status ?? "running"
+      const phase = typeof args.phase === "string" ? args.phase as typeof TEAM_PHASES[number] : existing?.phase ?? definition?.phase
+      const workgroupID = typeof args.workgroup_id === "string" ? args.workgroup_id : existing?.workgroupID ?? definition?.workgroupID
+      const module = typeof args.module === "string" ? args.module : existing?.module ?? definition?.module
+      const taskID = typeof args.task_id === "string" ? args.task_id : existing?.taskID ?? definition?.taskID
+      const waitingOn = safeStringArray(args.waiting_on) ?? existing?.waitingOn
+      const lastMessageID = typeof args.last_message_id === "string" ? args.last_message_id : existing?.lastMessageID
+
+      writeRepublicSeatState(repository, {
+        seatID,
+        role: existing?.role ?? definition?.role,
+        runtimeAgent: existing?.runtimeAgent ?? definition?.runtimeAgent,
+        conceptualAgent: existing?.conceptualAgent ?? definition?.conceptualAgent,
+        status,
+        phase,
+        workgroupID,
+        module,
+        taskID,
+        waitingOn,
+        lastMessageID,
+        sessionID: (context as ToolContextLike).sessionID ?? existing?.sessionID,
+        lastSeenCommonsOffset: existing?.lastSeenCommonsOffset,
+      })
+
+      const memory = typeof args.memory === "string" ? args.memory.trim() : ""
+      if (memory) {
+        appendRepublicSeatMemory(repository, seatID, memory)
+      }
+
+      const deliberationID = getDeliberationID({ deliberation_id: args.deliberation_id as string | undefined }, context as ToolContextLike)
+      const summaryParts = [
+        `Seat ${seatID} is ${status}.`,
+        phase ? `phase=${phase}` : undefined,
+        workgroupID ? `workgroup=${workgroupID}` : undefined,
+        module ? `module=${module}` : undefined,
+        taskID ? `task=${taskID}` : undefined,
+        waitingOn?.length ? `waiting_on=${waitingOn.join(",")}` : undefined,
+      ].filter((part): part is string => typeof part === "string")
+      const summary = summaryParts.join(" ")
+      appendRepublicCommonsMessage(repository, {
+        deliberationID,
+        channel: "team",
+        phase: "seat-update",
+        authorSeatID: seatID,
+        authorAgent: existing?.runtimeAgent ?? definition?.runtimeAgent,
+        authorRole: existing?.role ?? definition?.role,
+        workgroupID,
+        module,
+        taskID,
+        status,
+        messageType: "status",
+        references: lastMessageID ? [lastMessageID] : undefined,
+        content: memory ? `${summary}\n\n${memory}` : summary,
+      })
+      appendRepublicLedgerRecord(repository, {
+        deliberationID,
+        phase: "seat-update",
+        chamber: "team",
+        seatID,
+        role: existing?.role ?? definition?.role,
+        agent: existing?.runtimeAgent ?? definition?.runtimeAgent,
+        sessionID: (context as ToolContextLike).sessionID,
+        workgroupID,
+        module,
+        taskID,
+        status,
+        summary: memory ? `${summary} ${memory}` : summary,
+      })
+
+      return JSON.stringify({
+        ok: true,
+        seat_id: seatID,
+        status,
+        phase,
+        workgroup_id: workgroupID,
+        module,
+        task_id: taskID,
+        waiting_on: waitingOn,
+        last_message_id: lastMessageID,
+      })
+    },
+  })
+
   const republic_publish: ToolDefinition = tool({
     description:
       "Publish a Republic Commons message for agent-to-agent collaboration. Use this to ask questions, answer another seat, object, revise, hand off work, or record a proposal. Messages are stored under the Git common dir and mirrored into agent docs.",
@@ -875,6 +1066,8 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
 
   return {
     republic_team_init,
+    republic_team_status,
+    republic_seat_update,
     republic_publish,
     republic_inbox,
     republic_wait,

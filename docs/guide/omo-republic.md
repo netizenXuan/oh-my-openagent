@@ -73,9 +73,11 @@ The expected deliberation rhythm is:
 
 ## Interactive Commons
 
-OMO Republic now supports persistent team setup and agent-to-agent collaboration through five built-in tools:
+OMO Republic now supports persistent team setup and agent-to-agent collaboration through seven built-in tools:
 
 - `republic_team_init`: initialize a persistent team under `.git/omo/republic/team/`, using automatic, count-based, or explicit seat allocation.
+- `republic_team_status`: read the current team manifest, phase, seat states, optional seat memory, and recent Commons activity.
+- `republic_seat_update`: update a seat's persistent status, waiting list, task metadata, and durable memory.
 - `republic_publish`: publish a `question`, `answer`, `objection`, `proposal`, `revision`, `handoff`, `consensus`, or `note`.
 - `republic_inbox`: read messages relevant to the current or named seat, optionally including the seat Markdown doc.
 - `republic_wait`: block the current seat until another Commons message references an earlier message ID.
@@ -84,12 +86,14 @@ OMO Republic now supports persistent team setup and agent-to-agent collaboration
 This supports the intended workflow:
 
 1. `republic_team_init` receives the task goal and relevant files, then allocates seats dynamically.
-2. `api-seat` is unsure about an interface and publishes a targeted `question` to `docs-seat`.
-3. The Republic scheduler immediately launches a background seat session for `docs-seat` when `scheduler.auto_dispatch` is enabled.
-4. `api-seat` can call `republic_wait` on the original message ID to block within the same session while `docs-seat` reads `republic_inbox`, replies with `answer`, and references the original message ID.
-5. If a seat publishes an `objection` or marks a message `blocked` / `review-required`, the scheduler launches a supervisor review seat.
-6. On the next agent turn, relevant inbox messages are injected into the prompt inside `<republic-commons-inbox>`.
-7. The affected seats answer, revise, hand off, or write a `republic_contract`.
+2. Each active seat calls `republic_seat_update` as it starts, waits, blocks, or completes, so supervisor and dashboard views can see live state.
+3. `api-seat` is unsure about an interface and publishes a targeted `question` to `docs-seat`.
+4. The Republic scheduler immediately launches a background seat session for `docs-seat` when `scheduler.auto_dispatch` is enabled.
+5. `api-seat` can call `republic_wait` on the original message ID to block within the same session while `docs-seat` reads `republic_inbox`, replies with `answer`, and references the original message ID.
+6. If a seat publishes an `objection` or marks a message `blocked` / `review-required`, the scheduler launches a supervisor review seat.
+7. Supervisor or dashboard code can call `republic_team_status` to inspect team phase, seat state, memory, and recent messages.
+8. On the next agent turn, relevant inbox messages are injected into the prompt inside `<republic-commons-inbox>`.
+9. The affected seats answer, revise, hand off, or write a `republic_contract`.
 
 This is still not a live mid-token chat bus. It is now an active Git-native scheduler: targeted Commons messages create background response sessions, all coordination is stored under `.git/omo/republic`, and OMO injects relevant messages before the next turn. When a configured seat agent is not available in the current OpenCode runtime, the scheduler falls back to a registered runtime agent such as `general` while preserving the requested OMO role in the prompt and dispatch ledger.
 
@@ -112,6 +116,7 @@ It also publishes a `messageType: "contract"` Commons record and mirrors it into
 Republic execution has three live governance hooks:
 
 - **Dynamic team initialization**: `republic_team_init` creates `.git/omo/republic/team/manifest.json`, `phase.json`, per-seat `state.json`, and per-seat `memory.md`. In `auto` mode the allocator infers seats from goal text and files; in `count` mode it honors user-provided seat counts; in `explicit` mode it uses configured seat names.
+- **Persistent seat state**: `republic_seat_update` lets seats record `running`, `waiting`, `blocked`, `done`, or `error` state plus current workgroup, module, task, blockers, and durable memory. `republic_team_status` returns the team manifest, phase, seat states, optional memory tails, and recent Commons messages for supervisor review or visualization.
 - **Automatic Commons publication**: native-git changes are published to Commons with agent, model, session, call, files, module, workgroup, and task metadata.
 - **Supervisor intervention**: high-risk file paths, large change sets, role-boundary crossings, or edits outside explicit user-mentioned paths create `messageType: "intervention"` records from `republic-supervisor` and append a visible system reminder to the tool output.
 - **Workgroup dependency gate**: before explicit multi-file tools run, OMO infers touched modules. If a call crosses the configured module threshold, advisory mode records a `dependency-blocked` preflight message and warns; governed block mode records the same message and blocks the tool call.

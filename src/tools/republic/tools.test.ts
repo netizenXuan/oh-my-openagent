@@ -165,6 +165,56 @@ describe("republic tools", () => {
     expect(git(directory, ["status", "--porcelain"])).toBe("")
   })
 
+  test("updates seat state and reads team status", async () => {
+    const tools = createRepublicTools({ directory } as PluginInput)
+    const context = createToolContext(directory)
+
+    await tools.republic_team_init.execute({
+      goal: "Build order API with database, tests, and docs",
+      files: ["src/api/orders.ts", "src/db/orders.ts", "tests/orders.test.ts", "docs/orders.md"],
+      deliberation_id: "order-system-team",
+      team_model: "parliament_squad",
+      seat_allocation: "auto",
+    }, context)
+
+    const updateResult = await tools.republic_seat_update.execute({
+      seat_id: "api-planner-seat",
+      status: "waiting",
+      phase: "planning",
+      workgroup_id: "api-workgroup",
+      module: "api",
+      task_id: "contract-api-v1",
+      waiting_on: ["data-planner-seat"],
+      memory: "Waiting for data-seat to confirm order table shape before locking API contract.",
+      deliberation_id: "order-system-team",
+    }, context)
+    const statusResult = await tools.republic_team_status.execute({
+      seat_id: "api-planner-seat",
+      deliberation_id: "order-system-team",
+      include_memory: true,
+      limit: 5,
+    }, context)
+
+    const parsedUpdate = JSON.parse(String(updateResult))
+    const parsedStatus = JSON.parse(String(statusResult))
+    const repository = getNativeGitRepository(directory)!
+    const state = readRepublicSeatState(repository, "api-planner-seat")!
+    const messages = readRepublicCommonsMessages(repository, "order-system-team")
+    const ledger = readRepublicLedgerRecords(repository, "order-system-team")
+
+    expect(parsedUpdate.ok).toBe(true)
+    expect(parsedUpdate.waiting_on).toEqual(["data-planner-seat"])
+    expect(state.status).toBe("waiting")
+    expect(state.waitingOn).toEqual(["data-planner-seat"])
+    expect(parsedStatus.ok).toBe(true)
+    expect(parsedStatus.seats).toHaveLength(1)
+    expect(parsedStatus.seats[0].state.status).toBe("waiting")
+    expect(parsedStatus.seats[0].memory).toContain("Waiting for data-seat")
+    expect(messages.map((message) => message.phase)).toContain("seat-update")
+    expect(ledger.map((record) => record.phase)).toContain("seat-update")
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
   test("resolves repository from tool context when plugin input directory is unavailable", async () => {
     const tools = createRepublicTools({} as PluginInput)
     const context = createToolContext(directory)

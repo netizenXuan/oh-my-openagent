@@ -556,15 +556,17 @@ Reads `.git/omo/republic/ledger.jsonl`, `.git/omo/republic/commons.jsonl`, and `
 
 The CLI also provides `oh-my-opencode republic dashboard`, which renders the same state as a network graph. Static output defaults to `.git/omo/republic/dashboard.html`; `--serve` starts a local live dashboard that polls Git common-dir records.
 
-Interactive Republic collaboration is available through five tools:
+Interactive Republic collaboration is available through seven tools:
 
 - `republic_team_init`: initialize `.git/omo/republic/team/` with dynamically allocated or explicitly configured seats.
+- `republic_team_status`: inspect team phase, seat states, optional memory tails, and recent Commons activity.
+- `republic_seat_update`: record a seat's current status, blockers, task metadata, and durable memory.
 - `republic_publish`: ask or answer another seat, object, propose, revise, hand off, or record consensus.
 - `republic_inbox`: read targeted, referenced, workgroup, module, dependency-gate, and supervisor messages for a seat.
 - `republic_wait`: block the current seat until another Commons message references an earlier message ID.
 - `republic_contract`: record shared API, schema, test, or handoff contracts before adjacent modules implement against each other.
 
-`republic_team_init` writes team manifest, phase state, per-seat state, and per-seat memory under the Git common dir. It can infer seats from the goal/files, honor user-provided seat counts, or use explicit seat lists from config. When enabled, targeted `question`, `handoff`, and `objection` messages published with `republic_publish` are actively dispatched to a background response seat. The publishing seat can then call `republic_wait` to block until an `answer`, `revision`, `objection`, `consensus`, `contract`, or `handoff` references the original message. Objections and Commons messages marked `blocked` or `review-required` also dispatch a supervisor review seat. The scheduler records each dispatch in Commons and the ledger, then background seats can answer, revise, object, hand off, publish supervisor decisions, or write contracts through the same Republic tools. Preferred seat agents are checked against the current OpenCode runtime registry; unavailable OMO roles fall back to an available runtime agent while preserving the requested role in the dispatch prompt/output. The native-git hook injects relevant inbox messages into the next chat turn as `<republic-commons-inbox>`. The supervisor policy loop records `supervisor-policy` messages on idle when questions, objections, or governance warnings remain unresolved.
+`republic_team_init` writes team manifest, phase state, per-seat state, and per-seat memory under the Git common dir. It can infer seats from the goal/files, honor user-provided seat counts, or use explicit seat lists from config. Seats can then call `republic_seat_update` to record whether they are running, waiting, blocked, done, or in error, and `republic_team_status` provides the stable read model needed by supervisor review and dashboard views. When enabled, targeted `question`, `handoff`, and `objection` messages published with `republic_publish` are actively dispatched to a background response seat. The publishing seat can then call `republic_wait` to block until an `answer`, `revision`, `objection`, `consensus`, `contract`, or `handoff` references the original message. Objections and Commons messages marked `blocked` or `review-required` also dispatch a supervisor review seat. The scheduler records each dispatch in Commons and the ledger, then background seats can answer, revise, object, hand off, publish supervisor decisions, update their persistent seat state, or write contracts through the same Republic tools. Preferred seat agents are checked against the current OpenCode runtime registry; unavailable OMO roles fall back to an available runtime agent while preserving the requested role in the dispatch prompt/output. The native-git hook injects relevant inbox messages into the next chat turn as `<republic-commons-inbox>`. The supervisor policy loop records `supervisor-policy` messages on idle when questions, objections, or governance warnings remain unresolved.
 
 ### /start-work
 
@@ -645,8 +647,12 @@ Load custom commands from:
 
 | Tool                  | Description                                                                                                      |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **republic_team_init** | Initialize a persistent team from inferred, count-based, or explicit seat allocation.                             |
+| **republic_team_status** | Read manifest, phase, seat states, memory tails, and recent Commons messages for supervision or visualization.  |
+| **republic_seat_update** | Update a seat's running/waiting/blocked/done state, task metadata, blockers, and durable memory.                |
 | **republic_publish**  | Publish a Git-native Commons message: question, answer, objection, proposal, revision, handoff, consensus, or note. Targeted questions, handoffs, and objections can dispatch background response seats. |
 | **republic_inbox**    | Read relevant Commons messages for a seat, optionally including that seat's Markdown working doc.                 |
+| **republic_wait**     | Wait for a response that references an earlier Commons message.                                                  |
 | **republic_contract** | Write or revise a workgroup contract for shared API shape, data schemas, test boundaries, and handoffs.          |
 
 ### Visual Analysis Tools
