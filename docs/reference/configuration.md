@@ -604,10 +604,14 @@ Configure the deliberative multi-agent workflow and ledger:
     "veto_on_blocker": true,
     "git_summary": true,
     "commons": {
-      "auto_publish": true
+      "auto_publish": true,
+      "inbox": true,
+      "inject_max_messages": 6,
+      "agent_docs": true
     },
     "supervisor": {
       "intervention": true,
+      "policy_loop": true,
       "file_threshold": 5,
       "high_risk_paths": [
         "package.json",
@@ -622,6 +626,9 @@ Configure the deliberative multi-agent workflow and ledger:
       "enabled": true,
       "mode": "advisory",
       "cross_module_threshold": 2
+    },
+    "contracts": {
+      "enabled": true
     }
   }
 }
@@ -640,14 +647,21 @@ Configure the deliberative multi-agent workflow and ledger:
 | `veto_on_blocker`                        | `true`       | Treat reject/blocker review votes as final-plan blockers                    |
 | `git_summary`                            | `true`       | Include native-git audit information in Republic status reports             |
 | `commons.auto_publish`                   | `true`       | Publish native-git tool-change events to Republic Commons automatically     |
+| `commons.inbox`                          | `true`       | Inject relevant Commons inbox messages into the next seat turn              |
+| `commons.inject_max_messages`            | `6`          | Maximum Commons inbox messages injected into a chat turn                    |
+| `commons.agent_docs`                     | `true`       | Mirror Commons messages into per-seat Markdown docs under `.git/omo/republic/agents/` |
 | `supervisor.intervention`                | `true`       | Record supervisor intervention messages for high-risk or boundary-crossing changes |
+| `supervisor.policy_loop`                 | `true`       | On idle, publish supervisor-policy messages for unresolved questions or governance warnings |
 | `supervisor.file_threshold`              | `5`          | Trigger supervisor intervention when one tool call changes this many files  |
 | `supervisor.high_risk_paths`             | see example  | Path prefixes or files that require supervisor intervention                 |
 | `dependency_gate.enabled`                | `true`       | Enable preflight checks for cross-workgroup explicit write tools            |
 | `dependency_gate.mode`                   | `"advisory"` | `"advisory"` warns and records; `"block"` blocks only when `republic.mode` is `"governed"` |
 | `dependency_gate.cross_module_threshold` | `2`          | Number of inferred modules that triggers the dependency gate                 |
+| `contracts.enabled`                      | `true`       | Enable workgroup contract storage under `.git/omo/republic/contracts/`      |
 
-Deliberation ledgers live under the Git common dir at `.git/omo/republic/ledger.jsonl`. Agent-to-agent Commons messages live beside them at `.git/omo/republic/commons.jsonl`, so parallel seats can publish proposals, questions, objections, answers, revisions, status updates, dependency-gate events, and supervisor interventions without dirtying the worktree. Tool-caused dirty Git changes are audited separately at `.git/omo/native-git/audit.jsonl`. Use `/republic-status` or `oh-my-opencode republic status` to combine all three views.
+Deliberation ledgers live under the Git common dir at `.git/omo/republic/ledger.jsonl`. Agent-to-agent Commons messages live beside them at `.git/omo/republic/commons.jsonl`, so parallel seats can publish proposals, questions, objections, answers, revisions, handoffs, status updates, dependency-gate events, and supervisor interventions without dirtying the worktree. Per-seat working docs live at `.git/omo/republic/agents/<seat-id>.md`; workgroup contracts live at `.git/omo/republic/contracts/<workgroup-id>.md`. Tool-caused dirty Git changes are audited separately at `.git/omo/native-git/audit.jsonl`. Use `/republic-status` or `oh-my-opencode republic status` to combine these views.
+
+The interactive Republic tools are `republic_publish`, `republic_inbox`, and `republic_contract`. They are available to agents as normal tools and store their records under the Git common dir.
 
 ### Git Master
 

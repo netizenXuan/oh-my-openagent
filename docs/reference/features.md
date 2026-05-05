@@ -540,7 +540,7 @@ The command uses multiple independent seats for the same role rather than adding
 - Conference Committee: synthesis and conflict resolution
 - Review Bench: blocker and rollback review
 
-When run inside a Git repository, deliberation records are written under the Git common dir at `.git/omo/republic/ledger.jsonl`, `.git/omo/republic/commons.jsonl`, and `.git/omo/republic/deliberations/<id>/`, so the deliberation audit does not dirty the worktree. The commons log lets parallel seats publish proposals, targeted questions, objections, answers, revisions, consensus messages, native-git status events, dependency-gate events, and supervisor interventions. Republic governance does not automatically commit, stash, or create worktrees.
+When run inside a Git repository, deliberation records are written under the Git common dir at `.git/omo/republic/ledger.jsonl`, `.git/omo/republic/commons.jsonl`, `.git/omo/republic/agents/<seat-id>.md`, `.git/omo/republic/contracts/<workgroup-id>.md`, and `.git/omo/republic/deliberations/<id>/`, so the deliberation audit does not dirty the worktree. The commons log lets parallel seats publish proposals, targeted questions, objections, answers, revisions, handoffs, consensus messages, native-git status events, dependency-gate events, supervisor interventions, and workgroup contracts. Republic governance does not automatically commit, stash, or create worktrees.
 
 ### /republic-status
 
@@ -555,6 +555,14 @@ When run inside a Git repository, deliberation records are written under the Git
 Reads `.git/omo/republic/ledger.jsonl`, `.git/omo/republic/commons.jsonl`, and `.git/omo/native-git/audit.jsonl`, then reports deliberation IDs, phase counts, chamber counts, workgroups, modules, task IDs, commons message counts, targeted/referenced message counts, seat votes, visible agent/model participation, blocker status, touched files, and the recommended next action. This is read-only and does not create new ledger entries.
 
 The CLI also provides `oh-my-opencode republic dashboard`, which renders the same state as a network graph. Static output defaults to `.git/omo/republic/dashboard.html`; `--serve` starts a local live dashboard that polls Git common-dir records.
+
+Interactive Republic collaboration is available through three tools:
+
+- `republic_publish`: ask or answer another seat, object, propose, revise, hand off, or record consensus.
+- `republic_inbox`: read targeted, referenced, workgroup, module, dependency-gate, and supervisor messages for a seat.
+- `republic_contract`: record shared API, schema, test, or handoff contracts before adjacent modules implement against each other.
+
+When enabled, the native-git hook injects relevant inbox messages into the next chat turn as `<republic-commons-inbox>`. The supervisor policy loop also records `supervisor-policy` messages on idle when questions or governance warnings remain unresolved.
 
 ### /start-work
 
@@ -630,6 +638,14 @@ Load custom commands from:
 | **task**              | Category-based task delegation. Supports built-in categories like `visual-engineering`, `ultrabrain`, `deep`, `artistry`, `quick`, `unspecified-low`, `unspecified-high`, and `writing`, or direct agent targeting via `subagent_type`. |
 | **background_output** | Retrieve background task results                                                                                                                                                                                                        |
 | **background_cancel** | Cancel running background tasks                                                                                                                                                                                                         |
+
+### Republic Collaboration Tools
+
+| Tool                  | Description                                                                                                      |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **republic_publish**  | Publish a Git-native Commons message: question, answer, objection, proposal, revision, handoff, consensus, or note. |
+| **republic_inbox**    | Read relevant Commons messages for a seat, optionally including that seat's Markdown working doc.                 |
+| **republic_contract** | Write or revise a workgroup contract for shared API shape, data schemas, test boundaries, and handoffs.          |
 
 ### Visual Analysis Tools
 

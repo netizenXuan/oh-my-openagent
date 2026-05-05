@@ -20,6 +20,8 @@ OMO Republic writes deliberation records under the Git common dir:
 ```text
 .git/omo/republic/ledger.jsonl
 .git/omo/republic/commons.jsonl
+.git/omo/republic/agents/<seat-id>.md
+.git/omo/republic/contracts/<workgroup-id>.md
 .git/omo/republic/deliberations/<deliberation-id>/
 ```
 
@@ -38,6 +40,15 @@ The ledger records durable votes and phase summaries. The commons records the co
 This matters because parallel agents are otherwise isolated workers: the main agent asks questions, waits for answers, and manually reconciles them. Republic Commons adds an asynchronous shared board where seats can publish proposals, ask targeted questions, object to another seat, answer objections, revise their position, and record consensus. The result is closer to a real committee hearing than a batch of unrelated subtask reports.
 
 Commons messages are JSONL records with a `deliberationID`, `channel`, `phase`, `round`, `authorSeatID`, `messageType`, optional `targetSeatID`, optional `references`, touched `files`, and concise `content`.
+
+Each Commons message is also mirrored into per-seat Markdown docs when agent docs are enabled:
+
+```text
+.git/omo/republic/agents/api-seat.md
+.git/omo/republic/agents/docs-seat.md
+```
+
+The author doc receives every message the seat publishes. The target doc receives directed messages. These docs make each seat's durable working memory readable by later turns without dirtying the worktree.
 
 Native Git tracking now auto-publishes tool-caused changes into Commons as `messageType: "status"` and mirrors them into the ledger. A write/edit/bash/apply_patch call that changes Git state therefore creates both:
 
@@ -60,6 +71,36 @@ The expected deliberation rhythm is:
 3. Round 2: revision or consensus. Seats update their position, preserve dissent, or confirm agreement.
 4. Conference report: the synthesizer reads both `ledger.jsonl` and `commons.jsonl`.
 
+## Interactive Commons
+
+OMO Republic now supports asynchronous agent-to-agent collaboration through three built-in tools:
+
+- `republic_publish`: publish a `question`, `answer`, `objection`, `proposal`, `revision`, `handoff`, `consensus`, or `note`.
+- `republic_inbox`: read messages relevant to the current or named seat, optionally including the seat Markdown doc.
+- `republic_contract`: write or revise a workgroup contract before adjacent modules implement against each other.
+
+This supports the intended workflow:
+
+1. `api-seat` is unsure about an interface and publishes a targeted `question` to `docs-seat`.
+2. `docs-seat` reads `republic_inbox`, replies with `answer`, and references the original message ID.
+3. The supervisor policy loop sees unresolved questions or governance warnings on idle and publishes a `supervisor-policy` message.
+4. On the next agent turn, relevant inbox messages are injected into the prompt inside `<republic-commons-inbox>`.
+5. The affected seats answer, revise, hand off, or write a `republic_contract`.
+
+This is not a live mid-token chat bus. It is a Git-native asynchronous coordination layer: agents communicate by durable Commons records, and OMO injects relevant messages before the next turn.
+
+## Workgroup Contracts
+
+Adjacent module agents should declare a contract before implementation when their work touches shared API shape, data schema, test boundary, error semantics, or handoff responsibility.
+
+`republic_contract` writes the contract under:
+
+```text
+.git/omo/republic/contracts/<workgroup-id>.md
+```
+
+It also publishes a `messageType: "contract"` Commons record and mirrors it into agent docs. The dashboard and status tooling can then connect the contract to seats, files, workgroups, and later implementation changes.
+
 ## Governed Execution Hooks
 
 Republic execution has three live governance hooks:
@@ -67,6 +108,8 @@ Republic execution has three live governance hooks:
 - **Automatic Commons publication**: native-git changes are published to Commons with agent, model, session, call, files, module, workgroup, and task metadata.
 - **Supervisor intervention**: high-risk file paths, large change sets, role-boundary crossings, or edits outside explicit user-mentioned paths create `messageType: "intervention"` records from `republic-supervisor` and append a visible system reminder to the tool output.
 - **Workgroup dependency gate**: before explicit multi-file tools run, OMO infers touched modules. If a call crosses the configured module threshold, advisory mode records a `dependency-blocked` preflight message and warns; governed block mode records the same message and blocks the tool call.
+- **Supervisor policy loop**: on idle, OMO scans Commons for unresolved questions, dependency blocks, and supervisor interventions, then records a `supervisor-policy` message that tells affected seats to read inbox and respond before continuing.
+- **Agent prompt injection**: before a new chat turn, OMO reads the current seat's relevant Commons inbox and injects a compact `<republic-commons-inbox>` block into context.
 
 These hooks still do not auto-commit, auto-stash, or create worktrees. Git history remains under user or `git-master` control.
 
@@ -180,10 +223,14 @@ That distinction is intentional for the first governed implementation: preflight
     "veto_on_blocker": true,
     "git_summary": true,
     "commons": {
-      "auto_publish": true
+      "auto_publish": true,
+      "inbox": true,
+      "inject_max_messages": 6,
+      "agent_docs": true
     },
     "supervisor": {
       "intervention": true,
+      "policy_loop": true,
       "file_threshold": 5,
       "high_risk_paths": [
         "package.json",
@@ -198,6 +245,9 @@ That distinction is intentional for the first governed implementation: preflight
       "enabled": true,
       "mode": "advisory",
       "cross_module_threshold": 2
+    },
+    "contracts": {
+      "enabled": true
     }
   }
 }
@@ -209,7 +259,7 @@ Modes:
 - `advisory`: default; record Commons/ledger events and show warnings, but do not block writes.
 - `governed`: enables stronger gates. The first implemented hard gate is `dependency_gate.mode: "block"` for cross-workgroup explicit write tools.
 
-Per-seat worktrees and automatic merge orchestration remain future work.
+Per-seat worktrees, automatic merge orchestration, and true live agent-to-agent streaming remain future work.
 
 For the larger engineering-organization design, see [OMO Republic Engineering Organization](../architecture/republic-engineering-organization.md).
 

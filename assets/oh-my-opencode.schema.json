@@ -5983,10 +5983,14 @@
         "veto_on_blocker": true,
         "git_summary": true,
         "commons": {
-          "auto_publish": true
+          "auto_publish": true,
+          "inbox": true,
+          "inject_max_messages": 6,
+          "agent_docs": true
         },
         "supervisor": {
           "intervention": true,
+          "policy_loop": true,
           "file_threshold": 5,
           "high_risk_paths": [
             "package.json",
@@ -6001,6 +6005,9 @@
           "enabled": true,
           "mode": "advisory",
           "cross_module_threshold": 2
+        },
+        "contracts": {
+          "enabled": true
         }
       },
       "type": "object",
@@ -6062,23 +6069,44 @@
         },
         "commons": {
           "default": {
-            "auto_publish": true
+            "auto_publish": true,
+            "inbox": true,
+            "inject_max_messages": 6,
+            "agent_docs": true
           },
           "type": "object",
           "properties": {
             "auto_publish": {
               "default": true,
               "type": "boolean"
+            },
+            "inbox": {
+              "default": true,
+              "type": "boolean"
+            },
+            "inject_max_messages": {
+              "default": 6,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20
+            },
+            "agent_docs": {
+              "default": true,
+              "type": "boolean"
             }
           },
           "required": [
-            "auto_publish"
+            "auto_publish",
+            "inbox",
+            "inject_max_messages",
+            "agent_docs"
           ],
           "additionalProperties": false
         },
         "supervisor": {
           "default": {
             "intervention": true,
+            "policy_loop": true,
             "file_threshold": 5,
             "high_risk_paths": [
               "package.json",
@@ -6092,6 +6120,10 @@
           "type": "object",
           "properties": {
             "intervention": {
+              "default": true,
+              "type": "boolean"
+            },
+            "policy_loop": {
               "default": true,
               "type": "boolean"
             },
@@ -6119,6 +6151,7 @@
           },
           "required": [
             "intervention",
+            "policy_loop",
             "file_threshold",
             "high_risk_paths"
           ],
@@ -6157,6 +6190,22 @@
             "cross_module_threshold"
           ],
           "additionalProperties": false
+        },
+        "contracts": {
+          "default": {
+            "enabled": true
+          },
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "enabled"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -6172,7 +6221,8 @@
         "git_summary",
         "commons",
         "supervisor",
-        "dependency_gate"
+        "dependency_gate",
+        "contracts"
       ],
       "additionalProperties": false
     },

@@ -41,7 +41,7 @@ One or two supervisor seats hold the global project state. Their role is not to 
 
 Supervisor interventions are written as Commons messages with `supervisorSeatID`, `targetSeatID`, `taskID`, and `status`.
 
-The current implementation records these interventions automatically when a native-git tracked tool call touches high-risk paths, changes many files, or when planner/orchestrator seats cross execution boundaries.
+The current implementation records these interventions automatically when a native-git tracked tool call touches high-risk paths, changes many files, or when planner/orchestrator seats cross execution boundaries. A lightweight supervisor policy loop also runs on idle and records `supervisor-policy` messages when Commons contains unresolved questions, dependency blocks, or prior interventions.
 
 ### Workgroups
 
@@ -62,6 +62,8 @@ Each workgroup owns one or more modules and task IDs. Workgroup members should p
 - a supervisor redirects the group
 
 The dependency gate now performs a lightweight preflight check for explicit path tools. If one call touches multiple inferred modules, it writes a dependency-gate Commons message before execution. In advisory mode that is a warning; in governed block mode it becomes a hard gate.
+
+Workgroups can now publish contracts before implementation. A contract describes the shared API shape, data structure, test boundary, handoff rule, or ownership constraint that adjacent seats must honor. Contracts are stored under `.git/omo/republic/contracts/` and are also published as Commons messages.
 
 ### Same-Role Seats
 
@@ -99,7 +101,23 @@ This allows execution to look like a network of cooperating module teams, not a 
 
 `commons.jsonl` records the communication network: proposals, questions, answers, objections, revisions, consensus, and supervisor notes.
 
+`agents/<seat-id>.md` mirrors messages into readable per-seat working docs, so a later turn can quickly recover what that seat asked, answered, objected to, or received from another seat.
+
+`contracts/<workgroup-id>.md` stores shared workgroup contracts before coupled modules implement against each other.
+
 `audit.jsonl` records tool-caused Git changes, including visible agent/model/category metadata when available.
+
+## Interactive Commons Loop
+
+The implemented collaboration loop is asynchronous and Git-native:
+
+1. A seat publishes a targeted `question`, `proposal`, `objection`, `revision`, or `handoff` with `republic_publish`.
+2. Another seat reads relevant messages with `republic_inbox` and replies by referencing the original message ID.
+3. A supervisor can publish a policy or intervention message when messages conflict or remain unresolved.
+4. Before the next chat turn, OMO injects the current seat's relevant inbox as `<republic-commons-inbox>`.
+5. The seat continues with the new context, or writes a `republic_contract` when the dependency needs an explicit agreement.
+
+This is intentionally different from unbounded live chat. Records stay inspectable, recoverable, and attributable through Git common-dir artifacts.
 
 ## Dashboard Model
 
@@ -117,10 +135,11 @@ This graph is intentionally close to a future visual editor. A later UI can let 
    - automatic Commons publication from native-git changes
    - automatic supervisor intervention records
    - advisory dependency gate for cross-workgroup writes
+   - interactive Commons inbox, per-seat docs, policy-loop prompts, and workgroup contracts
 2. Governed execution:
    - hard dependency gate for cross-workgroup explicit write tools
    - enforce supervisor approval before high-risk execution
-   - require dependency acknowledgements before dependent modules proceed
+   - require explicit dependency acknowledgements before dependent modules proceed
 3. Worktree isolation:
    - per-workgroup or per-task branches/worktrees
    - merge and conflict reporting in the dashboard
@@ -140,4 +159,4 @@ The first OpenCode smoke pass used `kimi-for-coding/k2p6` with a local plugin pa
 - Prometheus remains constrained to planning files under `.sisyphus/`, and its allowed plan write is still audited.
 - The dashboard can render native-git audit records into agent, tool, file, and module nodes even before a Republic ledger exists.
 
-The current layer has moved from recording into first-stage collaborative governance: automatic Commons publication, supervisor intervention, and dependency preflight records are live. It is still not a complete engineering operating system; per-workgroup worktrees, merge orchestration, and dependency acknowledgement protocols remain next-stage work.
+The current layer has moved from recording into first-stage collaborative governance: automatic Commons publication, supervisor intervention, dependency gates, interactive inbox messages, per-seat docs, policy-loop records, prompt injection, and workgroup contracts are live. It is still not a complete engineering operating system; per-workgroup worktrees, merge orchestration, strict dependency acknowledgement enforcement, and true live multi-agent streaming remain next-stage work.
