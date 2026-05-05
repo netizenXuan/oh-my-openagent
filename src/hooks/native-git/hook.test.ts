@@ -292,6 +292,44 @@ describe("native git hook", () => {
     expect(commons[0]?.files).toEqual(["docs/api/orders.md", "src/api/orders.ts"])
   })
 
+  test("dependency gate records post-change messages for cumulative cross-workgroup edits", async () => {
+    const hook = createNativeGitHook(
+      { directory } as never,
+      { mode: "tracked", audit_log: true },
+      {
+        enabled: true,
+        mode: "advisory",
+        ledger: true,
+        commons: { auto_publish: true },
+        dependency_gate: {
+          enabled: true,
+          mode: "advisory",
+          cross_module_threshold: 2,
+        },
+      } as never,
+    )
+    mkdirSync(join(directory, "src"))
+    mkdirSync(join(directory, "docs"))
+    await captureToolBaseline(hook, { tool: "edit", sessionID: "ses_post_gate", callID: "call_post_gate" })
+    writeFileSync(join(directory, "src", "feature.ts"), "export const enabled = true\n", "utf-8")
+    writeFileSync(join(directory, "docs", "feature.md"), "# Feature\n", "utf-8")
+    const output = { output: "updated", metadata: { agent: "sisyphus" } }
+
+    await hook["tool.execute.after"]?.(
+      { tool: "edit", sessionID: "ses_post_gate", callID: "call_post_gate" },
+      output,
+    )
+
+    const repository = getNativeGitRepository(directory)
+    const commons = readRepublicCommonsMessages(repository!, "session-ses_post_gate")
+    const dependencyGate = commons.find((message) => message.channel === "dependency-gate")
+
+    expect(dependencyGate?.phase).toBe("post-change")
+    expect(dependencyGate?.status).toBe("review-required")
+    expect(dependencyGate?.files).toEqual(["docs/feature.md", "src/feature.ts"])
+    expect(output.output).toContain("Republic workgroup dependency gate recorded")
+  })
+
   test("dependency gate ignores read-only bash commands", async () => {
     const hook = createNativeGitHook(
       { directory } as never,

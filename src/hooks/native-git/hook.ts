@@ -49,6 +49,7 @@ type NativeGitTrackResult = {
   changedSinceLastCheck: boolean
   summary?: string
   supervisorMessage?: string
+  dependencyGateMessage?: string
 }
 
 type NativeGitDirtyState = {
@@ -154,6 +155,15 @@ function buildSupervisorInterventionMessage(message: string): string {
   return `
 <system-reminder>
 Republic supervisor intervention recorded.
+
+${message.trim()}
+</system-reminder>`
+}
+
+function buildPostChangeDependencyGateMessage(message: string): string {
+  return `
+<system-reminder>
+Republic workgroup dependency gate recorded.
 
 ${message.trim()}
 </system-reminder>`
@@ -396,8 +406,10 @@ export function createNativeGitHook(
   const changedResultByCall = new Map<string, NativeGitTrackResult>()
   const auditedCallKeys = new Set<string>()
   const republicPublishedCallKeys = new Set<string>()
+  const dependencyGatePublishedCallKeys = new Set<string>()
   const supervisorPublishedCallKeys = new Set<string>()
   const outputReminderCallKeys = new Set<string>()
+  const dependencyGateReminderCallKeys = new Set<string>()
   const supervisorReminderCallKeys = new Set<string>()
   const taskReminderCallKeys = new Set<string>()
   const initialStatusByRepo = new Map<string, string>()
@@ -419,8 +431,10 @@ export function createNativeGitHook(
     for (const set of [
       auditedCallKeys,
       republicPublishedCallKeys,
+      dependencyGatePublishedCallKeys,
       supervisorPublishedCallKeys,
       outputReminderCallKeys,
+      dependencyGateReminderCallKeys,
       supervisorReminderCallKeys,
       taskReminderCallKeys,
     ]) {
@@ -579,26 +593,38 @@ export function createNativeGitHook(
     }
   }
 
-  function recordDependencyGate(input: NativeGitToolInput, files: string[], modules: string[], blocked: boolean): void {
+  function recordDependencyGate(
+    input: NativeGitToolInput,
+    files: string[],
+    modules: string[],
+    blocked: boolean,
+    phase: "preflight" | "post-change" = "preflight",
+  ): string | undefined {
     if (!isRepublicLedgerEnabled(republicConfig)) {
-      return
+      return undefined
+    }
+
+    const callKey = getCallKey(input)
+    const publishKey = callKey ? `${callKey}:${phase}` : null
+    if (publishKey && dependencyGatePublishedCallKeys.has(publishKey)) {
+      return undefined
     }
 
     const status = getNativeGitStatus(ctx.directory)
     if (!status) {
-      return
+      return undefined
     }
 
     const moduleName = modules[0] ?? "workspace"
     const workgroupID = getWorkgroupID(moduleName)
     const deliberationID = getDeliberationID(input)
     const taskID = getTaskID(input, moduleName)
-    const summary = `Dependency gate ${blocked ? "blocked" : "flagged"} a ${input.tool} call across ${modules.length} workgroups: ${modules.join(", ")}.`
+    const summary = `Dependency gate ${blocked ? "blocked" : "flagged"} a ${input.tool} call ${phase === "preflight" ? "before execution" : "after observed changes"} across ${modules.length} workgroups: ${modules.join(", ")}.`
 
     appendRepublicCommonsMessage(status.repository, {
       deliberationID,
       channel: "dependency-gate",
-      phase: "preflight",
+      phase,
       authorSeatID: "dependency-gate",
       authorAgent: "republic-supervisor",
       authorRole: "supervisor",
@@ -616,7 +642,7 @@ export function createNativeGitHook(
 
     appendRepublicLedgerRecord(status.repository, {
       deliberationID,
-      phase: "preflight",
+      phase,
       chamber: "supervisor",
       seatID: "dependency-gate",
       role: "supervisor",
@@ -632,6 +658,12 @@ export function createNativeGitHook(
       files,
       summary,
     })
+
+    if (publishKey) {
+      dependencyGatePublishedCallKeys.add(publishKey)
+    }
+
+    return summary
   }
 
   function evaluateDependencyGate(
@@ -651,7 +683,7 @@ export function createNativeGitHook(
 
     const blocked = (republicConfig?.mode ?? "advisory") === "governed"
       && (republicConfig?.dependency_gate?.mode ?? "advisory") === "block"
-    recordDependencyGate(input, files, modules, blocked)
+    recordDependencyGate(input, files, modules, blocked, "preflight")
 
     const message = buildDependencyGateMessage(modules, files)
     if (blocked) {
@@ -659,6 +691,20 @@ export function createNativeGitHook(
     }
 
     appendBeforeMessage(output, message)
+  }
+
+  function publishPostChangeDependencyGate(input: NativeGitToolInput, files: string[]): string | undefined {
+    if (mode === "manual" || !isRepublicLedgerEnabled(republicConfig) || !(republicConfig?.dependency_gate?.enabled ?? true)) {
+      return undefined
+    }
+
+    const modules = getModules(files)
+    const threshold = republicConfig?.dependency_gate?.cross_module_threshold ?? 2
+    if (modules.length < threshold) {
+      return undefined
+    }
+
+    return recordDependencyGate(input, files, modules, false, "post-change")
   }
 
   function getSupervisorReasons(input: NativeGitToolInput, files: string[]): string[] {
@@ -808,6 +854,7 @@ export function createNativeGitHook(
     })
 
     let supervisorMessage: string | undefined
+    let dependencyGateMessage: string | undefined
     if (changedSinceLastCheck) {
       if (auditLog && (!callKey || !auditedCallKeys.has(callKey))) {
         appendNativeGitAuditRecord(status.repository, {
@@ -827,6 +874,7 @@ export function createNativeGitHook(
       }
 
       publishRepublicChange(status.repository, input, status.files, summary)
+      dependencyGateMessage = publishPostChangeDependencyGate(input, status.files)
       supervisorMessage = publishSupervisorIntervention(status.repository, input, status.files, summary)
 
       log("[native-git] tracked uncommitted changes", {
@@ -836,7 +884,7 @@ export function createNativeGitHook(
       })
     }
 
-    const result = { dirty: true, changedSinceLastCheck, summary, supervisorMessage }
+    const result = { dirty: true, changedSinceLastCheck, summary, supervisorMessage, dependencyGateMessage }
     if (callKey && changedSinceLastCheck) {
       changedResultByCall.set(callKey, result)
     }
@@ -914,6 +962,13 @@ export function createNativeGitHook(
         }
         if (callKey) {
           outputReminderCallKeys.add(callKey)
+        }
+      }
+
+      if (result.dependencyGateMessage && (!callKey || !dependencyGateReminderCallKeys.has(callKey))) {
+        appendOutput(output, buildPostChangeDependencyGateMessage(result.dependencyGateMessage))
+        if (callKey) {
+          dependencyGateReminderCallKeys.add(callKey)
         }
       }
 
