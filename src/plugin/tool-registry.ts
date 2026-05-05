@@ -273,7 +273,10 @@ export function createToolRegistry(args: {
     ...factories.createGlobTools(ctx),
     ...factories.createAstGrepTools(ctx),
     ...factories.createSessionManagerTools(ctx),
-    ...factories.createRepublicTools(ctx),
+    ...factories.createRepublicTools(ctx, {
+      manager: managers.backgroundManager,
+      config: pluginConfig.republic,
+    }),
     ...backgroundTools,
     call_omo_agent: callOmoAgent,
     ...(lookAt ? { look_at: lookAt } : {}),

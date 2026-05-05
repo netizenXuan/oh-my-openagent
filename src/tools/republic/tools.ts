@@ -1,5 +1,7 @@
 import type { PluginInput, ToolDefinition } from "@opencode-ai/plugin"
 import { tool } from "@opencode-ai/plugin/tool"
+import type { RepublicConfig } from "../../config"
+import type { BackgroundManager } from "../../features/background-agent"
 import { getSessionAgent } from "../../features/claude-code-session-state"
 import { getAgentConfigKey } from "../../shared/agent-display-names"
 import {
@@ -25,8 +27,11 @@ const MESSAGE_TYPES = [
   "note",
 ] as const
 
+const DISPATCHABLE_MESSAGE_TYPES = new Set(["question", "handoff", "objection"])
+
 type ToolContextLike = {
   sessionID?: string
+  messageID?: string
   agent?: string
   directory?: string
   worktree?: string
@@ -34,6 +39,11 @@ type ToolContextLike = {
     cwd?: string
     root?: string
   }
+}
+
+type RepublicToolOptions = {
+  manager?: Pick<BackgroundManager, "launch">
+  config?: RepublicConfig
 }
 
 function getToolRepository(ctx: PluginInput, context: ToolContextLike): NativeGitRepository | null {
@@ -89,6 +99,154 @@ function formatInboxMessage(message: RepublicCommonsMessage): string {
   return lines.join("\n")
 }
 
+function resolveDispatchAgent(
+  targetSeatID: string | undefined,
+  args: Record<string, unknown>,
+  config: RepublicConfig | undefined,
+): string {
+  const explicitAgent = typeof args.target_agent === "string" ? args.target_agent.trim() : ""
+  if (explicitAgent) {
+    return explicitAgent
+  }
+
+  const scheduler = config?.scheduler
+  const sanitizedTarget = targetSeatID ? sanitizeRepublicDeliberationID(targetSeatID) : ""
+  const mappedAgent = sanitizedTarget ? scheduler?.seat_agents?.[sanitizedTarget] : undefined
+  if (mappedAgent) {
+    return mappedAgent
+  }
+
+  const lowerTarget = sanitizedTarget.toLowerCase()
+  if (lowerTarget.includes("supervisor")) {
+    return scheduler?.supervisor_agent ?? "hephaestus"
+  }
+
+  for (const agent of ["atlas", "prometheus", "hephaestus", "sisyphus"]) {
+    if (lowerTarget.includes(agent)) {
+      return agent
+    }
+  }
+
+  return scheduler?.default_agent ?? "sisyphus"
+}
+
+function shouldAutoDispatch(
+  message: RepublicCommonsMessage,
+  config: RepublicConfig | undefined,
+): boolean {
+  if ((config?.enabled ?? true) === false || (config?.mode ?? "advisory") === "manual") {
+    return false
+  }
+  const scheduler = config?.scheduler
+  if ((scheduler?.enabled ?? true) === false || (scheduler?.auto_dispatch ?? true) === false) {
+    return false
+  }
+  if (!message.targetSeatID || message.targetSeatID === message.authorSeatID) {
+    return false
+  }
+  const configuredTypes = new Set(scheduler?.message_types ?? ["question", "handoff", "objection"])
+  return configuredTypes.has(message.messageType as "question" | "handoff" | "objection")
+    && DISPATCHABLE_MESSAGE_TYPES.has(message.messageType)
+}
+
+function buildDispatchPrompt(message: RepublicCommonsMessage, options: { targetAgent: string; maxMessages: number }): string {
+  const targetSeatID = message.targetSeatID ?? "target-seat"
+  const responseType = message.messageType === "question" ? "answer" : "revision"
+  const lines = [
+    `You are Republic seat "${targetSeatID}", running as agent "${options.targetAgent}".`,
+    "A targeted Commons message needs an active response. This session was launched by the Republic scheduler.",
+    "",
+    "Incoming Commons message:",
+    `- id: ${message.messageID ?? "unknown"}`,
+    `- type: ${message.messageType}`,
+    `- from: ${message.authorSeatID}`,
+    `- deliberation: ${message.deliberationID}`,
+    message.workgroupID ? `- workgroup: ${message.workgroupID}` : undefined,
+    message.module ? `- module: ${message.module}` : undefined,
+    message.taskID ? `- task: ${message.taskID}` : undefined,
+    message.files?.length ? `- files: ${message.files.join(", ")}` : undefined,
+    "",
+    message.content.trim(),
+    "",
+    "Protocol:",
+    `1. Read republic_inbox for seat "${targetSeatID}" if you need more context.`,
+    `2. Respond with republic_publish(message_type="${responseType}", author_seat_id="${targetSeatID}", target_seat_id="${message.authorSeatID}", references=["${message.messageID ?? ""}"], deliberation_id="${message.deliberationID}", content="...").`,
+    "3. If you disagree, publish an objection or revision instead of silently proceeding.",
+    "4. If shared API/schema/test boundaries are involved, use republic_contract before implementation.",
+    "5. Do not edit files unless this is explicitly a handoff/implementation request; any edits will be tracked by native Git.",
+    "6. Stop after publishing the response or handoff.",
+    "",
+    `Keep the response focused. Use at most ${options.maxMessages} relevant Commons messages as context.`,
+  ]
+
+  return lines.filter((line): line is string => typeof line === "string").join("\n")
+}
+
+async function dispatchRepublicSeatResponse(args: {
+  repository: NativeGitRepository
+  message: RepublicCommonsMessage
+  context: ToolContextLike
+  toolArgs: Record<string, unknown>
+  manager: Pick<BackgroundManager, "launch">
+  config?: RepublicConfig
+}): Promise<{ taskID: string; agent: string } | null> {
+  const { repository, message, context, toolArgs, manager, config } = args
+  if (!shouldAutoDispatch(message, config) || !context.sessionID) {
+    return null
+  }
+
+  const targetAgent = resolveDispatchAgent(message.targetSeatID, toolArgs, config)
+  const prompt = buildDispatchPrompt(message, {
+    targetAgent,
+    maxMessages: config?.scheduler?.prompt_max_messages ?? 8,
+  })
+  const task = await manager.launch({
+    description: `Republic response for ${message.targetSeatID}`,
+    prompt,
+    agent: targetAgent,
+    parentSessionId: context.sessionID,
+    parentMessageId: context.messageID ?? message.messageID ?? "",
+    parentAgent: context.agent,
+    category: "republic-response",
+  })
+
+  const summary = `Republic scheduler dispatched ${message.targetSeatID} via ${targetAgent} to respond to ${message.messageID ?? "the targeted Commons message"} as background task ${task.id}.`
+  appendRepublicCommonsMessage(repository, {
+    deliberationID: message.deliberationID,
+    channel: "scheduler",
+    phase: "dispatch",
+    authorSeatID: "republic-scheduler",
+    authorAgent: "republic-scheduler",
+    authorRole: "scheduler",
+    targetSeatID: message.targetSeatID,
+    workgroupID: message.workgroupID,
+    module: message.module,
+    taskID: task.id,
+    status: "dispatched",
+    messageType: "status",
+    references: message.messageID ? [message.messageID] : undefined,
+    files: message.files,
+    content: summary,
+  })
+  appendRepublicLedgerRecord(repository, {
+    deliberationID: message.deliberationID,
+    phase: "dispatch",
+    chamber: "scheduler",
+    seatID: "republic-scheduler",
+    role: "scheduler",
+    agent: "republic-scheduler",
+    sessionID: context.sessionID,
+    workgroupID: message.workgroupID,
+    module: message.module,
+    taskID: task.id,
+    status: "dispatched",
+    files: message.files,
+    summary,
+  })
+
+  return { taskID: task.id, agent: targetAgent }
+}
+
 function buildCommonsMessage(
   args: Record<string, unknown>,
   context: ToolContextLike,
@@ -119,7 +277,7 @@ function buildCommonsMessage(
   }
 }
 
-export function createRepublicTools(ctx: PluginInput): Record<string, ToolDefinition> {
+export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptions = {}): Record<string, ToolDefinition> {
   const republic_publish: ToolDefinition = tool({
     description:
       "Publish a Republic Commons message for agent-to-agent collaboration. Use this to ask questions, answer another seat, object, revise, hand off work, or record a proposal. Messages are stored under the Git common dir and mirrored into agent docs.",
@@ -141,6 +299,7 @@ export function createRepublicTools(ctx: PluginInput): Record<string, ToolDefini
       files: tool.schema.array(tool.schema.string()).optional().describe("Related files"),
       status: tool.schema.string().optional().describe("Optional status such as blocked, proposed, accepted"),
       confidence: tool.schema.number().optional().describe("Optional confidence score"),
+      target_agent: tool.schema.string().optional().describe("Optional OMO agent to dispatch for the target seat"),
     },
     execute: async (args, context) => {
       const repository = getToolRepository(ctx, context as ToolContextLike)
@@ -173,12 +332,25 @@ export function createRepublicTools(ctx: PluginInput): Record<string, ToolDefini
         summary: message.content,
       })
 
+      let dispatch: { taskID: string; agent: string } | null = null
+      if (options.manager) {
+        dispatch = await dispatchRepublicSeatResponse({
+          repository,
+          message,
+          context: context as ToolContextLike,
+          toolArgs: args,
+          manager: options.manager,
+          config: options.config,
+        })
+      }
+
       return JSON.stringify({
         ok: true,
         message_id: message.messageID,
         message_type: message.messageType,
         author_seat_id: message.authorSeatID,
         target_seat_id: message.targetSeatID,
+        ...(dispatch ? { dispatch } : {}),
       })
     },
   })
