@@ -80,6 +80,15 @@ const pluginConfig = {
     contracts: {
       enabled: true,
     },
+    scheduler: {
+      enabled: true,
+      auto_dispatch: true,
+      message_types: ["question", "handoff", "objection"],
+      default_agent: "sisyphus",
+      supervisor_agent: "hephaestus",
+      seat_agents: {},
+      prompt_max_messages: 8,
+    },
   },
 } satisfies OhMyOpenCodeConfig
 
