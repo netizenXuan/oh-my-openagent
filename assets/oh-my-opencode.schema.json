@@ -5981,7 +5981,27 @@
         "quorum": 4,
         "supermajority": 0.67,
         "veto_on_blocker": true,
-        "git_summary": true
+        "git_summary": true,
+        "commons": {
+          "auto_publish": true
+        },
+        "supervisor": {
+          "intervention": true,
+          "file_threshold": 5,
+          "high_risk_paths": [
+            "package.json",
+            "bun.lock",
+            "src/config/",
+            "src/plugin/",
+            "src/shared/git-worktree/",
+            ".github/workflows/"
+          ]
+        },
+        "dependency_gate": {
+          "enabled": true,
+          "mode": "advisory",
+          "cross_module_threshold": 2
+        }
       },
       "type": "object",
       "properties": {
@@ -6039,6 +6059,104 @@
         "git_summary": {
           "default": true,
           "type": "boolean"
+        },
+        "commons": {
+          "default": {
+            "auto_publish": true
+          },
+          "type": "object",
+          "properties": {
+            "auto_publish": {
+              "default": true,
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "auto_publish"
+          ],
+          "additionalProperties": false
+        },
+        "supervisor": {
+          "default": {
+            "intervention": true,
+            "file_threshold": 5,
+            "high_risk_paths": [
+              "package.json",
+              "bun.lock",
+              "src/config/",
+              "src/plugin/",
+              "src/shared/git-worktree/",
+              ".github/workflows/"
+            ]
+          },
+          "type": "object",
+          "properties": {
+            "intervention": {
+              "default": true,
+              "type": "boolean"
+            },
+            "file_threshold": {
+              "default": 5,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            },
+            "high_risk_paths": {
+              "default": [
+                "package.json",
+                "bun.lock",
+                "src/config/",
+                "src/plugin/",
+                "src/shared/git-worktree/",
+                ".github/workflows/"
+              ],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "intervention",
+            "file_threshold",
+            "high_risk_paths"
+          ],
+          "additionalProperties": false
+        },
+        "dependency_gate": {
+          "default": {
+            "enabled": true,
+            "mode": "advisory",
+            "cross_module_threshold": 2
+          },
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "type": "boolean"
+            },
+            "mode": {
+              "default": "advisory",
+              "type": "string",
+              "enum": [
+                "advisory",
+                "block"
+              ]
+            },
+            "cross_module_threshold": {
+              "default": 2,
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 20
+            }
+          },
+          "required": [
+            "enabled",
+            "mode",
+            "cross_module_threshold"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -6051,7 +6169,10 @@
         "quorum",
         "supermajority",
         "veto_on_blocker",
-        "git_summary"
+        "git_summary",
+        "commons",
+        "supervisor",
+        "dependency_gate"
       ],
       "additionalProperties": false
     },
