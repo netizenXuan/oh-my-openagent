@@ -291,6 +291,84 @@ describe("republic tools", () => {
     expect(git(directory, ["status", "--porcelain"])).toBe("")
   })
 
+  test("dispatches supervisor review for objections", async () => {
+    const launched: Array<{ agent: string; prompt: string; description: string }> = []
+    const tools = createRepublicTools(createPluginInputWithAgents(directory, [
+      { name: "general", mode: "subagent" },
+    ]), {
+      manager: createDispatchManager(launched),
+      config: {
+        enabled: true,
+        mode: "advisory",
+        ledger: true,
+        house_seats: 3,
+        senate_seats: 2,
+        review_bench_seats: 2,
+        quorum: 4,
+        supermajority: 0.67,
+        veto_on_blocker: true,
+        git_summary: true,
+        commons: {
+          auto_publish: true,
+          inbox: true,
+          inject_max_messages: 6,
+          agent_docs: true,
+        },
+        supervisor: {
+          intervention: true,
+          policy_loop: true,
+          file_threshold: 5,
+          high_risk_paths: [],
+        },
+        dependency_gate: {
+          enabled: true,
+          mode: "advisory",
+          cross_module_threshold: 2,
+        },
+        contracts: {
+          enabled: true,
+        },
+        scheduler: {
+          enabled: true,
+          auto_dispatch: true,
+          message_types: ["question", "handoff", "objection"],
+          default_agent: "sisyphus",
+          supervisor_agent: "hephaestus",
+          seat_agents: {},
+          prompt_max_messages: 8,
+        },
+      },
+    })
+    const context = createToolContext(directory)
+
+    const publishResult = await tools.republic_publish.execute({
+      message_type: "objection",
+      content: "Docs and API disagree on whether status should be numeric.",
+      author_seat_id: "docs-seat",
+      deliberation_id: "api-status-contract",
+      workgroup_id: "wg-src-api",
+      status: "blocked",
+      references: ["api-status-proposal"],
+    }, context)
+
+    const parsed = JSON.parse(String(publishResult))
+    const repository = getNativeGitRepository(directory)!
+    const messages = readRepublicCommonsMessages(repository, "api-status-contract")
+    const ledger = readRepublicLedgerRecords(repository, "api-status-contract")
+
+    expect(parsed.dispatch).toBeUndefined()
+    expect(parsed.supervisor_dispatch).toEqual({ taskID: "bg_1", agent: "general", requested_agent: "hephaestus" })
+    expect(launched).toHaveLength(1)
+    expect(launched[0]?.description).toContain("Republic supervisor review")
+    expect(launched[0]?.prompt).toContain('author_seat_id="republic-supervisor"')
+    expect(launched[0]?.prompt).toContain('message_type="consensus" or "revision" or "objection"')
+    expect(messages.map((message) => message.phase)).toEqual(["collaboration", "supervisor-dispatch"])
+    expect(messages[1]?.targetSeatID).toBe("republic-supervisor")
+    expect(messages[1]?.references).toEqual([messages[0]?.messageID])
+    expect(ledger.map((record) => record.phase)).toEqual(["collaboration", "supervisor-dispatch"])
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
   test("writes workgroup contracts and publishes contract messages", async () => {
     const tools = createRepublicTools({ directory } as PluginInput)
     const context = createToolContext(directory)

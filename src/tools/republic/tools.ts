@@ -29,6 +29,7 @@ const MESSAGE_TYPES = [
 ] as const
 
 const DISPATCHABLE_MESSAGE_TYPES = new Set(["question", "handoff", "objection"])
+const SUPERVISOR_REVIEW_STATUSES = new Set(["blocked", "review-required"])
 
 type ToolContextLike = {
   sessionID?: string
@@ -210,6 +211,27 @@ function shouldAutoDispatch(
     && DISPATCHABLE_MESSAGE_TYPES.has(message.messageType)
 }
 
+function shouldAutoDispatchSupervisor(
+  message: RepublicCommonsMessage,
+  config: RepublicConfig | undefined,
+): boolean {
+  if ((config?.enabled ?? true) === false || (config?.mode ?? "advisory") === "manual") {
+    return false
+  }
+  if ((config?.supervisor?.intervention ?? true) === false) {
+    return false
+  }
+  const scheduler = config?.scheduler
+  if ((scheduler?.enabled ?? true) === false || (scheduler?.auto_dispatch ?? true) === false) {
+    return false
+  }
+  if (message.authorSeatID === "republic-supervisor" || message.targetSeatID === "republic-supervisor") {
+    return false
+  }
+  return message.messageType === "objection"
+    || (typeof message.status === "string" && SUPERVISOR_REVIEW_STATUSES.has(message.status))
+}
+
 function buildDispatchPrompt(message: RepublicCommonsMessage, options: DispatchAgentResolution & { maxMessages: number }): string {
   const targetSeatID = message.targetSeatID ?? "target-seat"
   const responseType = message.messageType === "question" ? "answer" : "revision"
@@ -239,6 +261,44 @@ function buildDispatchPrompt(message: RepublicCommonsMessage, options: DispatchA
     "6. Stop after publishing the response or handoff.",
     "",
     `Keep the response focused. Use at most ${options.maxMessages} relevant Commons messages as context.`,
+  ]
+
+  return lines.filter((line): line is string => typeof line === "string").join("\n")
+}
+
+function buildSupervisorReviewPrompt(
+  message: RepublicCommonsMessage,
+  options: DispatchAgentResolution & { maxMessages: number },
+): string {
+  const lines = [
+    'You are Republic supervisor seat "republic-supervisor".',
+    `Requested OMO role: "${options.requestedAgent}". Runtime OpenCode agent: "${options.runtimeAgent}".`,
+    "A Commons governance event needs active review. This session was launched by the Republic scheduler.",
+    "",
+    "Governance event:",
+    `- id: ${message.messageID ?? "unknown"}`,
+    `- type: ${message.messageType}`,
+    `- status: ${message.status ?? "none"}`,
+    `- from: ${message.authorSeatID}`,
+    message.targetSeatID ? `- to: ${message.targetSeatID}` : undefined,
+    `- deliberation: ${message.deliberationID}`,
+    message.workgroupID ? `- workgroup: ${message.workgroupID}` : undefined,
+    message.module ? `- module: ${message.module}` : undefined,
+    message.taskID ? `- task: ${message.taskID}` : undefined,
+    message.files?.length ? `- files: ${message.files.join(", ")}` : undefined,
+    message.references?.length ? `- references: ${message.references.join(", ")}` : undefined,
+    "",
+    message.content.trim(),
+    "",
+    "Protocol:",
+    '1. Read republic_inbox for seat "republic-supervisor" if you need more context.',
+    `2. Decide whether this event needs consensus, revision, handoff, or a blocking objection.`,
+    `3. Publish the decision with republic_publish(author_seat_id="republic-supervisor", references=["${message.messageID ?? ""}"], deliberation_id="${message.deliberationID}", message_type="consensus" or "revision" or "objection", content="...").`,
+    "4. If adjacent modules need an interface rule, write or revise a republic_contract.",
+    "5. Do not edit files unless the governance decision explicitly requires it; any edits will be tracked by native Git.",
+    "6. Stop after publishing the supervisor decision.",
+    "",
+    `Keep the review focused. Use at most ${options.maxMessages} relevant Commons messages as context.`,
   ]
 
   return lines.filter((line): line is string => typeof line === "string").join("\n")
@@ -298,6 +358,81 @@ async function dispatchRepublicSeatResponse(args: {
   appendRepublicLedgerRecord(repository, {
     deliberationID: message.deliberationID,
     phase: "dispatch",
+    chamber: "scheduler",
+    seatID: "republic-scheduler",
+    role: "scheduler",
+    agent: "republic-scheduler",
+    sessionID: context.sessionID,
+    workgroupID: message.workgroupID,
+    module: message.module,
+    taskID: task.id,
+    status: "dispatched",
+    files: message.files,
+    summary,
+  })
+
+  return {
+    taskID: task.id,
+    agent: dispatchAgent.runtimeAgent,
+    ...(dispatchAgent.runtimeAgent !== dispatchAgent.requestedAgent
+      ? { requested_agent: dispatchAgent.requestedAgent }
+      : {}),
+  }
+}
+
+async function dispatchRepublicSupervisorReview(args: {
+  repository: NativeGitRepository
+  message: RepublicCommonsMessage
+  context: ToolContextLike
+  manager: Pick<BackgroundManager, "launch">
+  config?: RepublicConfig
+  ctx: PluginInput
+}): Promise<{ taskID: string; agent: string; requested_agent?: string } | null> {
+  const { repository, message, context, manager, config, ctx } = args
+  if (!shouldAutoDispatchSupervisor(message, config) || !context.sessionID) {
+    return null
+  }
+
+  const requestedAgent = config?.scheduler?.supervisor_agent ?? "hephaestus"
+  const dispatchAgent = await resolveRuntimeDispatchAgent({ ctx, requestedAgent, config })
+  const prompt = buildSupervisorReviewPrompt(message, {
+    ...dispatchAgent,
+    maxMessages: config?.scheduler?.prompt_max_messages ?? 8,
+  })
+  const task = await manager.launch({
+    description: `Republic supervisor review for ${message.messageID ?? message.messageType}`,
+    prompt,
+    agent: dispatchAgent.runtimeAgent,
+    parentSessionId: context.sessionID,
+    parentMessageId: context.messageID ?? message.messageID ?? "",
+    parentAgent: context.agent,
+    category: "republic-supervisor",
+  })
+
+  const agentSummary = dispatchAgent.runtimeAgent === dispatchAgent.requestedAgent
+    ? dispatchAgent.runtimeAgent
+    : `${dispatchAgent.runtimeAgent} (requested ${dispatchAgent.requestedAgent})`
+  const summary = `Republic scheduler dispatched supervisor review via ${agentSummary} for ${message.messageID ?? "the governance event"} as background task ${task.id}.`
+  appendRepublicCommonsMessage(repository, {
+    deliberationID: message.deliberationID,
+    channel: "scheduler",
+    phase: "supervisor-dispatch",
+    authorSeatID: "republic-scheduler",
+    authorAgent: "republic-scheduler",
+    authorRole: "scheduler",
+    targetSeatID: "republic-supervisor",
+    workgroupID: message.workgroupID,
+    module: message.module,
+    taskID: task.id,
+    status: "dispatched",
+    messageType: "status",
+    references: message.messageID ? [message.messageID] : undefined,
+    files: message.files,
+    content: summary,
+  })
+  appendRepublicLedgerRecord(repository, {
+    deliberationID: message.deliberationID,
+    phase: "supervisor-dispatch",
     chamber: "scheduler",
     seatID: "republic-scheduler",
     role: "scheduler",
@@ -405,13 +540,22 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
         summary: message.content,
       })
 
-      let dispatch: { taskID: string; agent: string } | null = null
+      let dispatch: { taskID: string; agent: string; requested_agent?: string } | null = null
+      let supervisorDispatch: { taskID: string; agent: string; requested_agent?: string } | null = null
       if (options.manager) {
         dispatch = await dispatchRepublicSeatResponse({
           repository,
           message,
           context: context as ToolContextLike,
           toolArgs: args,
+          manager: options.manager,
+          config: options.config,
+          ctx,
+        })
+        supervisorDispatch = await dispatchRepublicSupervisorReview({
+          repository,
+          message,
+          context: context as ToolContextLike,
           manager: options.manager,
           config: options.config,
           ctx,
@@ -425,6 +569,7 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
         author_seat_id: message.authorSeatID,
         target_seat_id: message.targetSeatID,
         ...(dispatch ? { dispatch } : {}),
+        ...(supervisorDispatch ? { supervisor_dispatch: supervisorDispatch } : {}),
       })
     },
   })
