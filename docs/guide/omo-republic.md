@@ -90,6 +90,8 @@ This supports the intended workflow:
 
 This is still not a live mid-token chat bus. It is now an active Git-native scheduler: targeted Commons messages create background response sessions, all coordination is stored under `.git/omo/republic`, and OMO injects relevant messages before the next turn. When a configured seat agent is not available in the current OpenCode runtime, the scheduler falls back to a registered runtime agent such as `general` while preserving the requested OMO role in the prompt and dispatch ledger.
 
+For real app usage, OpenCode is a long-lived host, so background response seats can finish after the original message is published. For short `opencode run` smoke tests, keep the parent process alive long enough for the background seat to answer before expecting an `answer`, `revision`, or `objection` record to appear in Commons.
+
 ## Workgroup Contracts
 
 Adjacent module agents should declare a contract before implementation when their work touches shared API shape, data schema, test boundary, error semantics, or handoff responsibility.
