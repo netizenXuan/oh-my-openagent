@@ -1097,6 +1097,13 @@ describe("RepublicConfigSchema", () => {
       expect(result.data.supermajority).toBe(0.67)
       expect(result.data.veto_on_blocker).toBe(true)
       expect(result.data.git_summary).toBe(true)
+      expect(result.data.commons.auto_publish).toBe(true)
+      expect(result.data.supervisor.intervention).toBe(true)
+      expect(result.data.supervisor.file_threshold).toBe(5)
+      expect(result.data.supervisor.high_risk_paths).toContain("src/plugin/")
+      expect(result.data.dependency_gate.enabled).toBe(true)
+      expect(result.data.dependency_gate.mode).toBe("advisory")
+      expect(result.data.dependency_gate.cross_module_threshold).toBe(2)
     }
   })
 
@@ -1118,6 +1125,9 @@ describe("RepublicConfigSchema", () => {
     expect(RepublicConfigSchema.safeParse({ senate_seats: 8 }).success).toBe(false)
     expect(RepublicConfigSchema.safeParse({ supermajority: 0.49 }).success).toBe(false)
     expect(RepublicConfigSchema.safeParse({ supermajority: 1.01 }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ supervisor: { file_threshold: 0 } }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ dependency_gate: { cross_module_threshold: 1 } }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ dependency_gate: { mode: "warn" } }).success).toBe(false)
   })
 })
 
