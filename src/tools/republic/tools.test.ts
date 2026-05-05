@@ -95,6 +95,21 @@ describe("republic tools", () => {
     expect(git(directory, ["status", "--porcelain"])).toBe("")
   })
 
+  test("resolves repository from tool context when plugin input directory is unavailable", async () => {
+    const tools = createRepublicTools({} as PluginInput)
+    const context = createToolContext(directory)
+
+    const publishResult = await tools.republic_publish.execute({
+      message_type: "question",
+      content: "Can docs confirm the shared contract?",
+      author_seat_id: "api-seat",
+      target_seat_id: "docs-seat",
+    }, context)
+
+    expect(JSON.parse(String(publishResult)).ok).toBe(true)
+    expect(readRepublicCommonsMessages(getNativeGitRepository(directory)!, "session-ses_republic_tools")).toHaveLength(1)
+  })
+
   test("writes workgroup contracts and publishes contract messages", async () => {
     const tools = createRepublicTools({ directory } as PluginInput)
     const context = createToolContext(directory)

@@ -10,6 +10,7 @@ import {
   readRepublicInboxMessages,
   sanitizeRepublicDeliberationID,
   writeRepublicContract,
+  type NativeGitRepository,
   type RepublicCommonsMessage,
 } from "../../shared/git-worktree"
 
@@ -27,6 +28,31 @@ const MESSAGE_TYPES = [
 type ToolContextLike = {
   sessionID?: string
   agent?: string
+  directory?: string
+  worktree?: string
+  path?: {
+    cwd?: string
+    root?: string
+  }
+}
+
+function getToolRepository(ctx: PluginInput, context: ToolContextLike): NativeGitRepository | null {
+  const candidates = [
+    context.directory,
+    context.worktree,
+    context.path?.cwd,
+    context.path?.root,
+    ctx.directory,
+  ].filter((directory): directory is string => typeof directory === "string" && directory.length > 0)
+
+  for (const directory of candidates) {
+    const repository = getNativeGitRepository(directory)
+    if (repository) {
+      return repository
+    }
+  }
+
+  return null
 }
 
 function getSeatID(args: { author_seat_id?: string }, context: ToolContextLike): string {
@@ -117,7 +143,7 @@ export function createRepublicTools(ctx: PluginInput): Record<string, ToolDefini
       confidence: tool.schema.number().optional().describe("Optional confidence score"),
     },
     execute: async (args, context) => {
-      const repository = getNativeGitRepository(ctx.directory)
+      const repository = getToolRepository(ctx, context as ToolContextLike)
       if (!repository) {
         return JSON.stringify({ error: "not_git_repository" })
       }
@@ -169,7 +195,7 @@ export function createRepublicTools(ctx: PluginInput): Record<string, ToolDefini
       include_agent_doc: tool.schema.boolean().optional().describe("Include the seat markdown doc"),
     },
     execute: async (args, context) => {
-      const repository = getNativeGitRepository(ctx.directory)
+      const repository = getToolRepository(ctx, context as ToolContextLike)
       if (!repository) {
         return "Error: not a git repository"
       }
@@ -207,7 +233,7 @@ export function createRepublicTools(ctx: PluginInput): Record<string, ToolDefini
       references: tool.schema.array(tool.schema.string()).optional().describe("Message IDs this contract revises or answers"),
     },
     execute: async (args, context) => {
-      const repository = getNativeGitRepository(ctx.directory)
+      const repository = getToolRepository(ctx, context as ToolContextLike)
       if (!repository) {
         return JSON.stringify({ error: "not_git_repository" })
       }
