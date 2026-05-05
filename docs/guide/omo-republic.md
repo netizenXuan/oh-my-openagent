@@ -146,6 +146,24 @@ The current implementation has been smoke tested through the real OpenCode CLI w
 
 The same smoke repository rendered `republic status` and `republic dashboard` from the generated Git common-dir records. The status summary reported all four primary agents, seven native-git write records, and one Kimi K2.6 model bucket.
 
+## Governance Smoke Verification
+
+A second realistic smoke test used a small TypeScript order service with API, domain, config, docs, and test modules. The project was opened through the real OpenCode CLI with a local plugin path and `kimi-for-coding/k2p6`.
+
+Verified behavior:
+
+- Automatic Commons publication mirrored Kimi tool changes from `.git/omo/native-git/audit.jsonl` into `.git/omo/republic/commons.jsonl`.
+- Sequential edits across `src/api`, `docs/api`, and `tests` produced post-change dependency-gate records with `phase: "post-change"` and `status: "review-required"`.
+- High-risk edits to `package.json` and `src/config/runtime.ts` produced supervisor intervention records and visible tool-output reminders.
+- The smoke project test suite continued to pass after each committed Kimi task.
+
+Observed model behavior:
+
+- Kimi K2.6 reliably produced real file edits and the plugin tracked them with `agent` and `model` attribution.
+- Kimi K2.6 did not reliably obey a prompt that required a specific Shell tool call. In that case, the plugin still recorded the actual write, but a preflight block can only evaluate the tool call the model actually attempts.
+
+That distinction is intentional for the first governed implementation: preflight gates block explicit cross-workgroup tool calls, while post-change gates catch cumulative multi-module edits that happen through several single-file tool calls.
+
 ## Configuration
 
 ```jsonc
