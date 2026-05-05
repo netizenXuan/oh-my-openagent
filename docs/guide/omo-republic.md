@@ -207,6 +207,20 @@ Observed model behavior:
 
 That distinction is intentional for the first governed implementation: preflight gates block explicit cross-workgroup tool calls, while post-change gates catch cumulative multi-module edits that happen through several single-file tool calls.
 
+## Interactive Commons Smoke Verification
+
+The same OpenCode CLI plus local plugin path setup has also verified the interactive Commons layer with `kimi-for-coding/k2p6`:
+
+- `api-seat` published a targeted `question` to `docs-seat` with `republic_publish`.
+- `docs-seat` read the message and the supervisor note with `republic_inbox`, then replied with an `answer` referencing the original message ID.
+- `api-seat` wrote an accepted `republic_contract` for the shared `cancelOrder` response shape.
+- The contract was stored at `.git/omo/republic/contracts/wg-order-api.md` and also published to Commons.
+- Agent docs were updated at `.git/omo/republic/agents/api-seat.md` and `.git/omo/republic/agents/docs-seat.md`.
+- A separate custom-deliberation question verified that the supervisor policy loop scans Commons across deliberation IDs and records `supervisor-policy` when a question remains unresolved.
+- `republic status --json` and `republic dashboard --json` reported the `question`, `answer`, `contract`, and `supervisor-policy` records, and the smoke repository worktree stayed clean.
+
+The smoke run exposed one real integration bug: Republic tools initially used only the plugin initialization directory to resolve Git state, which can be absent in OpenCode tool context. The tools now resolve the repository from tool context (`directory`, `worktree`, `path.cwd`, `path.root`) before falling back to plugin input.
+
 ## Configuration
 
 ```jsonc
