@@ -690,14 +690,14 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
     .metric span:first-child { color:var(--muted); }
     .pill { display:inline-flex; align-items:center; border:1px solid var(--line); border-radius:999px; padding:3px 9px; color:var(--muted); font-size:12px; }
     .board-wrap { height:100%; min-height:700px; padding:16px; overflow:auto; }
-    .board { min-width:880px; display:flex; flex-direction:column; gap:14px; }
+    .board { min-width:0; display:flex; flex-direction:column; gap:14px; }
     .phase-strip { display:grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap:12px; }
     .phase-card { border:1px solid var(--line); border-radius:8px; padding:12px; background:var(--panel2); min-height:88px; }
     .phase-card.active { border-color:var(--accent); box-shadow:0 0 0 1px rgba(47,129,247,.25) inset; }
     .phase-title { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
     .phase-title strong { font-size:13px; text-transform:uppercase; }
     .phase-title span { color:var(--muted); font-size:12px; }
-    .workgroup-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:14px; }
+    .workgroup-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:14px; }
     .workgroup-card { border:1px solid var(--line); border-radius:8px; background:var(--panel2); overflow:hidden; }
     .workgroup-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px; border-bottom:1px solid var(--line); background:#111822; }
     .workgroup-head strong { font-size:14px; }
