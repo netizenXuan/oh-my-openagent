@@ -92,6 +92,7 @@ describe("republic scheduler cli", () => {
     const prompt = readFileSync(action!.promptPath!, "utf-8")
     expect(prompt).toContain('persistent Republic seat "docs-seat"')
     expect(prompt).toContain('message_type="answer"')
+    expect(prompt).toContain("target_seat_id set to the referenced inbox message's authorSeatID")
     expect(readRepublicSchedulerQueueRecords(repository!, "order-status")).toHaveLength(1)
     expect(git(directory, ["status", "--porcelain"])).toBe("")
   })

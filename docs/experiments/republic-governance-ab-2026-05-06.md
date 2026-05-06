@@ -368,6 +368,18 @@ bun src\cli\index.ts republic capability-check --directory D:\OMO\republic-sched
 
 This command is the productized form of the weak-model lesson. It checks the Git-recorded facts instead of the model's self-report: the Commons response must reference the original question, use the expected author and target seats, contain required hard terms, have the exact requested dispatch reach `dispatched`, and leave the worktree clean. This makes Kimi, Ling, Hy3, or other cheap-model runs comparable with the same acceptance contract.
 
+A follow-up Hy3 scheduler smoke showed why the target-seat hard field matters. Hy3 successfully called `republic_inbox`, published an `answer`, included the exact enum values, and left the worktree clean, but omitted `target_seat_id: "api-seat"` from `republic_publish`. The capability gate correctly failed the run because no response matched all expected hard fields. The scheduler wake prompt now explicitly tells response seats to set `target_seat_id` to the author of the referenced inbox message, which turns that weak-model drift into a prompt-level requirement plus deterministic acceptance check.
+
+After that scheduler prompt change, the same Hy3 smoke was retried:
+
+```text
+D:\OMO\republic-scheduler-hy3-smoke-20260506
+D:\OMO\experiment-logs\republic-scheduler-hy3-capability.json
+D:\OMO\experiment-logs\republic-scheduler-hy3-benchmark.md
+```
+
+The retry passed capability-check with `dispatchID=scheduler-hy3-docs-seat-2`: Hy3 read `republic_inbox`, published an `answer` from `docs-seat` to `api-seat`, referenced `scheduler-hy3-question-1`, included `pending` and `delivered`, left the worktree clean, and had a matching `dispatched` scheduler record. This is a concrete weak-model constraint win: the framework converted a subtle routing omission into a failing hard-field check, then a targeted prompt change made the same cheaper model produce acceptable Git-recorded collaboration evidence.
+
 Capability-check JSON can also be attached to the benchmark report:
 
 ```powershell

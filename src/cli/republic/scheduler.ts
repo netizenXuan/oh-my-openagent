@@ -100,7 +100,7 @@ function buildWakePrompt(repository: NativeGitRepository, record: RepublicSchedu
     "Protocol:",
     `1. Work as persistent Republic seat "${targetSeatID}".`,
     `2. Read republic_inbox for "${targetSeatID}" before answering.`,
-    `3. Respond with republic_publish using message_type="${messageTypes}", author_seat_id="${targetSeatID}", references=${references}, deliberation_id="${record.deliberationID}".`,
+    `3. Respond with republic_publish using message_type="${messageTypes}", author_seat_id="${targetSeatID}", target_seat_id set to the referenced inbox message's authorSeatID, references=${references}, deliberation_id="${record.deliberationID}".`,
     "4. If the answer changes an interface, publish or revise the relevant republic_contract before implementation.",
     "5. If the seat is blocked or disagrees, publish objection or handoff instead of silently continuing.",
     "6. Stop after publishing the response, handoff, objection, or supervisor decision.",
