@@ -648,6 +648,43 @@ describe("native git hook", () => {
     expect(output.output).toContain("Republic workgroup dependency gate recorded")
   })
 
+  test("dependency gate marks post-change cross-workgroup edits blocked in governed mode", async () => {
+    const hook = createNativeGitHook(
+      { directory } as never,
+      { mode: "tracked", audit_log: true },
+      {
+        enabled: true,
+        mode: "governed",
+        ledger: true,
+        commons: { auto_publish: true },
+        dependency_gate: {
+          enabled: true,
+          mode: "block",
+          cross_module_threshold: 2,
+        },
+      } as never,
+    )
+    mkdirSync(join(directory, "src"))
+    mkdirSync(join(directory, "docs"))
+    await captureToolBaseline(hook, { tool: "bash", sessionID: "ses_post_block", callID: "call_post_block" })
+    writeFileSync(join(directory, "src", "feature.ts"), "export const enabled = true\n", "utf-8")
+    writeFileSync(join(directory, "docs", "feature.md"), "# Feature\n", "utf-8")
+    const output = { output: "updated", metadata: { agent: "sisyphus" } }
+
+    await hook["tool.execute.after"]?.(
+      { tool: "bash", sessionID: "ses_post_block", callID: "call_post_block" },
+      output,
+    )
+
+    const repository = getNativeGitRepository(directory)
+    const commons = readRepublicCommonsMessages(repository!, "session-ses_post_block")
+    const dependencyGate = commons.find((message) => message.channel === "dependency-gate")
+
+    expect(dependencyGate?.phase).toBe("post-change")
+    expect(dependencyGate?.status).toBe("blocked")
+    expect(output.output).toContain("Republic workgroup dependency gate blocked")
+  })
+
   test("dependency gate ignores read-only bash commands", async () => {
     const hook = createNativeGitHook(
       { directory } as never,

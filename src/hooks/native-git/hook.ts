@@ -174,9 +174,10 @@ ${message.trim()}
 }
 
 function buildPostChangeDependencyGateMessage(message: string): string {
+  const status = message.includes("Dependency gate blocked") ? "blocked" : "recorded"
   return `
 <system-reminder>
-Republic workgroup dependency gate recorded.
+Republic workgroup dependency gate ${status}.
 
 ${message.trim()}
 </system-reminder>`
@@ -993,7 +994,9 @@ export function createNativeGitHook(
       return undefined
     }
 
-    return recordDependencyGate(input, files, modules, false, "post-change")
+    const blocked = (republicConfig?.mode ?? "advisory") === "governed"
+      && (republicConfig?.dependency_gate?.mode ?? "advisory") === "block"
+    return recordDependencyGate(input, files, modules, blocked, "post-change")
   }
 
   function getSupervisorReasons(input: NativeGitToolInput, files: string[]): string[] {
