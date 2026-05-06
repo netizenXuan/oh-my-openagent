@@ -295,6 +295,8 @@ describe("republic tools", () => {
     expect(launched[0]?.prompt).toContain("republic_team_status")
     expect(launched[0]?.prompt).toContain("republic_publish")
     expect(launched[0]?.prompt).toContain("republic_seat_update")
+    expect(launched[0]?.prompt).toContain("Preserve exact field names")
+    expect(launched[0]?.prompt).toContain("quote the exact objective/contract terms")
     expect(launched[0]?.prompt).toContain("Do not edit project files")
     expect(phase.activeRound).toBe(1)
     expect(apiState.status).toBe("running")
