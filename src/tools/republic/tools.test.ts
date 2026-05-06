@@ -297,6 +297,8 @@ describe("republic tools", () => {
     expect(launched[0]?.prompt).toContain("republic_seat_update")
     expect(launched[0]?.prompt).toContain("Preserve exact field names")
     expect(launched[0]?.prompt).toContain("quote the exact objective/contract terms")
+    expect(launched[0]?.prompt).toContain("Work in one bounded step at a time")
+    expect(launched[0]?.prompt).toContain("Do not create or update dependencies")
     expect(launched[0]?.prompt).toContain("Do not edit project files")
     expect(phase.activeRound).toBe(1)
     expect(apiState.status).toBe("running")
@@ -347,6 +349,15 @@ describe("republic tools", () => {
       found: true,
     })
     expect(status.locked_contracts[0]?.content).toContain("discountCode?: string")
+    const inboxResult = await tools.republic_inbox.execute({
+      seat_id: "api-executor-seat",
+      deliberation_id: "order-contract-team",
+      include_agent_doc: true,
+    }, context)
+    expect(String(inboxResult)).toContain("## Current Phase")
+    expect(String(inboxResult)).toContain("## Locked Contracts")
+    expect(String(inboxResult)).toContain("discountCode?: string")
+    expect(String(inboxResult)).toContain("Do not invent substitute field names")
 
     await tools.republic_round_start.execute({
       goal: "Implement the locked order API contract.",
@@ -361,6 +372,7 @@ describe("republic tools", () => {
     expect(launched[0]?.prompt).toContain("Locked contract files live under the Git common dir")
     expect(launched[0]?.prompt).toContain(contractPath)
     expect(launched[0]?.prompt).toContain("discountCode?: string")
+    expect(launched[0]?.prompt).toContain("if another workgroup is needed")
     expect(git(directory, ["status", "--porcelain"])).toBe("")
   })
 

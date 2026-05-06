@@ -177,6 +177,30 @@ function readLockedContractContexts(
   })
 }
 
+function buildConstrainedOperatingRules(args: {
+  phase: typeof TEAM_PHASES[number]
+  seat?: RepublicTeamSeatDefinition
+}): string[] {
+  const { phase, seat } = args
+  const scope = [
+    seat?.workgroupID ? `workgroup=${seat.workgroupID}` : undefined,
+    seat?.module ? `module=${seat.module}` : undefined,
+  ].filter((part): part is string => typeof part === "string")
+  return [
+    "Constrained operating rules:",
+    scope.length ? `1. Treat this seat scope as authoritative: ${scope.join(", ")}.` : "1. Treat the current seat scope as authoritative.",
+    "2. Work in one bounded step at a time; if the next step is unclear, publish a targeted question before editing.",
+    "3. Do not invent substitute field names, status values, file paths, or environment variables when the objective or contracts already name them.",
+    "4. Do not create or update dependencies, lockfiles, generated scripts, global config, or helper files unless the objective or a locked contract explicitly names them.",
+    phase === "execution"
+      ? "5. Before execution edits, keep the intended file set inside this seat's workgroup; if another workgroup is needed, publish a handoff or objection and stop."
+      : "5. Keep outputs in Republic tools during planning/review; do not modify project files from this phase.",
+    phase === "execution"
+      ? "6. After execution edits, run the smallest relevant verification named by the objective/contracts and publish the result or blocker."
+      : "6. Prefer concise proposals, questions, objections, revisions, or contracts that other seats can answer directly.",
+  ]
+}
+
 function findReferencedResponses(args: {
   repository: NativeGitRepository
   messageID: string
@@ -427,6 +451,8 @@ function buildRoundPrompt(args: {
     "2. Preserve exact field names, type names, file paths, and environment variable names from the objective/contracts.",
     "3. If you need a new name or shape not present in the objective/contracts, publish it as a proposal or targeted question; do not lock it as consensus silently.",
     "4. Before writing or revising a contract, quote the exact objective/contract terms that justify it.",
+    "",
+    ...buildConstrainedOperatingRules({ phase, seat }),
     "",
     "Protocol:",
     `1. Call republic_seat_update(seat_id="${seat.seatID}", status="running", phase="${phase}", deliberation_id="${deliberationID}", memory="...") when you start.`,
@@ -1331,8 +1357,27 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
       if (args.include_agent_doc === true) {
         const doc = readRepublicAgentDoc(repository, seatID).trim()
         parts.push("", "## Agent Doc", doc || "No agent doc entries yet.")
+        const phase = readRepublicTeamPhase(repository)
         const manifest = readRepublicTeamManifest(repository)
         const teamSeat = manifest?.seats.find((seat) => seat.seatID === seatID)
+        if (phase) {
+          parts.push("", "## Current Phase", [
+            `- phase: ${phase.phase}`,
+            `- status: ${phase.status}`,
+            phase.deliberationID ? `- deliberation: ${phase.deliberationID}` : undefined,
+            phase.activeRound !== undefined ? `- active_round: ${phase.activeRound}` : undefined,
+            phase.lockedContracts?.length ? `- locked_contracts: ${phase.lockedContracts.join(", ")}` : undefined,
+            phase.blockedBy?.length ? `- blocked_by: ${phase.blockedBy.join(", ")}` : undefined,
+          ].filter((line): line is string => typeof line === "string").join("\n"))
+          const lockedContracts = readLockedContractContexts(repository, phase.lockedContracts, 2_000)
+          if (lockedContracts.length > 0) {
+            parts.push("", "## Locked Contracts", lockedContracts.map((contract) => [
+              `### ${contract.id}`,
+              `path: ${contract.path}`,
+              contract.found && contract.content ? contract.content.trim() : "missing: contract file was not found at this path",
+            ].join("\n")).join("\n\n"))
+          }
+        }
         if (teamSeat) {
           const seatLines = [
             `- role: ${teamSeat.role}`,
@@ -1342,6 +1387,10 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
             teamSeat.reason ? `- reason: ${teamSeat.reason}` : undefined,
           ].filter((line): line is string => typeof line === "string")
           parts.push("", "## Team Seat", seatLines.join("\n"))
+          parts.push("", "## Operating Checklist", buildConstrainedOperatingRules({
+            phase: phase?.phase ?? teamSeat.phase ?? "idle",
+            seat: teamSeat,
+          }).join("\n"))
         }
       }
       return parts.join("\n")
