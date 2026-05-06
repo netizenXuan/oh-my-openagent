@@ -101,6 +101,8 @@ task(category="quick", load_skills=["git-master"], prompt="Commit the current ch
 const NATIVE_GIT_TOAST_TITLE = "Native Git changes tracked"
 const NATIVE_GIT_TOAST_MESSAGE =
   "Uncommitted changes are being audited. Before final completion, use git-master to create atomic commits."
+const REPUBLIC_HARD_DEPENDENCY_RULE =
+  "Do not create or update dependencies, lockfiles, generated scripts, global config, or helper files unless the objective or a locked contract explicitly names them."
 
 function appendOutput(output: { output?: string }, text: string): void {
   output.output = `${output.output ?? ""}${text}`
@@ -249,7 +251,7 @@ function formatConstrainedOperatingChecklist(args: {
     scope.length ? `- Treat this seat scope as authoritative: ${scope.join(", ")}.` : "- Treat the current seat scope as authoritative.",
     "- Work in one bounded step at a time; if the next step is unclear, publish a targeted question before editing.",
     "- Do not invent substitute field names, status values, file paths, or environment variables when the objective or contracts already name them.",
-    "- Do not create or update dependencies, lockfiles, generated scripts, global config, or helper files unless the objective or a locked contract explicitly names them.",
+    `- hard_dependency_rule: ${REPUBLIC_HARD_DEPENDENCY_RULE}`,
     execution
       ? "- Keep execution edits inside this seat's workgroup; if another workgroup is needed, publish a handoff or objection and stop."
       : "- Keep outputs in Republic tools during planning/review; do not modify project files from this phase.",
