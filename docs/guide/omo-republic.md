@@ -179,6 +179,21 @@ Serve a live dashboard that polls the Git common-dir records:
 bunx oh-my-opencode republic dashboard --directory /path/to/repo --serve --port 4097
 ```
 
+Inspect queued scheduler work and write wake prompts for an external orchestrator:
+
+```bash
+bunx oh-my-opencode republic scheduler --directory /path/to/repo
+bunx oh-my-opencode republic scheduler --directory /path/to/repo --write-prompts
+```
+
+Launch queued work with an external command template:
+
+```bash
+bunx oh-my-opencode republic scheduler --directory /path/to/repo --command-template "opencode run --agent {agent} --prompt-file {prompt}"
+```
+
+The command template supports `{repo}`, `{prompt}`, `{agent}`, `{target_seat}`, `{dispatch_id}`, and `{deliberation_id}`. Values are shell-quoted before substitution. A successful command appends a `status: "dispatched"` record to `.git/omo/republic/scheduler/queue.jsonl`; a failed command appends `status: "failed"`.
+
 Generate a reproducible benchmark report from one or more experiment repositories:
 
 ```bash

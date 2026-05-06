@@ -300,7 +300,7 @@ This does not yet prove autonomous "always correct" collaboration. It does show 
 
 ## Next Steps
 
-1. Add a persistent scheduler/orchestrator daemon that consumes `.git/omo/republic/scheduler/queue.jsonl`, wakes queued target seats, and writes answers back to Commons.
+1. Add a persistent scheduler/orchestrator daemon loop on top of the new `republic scheduler` queue consumer, so queued target seats can be woken repeatedly without a manual command.
 2. Add a model capability gate that tests tool-call compliance before assigning a model to Republic work.
 3. Add a contract-diff QA pass that checks public docs, tests, and implementation against locked contract terms.
 4. Add per-workgroup worktrees so each execution seat can commit, test, and merge through an isolated Git lane.

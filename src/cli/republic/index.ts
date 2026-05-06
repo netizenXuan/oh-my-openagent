@@ -5,11 +5,36 @@ import {
   republicBenchmarkRunCollector,
 } from "./benchmark-report"
 import { republicDashboard } from "./dashboard"
+import { republicScheduler } from "./scheduler"
 import { republicStatus } from "./status"
 
 export function createRepublicCommand(): Command {
   const command = new Command("republic")
     .description("Inspect OMO Republic deliberation and native Git audit state")
+
+  command
+    .command("scheduler")
+    .description("Inspect or consume queued Republic scheduler dispatches")
+    .option("-d, --directory <path>", "Working directory to inspect")
+    .option("--deliberation-id <id>", "Filter to one deliberation id")
+    .option("--limit <n>", "Maximum queued dispatches to inspect or consume", (value) => Number.parseInt(value, 10))
+    .option("--write-prompts", "Write wake prompts under .git/omo/republic/scheduler/prompts")
+    .option(
+      "--command-template <template>",
+      "External command to launch each queued dispatch; supports {repo}, {prompt}, {agent}, {target_seat}, {dispatch_id}, {deliberation_id}",
+    )
+    .option("--json", "Output structured JSON")
+    .action(async (options) => {
+      const exitCode = await republicScheduler({
+        directory: options.directory,
+        deliberationId: options.deliberationId,
+        limit: options.limit,
+        writePrompts: options.writePrompts ?? false,
+        commandTemplate: options.commandTemplate,
+        json: options.json ?? false,
+      })
+      process.exit(exitCode)
+    })
 
   command
     .command("benchmark-report")
