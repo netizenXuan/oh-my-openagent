@@ -455,15 +455,34 @@ export function writeRepublicContract(
 
 function extractContractFiles(content: string): string[] {
   const files = new Set<string>()
+  let inGovernedFilesList = false
+
   for (const line of content.split(/\r?\n/)) {
     const match = line.match(/^\s*-\s*files:\s*(.+)$/i)
-    if (!match?.[1]) {
+    if (match?.[1]) {
+      for (const file of match[1].split(",")) {
+        const normalized = file.trim().replace(/\\/g, "/")
+        if (normalized.length > 0) {
+          files.add(normalized)
+        }
+      }
       continue
     }
-    for (const file of match[1].split(",")) {
-      const normalized = file.trim().replace(/\\/g, "/")
-      if (normalized.length > 0) {
-        files.add(normalized)
+
+    if (/^\s*(files governed|governed files|files)\s*:\s*$/i.test(line)) {
+      inGovernedFilesList = true
+      continue
+    }
+
+    if (inGovernedFilesList) {
+      const governedFile = line.match(/^\s*-\s*([^\s]+\.[A-Za-z0-9]+)\s*$/)
+      if (governedFile?.[1]) {
+        files.add(governedFile[1].trim().replace(/\\/g, "/"))
+        continue
+      }
+
+      if (/^\s*[A-Za-z][A-Za-z\s-]*:\s*$/.test(line)) {
+        inGovernedFilesList = false
       }
     }
   }
@@ -516,7 +535,6 @@ function isTraceableContractTerm(term: string): boolean {
   }
   return /_/.test(normalized)
     || /[a-z][A-Z]/.test(normalized)
-    || /^[A-Z][A-Za-z0-9]+$/.test(normalized)
     || /^[a-z][a-z0-9-]+$/.test(normalized)
 }
 
@@ -532,11 +550,15 @@ function extractContractTerms(content: string): string[] {
     }
   }
 
+  const identifierSource = content
+    .split(/\r?\n/)
+    .filter((line) => !/\bformula\s*:/i.test(line))
+    .join("\n")
   let identifierMatch: RegExpExecArray | null
   const identifierPattern = /\b[A-Za-z][A-Za-z0-9_]{2,}\b/g
-  while ((identifierMatch = identifierPattern.exec(content)) !== null) {
+  while ((identifierMatch = identifierPattern.exec(identifierSource)) !== null) {
     const term = identifierMatch[0]
-    const looksLikeCodeIdentifier = /_/.test(term) || /[a-z][A-Z]/.test(term) || /^[A-Z][A-Za-z0-9]+$/.test(term)
+    const looksLikeCodeIdentifier = /_/.test(term) || /[a-z][A-Z]/.test(term)
     if (looksLikeCodeIdentifier && isTraceableContractTerm(term)) {
       terms.add(term)
     }

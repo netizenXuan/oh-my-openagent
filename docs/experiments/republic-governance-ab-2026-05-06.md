@@ -234,6 +234,58 @@ bun src\cli\index.ts republic benchmark-report --run control=D:\OMO\republic-ab-
 
 This report is intentionally read-only. It converts Git status, native-git audit, Republic ledger, Commons, contracts, targeted messages, referenced messages, seats, workgroups, and contract traceability into a stable Markdown or JSON evidence table. It is the preferred record format for future weak-model, hard-task, large-task, and innovation-task comparisons.
 
+## Hard Kimi A/B: Fulfillment Returns
+
+A harder Kimi run used a fulfillment workflow project with separate order, inventory, shipment, API, test, and docs modules. The task was to implement delivered-order returns and refunds with 30-day return-window validation, quantity validation, optional restocking, restocking fees, tests, and docs.
+
+Repositories:
+
+```text
+D:\OMO\republic-hard-control-kimi-20260506
+D:\OMO\republic-hard-treatment-kimi-20260506
+```
+
+Both runs passed public verification:
+
+```text
+bun test
+bun node_modules\typescript\bin\tsc --noEmit
+git diff --check
+```
+
+Benchmark report:
+
+```text
+D:\OMO\experiment-logs\republic-kimi-hard-benchmark.md
+```
+
+Dashboard screenshot:
+
+```text
+D:\OMO\experiment-logs\republic-hard-dashboard.png
+```
+
+Results:
+
+| Metric | Control | Treatment |
+| --- | ---: | ---: |
+| Product files changed | 5 | 4 |
+| Public tests after run | 8 pass | 8 pass |
+| Typecheck after run | pass | pass |
+| Native-git audit records | 8 | 8 |
+| Republic ledger records | 21 | 18 |
+| Republic Commons messages | 21 | 18 |
+| Contracts written | 0 | 1 |
+| Contract traceability warnings | n/a | 0 |
+| Auto-allocated team seats | 0 | 8 |
+
+Observed behavior:
+
+- The control prompt did not ask for Republic planning or contracts, but default passive governance still mirrored native-git changes and supervisor records into Commons.
+- The treatment prompt explicitly initialized a `parliament_squad` team, published a planning proposal, wrote a workgroup contract, moved to execution, and marked the executor seat done.
+- The contract parser had to be hardened during this run: real model-written contracts often use prose sections like `Files governed:` rather than only the structured `- files:` metadata. Traceability now reads both formats and ignores prose heading words and unquoted formula placeholders.
+- A hidden QA check found that both public-test-passing outputs were not equivalent. Control returned `order_not_delivered` when a delivered order lacked a delivered shipment timestamp. Treatment returned `shipment_not_found`, which does not match the requested error taxonomy. This is a useful negative result: contracts and public tests improve observability, but they do not replace hidden acceptance tests or a stricter contract-diff QA pass.
+
 ## Interpretation
 
 The current Republic design is already distinct from ordinary multi-agent delegation because the collaboration record, contracts, audit log, and seat state all live under the Git common dir. The more important finding is that this approach is especially suited to weaker models. Instead of trusting a weak model to remember everything, the system repeatedly exposes the same hard boundaries through contracts, inboxes, and supervisor checks.

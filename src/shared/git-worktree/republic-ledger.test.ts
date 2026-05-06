@@ -473,4 +473,81 @@ describe("republic ledger", () => {
     expect(summary.items[0]?.status).toBe("warning")
     expect(git(directory, ["status", "--porcelain"])).toBe("")
   })
+
+  test("ignores prose heading words when tracing contract terms", () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "orders.ts"), [
+      'export interface ReturnLine { sku: string; quantity: number; restockable: boolean }',
+      'export interface Refund { refundID: string; amount: number }',
+      'export function processReturn() { return "order_not_delivered" }',
+      "",
+    ].join("\n"), "utf-8")
+    commitAll(directory, "init")
+
+    const repository = getNativeGitRepository(directory)
+    expect(repository).not.toBeNull()
+
+    writeRepublicContract(repository!, {
+      workgroupID: "return-workgroup",
+      title: "Return Contract",
+      authorSeatID: "api-seat",
+      files: ["orders.ts"],
+      content: [
+        "Responsibilities:",
+        "- Implement ReturnLine and Refund support.",
+        "Interfaces:",
+        "- processReturn returns \"order_not_delivered\" for invalid returns.",
+        "Constraints:",
+        "- Do not treat Date, Errors, or Responsibilities as required symbols.",
+      ].join("\n"),
+    })
+
+    const summary = analyzeRepublicContractTraceability(repository!)
+    expect(summary.warningCount).toBe(0)
+    expect(summary.items[0]?.terms).toContain("ReturnLine")
+    expect(summary.items[0]?.terms).toContain("processReturn")
+    expect(summary.items[0]?.terms).not.toContain("Responsibilities")
+    expect(summary.items[0]?.terms).not.toContain("Interfaces")
+    expect(summary.items[0]?.terms).not.toContain("Date")
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
+  test("reads governed file lists written inside contract prose", () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "fulfillment.ts"), [
+      'export interface ReturnLine { sku: string }',
+      'export interface Refund { refundID: string }',
+      'export function processReturn(state: unknown, orderID: string, refundID: string, returnLines: ReturnLine[]) { return "return_window_expired" }',
+      "",
+    ].join("\n"), "utf-8")
+    commitAll(directory, "init")
+
+    const repository = getNativeGitRepository(directory)
+    expect(repository).not.toBeNull()
+
+    writeRepublicContract(repository!, {
+      workgroupID: "return-workgroup",
+      title: "Return Contract",
+      authorSeatID: "api-seat",
+      content: [
+        "Files governed:",
+        "  - fulfillment.ts",
+        "",
+        "Interfaces:",
+        "- processReturn(state, orderID, refundID, returnLines)",
+        "- Errors: return_window_expired",
+        "- Domain types: ReturnLine and Refund",
+        "- Refund formula: sum(returnedQty * unitPrice) - 0.10 * sum(nonRestockableQty * unitPrice)",
+      ].join("\n"),
+    })
+
+    const summary = analyzeRepublicContractTraceability(repository!)
+    expect(summary.warningCount).toBe(0)
+    expect(summary.items[0]?.files).toEqual(["fulfillment.ts"])
+    expect(summary.items[0]?.coveredTerms).toContain("return_window_expired")
+    expect(summary.items[0]?.coveredTerms).toContain("processReturn")
+    expect(summary.items[0]?.terms).not.toContain("returnedQty")
+    expect(summary.items[0]?.terms).not.toContain("nonRestockableQty")
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
 })
