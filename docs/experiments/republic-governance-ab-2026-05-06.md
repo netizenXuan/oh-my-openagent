@@ -368,6 +368,13 @@ bun src\cli\index.ts republic capability-check --directory D:\OMO\republic-sched
 
 This command is the productized form of the weak-model lesson. It checks the Git-recorded facts instead of the model's self-report: the Commons response must reference the original question, use the expected author and target seats, contain required hard terms, have the exact requested dispatch reach `dispatched`, and leave the worktree clean. This makes Kimi, Ling, Hy3, or other cheap-model runs comparable with the same acceptance contract.
 
+Capability-check JSON can also be attached to the benchmark report:
+
+```powershell
+bun src\cli\index.ts republic capability-check --directory D:\OMO\republic-scheduler-kimi-smoke-20260506 --deliberation-id scheduler-kimi-smoke --dispatch-id scheduler-kimi-docs-seat-4 --source-message-id scheduler-kimi-question-1 --expected-author-seat docs-seat --expected-target-seat api-seat --expected-message-type answer --require-content pending --require-content delivered --expect-clean-worktree --require-dispatched-queue --json --output D:\OMO\experiment-logs\republic-scheduler-kimi-capability.json
+bun src\cli\index.ts republic benchmark-report --run scheduler-kimi=D:\OMO\republic-scheduler-kimi-smoke-20260506 --capability scheduler-kimi=D:\OMO\experiment-logs\republic-scheduler-kimi-capability.json --output D:\OMO\experiment-logs\republic-scheduler-kimi-benchmark.md
+```
+
 ## Next Steps
 
 1. Add a persistent scheduler/orchestrator daemon loop on top of the new `republic scheduler` queue consumer, so queued target seats can be woken repeatedly without a manual command.

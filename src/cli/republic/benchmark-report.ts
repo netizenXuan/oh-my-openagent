@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { basename, dirname, resolve } from "node:path"
 import { getNativeGitStatus, readRepublicTeamManifest } from "../../shared/git-worktree"
 import { buildRepublicStatusReport, type RepublicStatusReport } from "./status"
@@ -12,6 +12,7 @@ export interface RepublicBenchmarkRunInput {
 export interface RepublicBenchmarkOptions {
   runs: RepublicBenchmarkRunInput[]
   acceptance?: RepublicBenchmarkAcceptanceInput[]
+  capability?: RepublicBenchmarkCapabilityInput[]
   output?: string
   json?: boolean
 }
@@ -24,6 +25,26 @@ export interface RepublicBenchmarkAcceptanceInput {
 }
 
 export interface RepublicBenchmarkAcceptanceReport extends RepublicBenchmarkAcceptanceInput {}
+
+export interface RepublicBenchmarkCapabilityInput {
+  runLabel: string
+  path: string
+}
+
+export interface RepublicBenchmarkCapabilityCheck {
+  name: string
+  status: "pass" | "fail" | "warn" | string
+  detail?: string
+}
+
+export interface RepublicBenchmarkCapabilityReport {
+  runLabel: string
+  path: string
+  passed: boolean
+  failures: number
+  warnings: number
+  checks: RepublicBenchmarkCapabilityCheck[]
+}
 
 export interface RepublicBenchmarkRunReport {
   label: string
@@ -46,6 +67,7 @@ export interface RepublicBenchmarkRunReport {
   tools: Record<string, number>
   agents: Record<string, number>
   acceptance: RepublicBenchmarkAcceptanceReport[]
+  capability: RepublicBenchmarkCapabilityReport[]
   latestNativeGitSummary?: string
   latestCommonsMessage?: string
 }
@@ -76,6 +98,7 @@ function summarizeRun(
   input: RepublicBenchmarkRunInput,
   status: RepublicStatusReport,
   acceptance: RepublicBenchmarkAcceptanceInput[],
+  capability: RepublicBenchmarkCapabilityReport[],
 ): RepublicBenchmarkRunReport {
   const gitStatus = getNativeGitStatus(input.directory)
   const dirtyFiles = gitStatus?.files ?? []
@@ -103,17 +126,53 @@ function summarizeRun(
     tools: status.nativeGit.tools,
     agents: status.republic.agents,
     acceptance: acceptance.filter((item) => item.runLabel === input.label),
+    capability: capability.filter((item) => item.runLabel === input.label),
     latestNativeGitSummary: status.nativeGit.latestSummary,
     latestCommonsMessage: status.commons.latestContent,
   }
 }
 
+function readCapabilityReport(input: RepublicBenchmarkCapabilityInput): RepublicBenchmarkCapabilityReport {
+  const capabilityPath = resolve(input.path)
+  try {
+    const parsed = JSON.parse(readFileSync(capabilityPath, "utf-8")) as {
+      passed?: boolean
+      failures?: number
+      warnings?: number
+      checks?: RepublicBenchmarkCapabilityCheck[]
+    }
+    const checks = Array.isArray(parsed.checks) ? parsed.checks : []
+    return {
+      runLabel: input.runLabel,
+      path: capabilityPath,
+      passed: parsed.passed === true,
+      failures: typeof parsed.failures === "number" ? parsed.failures : checks.filter((check) => check.status === "fail").length,
+      warnings: typeof parsed.warnings === "number" ? parsed.warnings : checks.filter((check) => check.status === "warn").length,
+      checks,
+    }
+  } catch (error) {
+    return {
+      runLabel: input.runLabel,
+      path: capabilityPath,
+      passed: false,
+      failures: 1,
+      warnings: 0,
+      checks: [{
+        name: "capability-report",
+        status: "fail",
+        detail: error instanceof Error ? error.message : "Unable to read capability report.",
+      }],
+    }
+  }
+}
+
 export function buildRepublicBenchmarkReport(options: RepublicBenchmarkOptions): RepublicBenchmarkReport {
   const acceptance = options.acceptance ?? []
+  const capability = (options.capability ?? []).map(readCapabilityReport)
   const runs = options.runs.map((run) => summarizeRun(run, buildRepublicStatusReport({
     directory: run.directory,
     deliberationId: run.deliberationId,
-  }), acceptance))
+  }), acceptance, capability))
 
   return {
     generatedAt: new Date().toISOString(),
@@ -151,6 +210,7 @@ export function formatRepublicBenchmarkReport(report: RepublicBenchmarkReport): 
   }
 
   const acceptanceItems = report.runs.flatMap((run) => run.acceptance)
+  const capabilityItems = report.runs.flatMap((run) => run.capability)
   if (acceptanceItems.length > 0) {
     lines.push("")
     lines.push("## Acceptance Checks")
@@ -159,6 +219,18 @@ export function formatRepublicBenchmarkReport(report: RepublicBenchmarkReport): 
     lines.push("| --- | --- | --- | --- |")
     for (const check of acceptanceItems) {
       lines.push(`| ${check.runLabel} | ${check.name} | ${check.status} | ${check.detail ?? ""} |`)
+    }
+  }
+
+  if (capabilityItems.length > 0) {
+    lines.push("")
+    lines.push("## Capability Checks")
+    lines.push("")
+    lines.push("| Run | Result | Failures | Warnings | Checks | Report |")
+    lines.push("| --- | --- | ---: | ---: | --- | --- |")
+    for (const item of capabilityItems) {
+      const checks = item.checks.map((check) => `${check.name}=${check.status}`).join(", ") || "none"
+      lines.push(`| ${item.runLabel} | ${item.passed ? "pass" : "fail"} | ${item.failures} | ${item.warnings} | ${checks} | ${item.path} |`)
     }
   }
 
@@ -179,6 +251,7 @@ export function formatRepublicBenchmarkReport(report: RepublicBenchmarkReport): 
     lines.push(`Native Git tools: ${formatCounter(run.tools)}`)
     lines.push(`Republic agents: ${formatCounter(run.agents)}`)
     lines.push(`Acceptance: ${run.acceptance.length === 0 ? "none" : run.acceptance.map((check) => `${check.name}=${check.status}`).join(", ")}`)
+    lines.push(`Capability: ${run.capability.length === 0 ? "none" : run.capability.map((check) => `${basename(check.path)}=${check.passed ? "pass" : "fail"}`).join(", ")}`)
     lines.push(`Latest native-git summary: ${run.latestNativeGitSummary ?? "none"}`)
     lines.push(`Latest commons message: ${run.latestCommonsMessage ?? "none"}`)
   }
@@ -237,6 +310,21 @@ export function parseRepublicBenchmarkAcceptance(value: string): RepublicBenchma
   }
 }
 
+export function parseRepublicBenchmarkCapability(value: string): RepublicBenchmarkCapabilityInput {
+  const separator = value.indexOf("=")
+  if (separator === -1) {
+    throw new Error("Capability report must use label=path")
+  }
+
+  const runLabel = value.slice(0, separator).trim()
+  const path = value.slice(separator + 1).trim()
+  if (!runLabel || !path) {
+    throw new Error("Capability report must include both label and path")
+  }
+
+  return { runLabel, path }
+}
+
 function collectAcceptance(
   value: string,
   previous: RepublicBenchmarkAcceptanceInput[],
@@ -248,9 +336,17 @@ function collectRun(value: string, previous: RepublicBenchmarkRunInput[]): Repub
   return [...previous, parseRepublicBenchmarkRun(value)]
 }
 
+function collectCapability(
+  value: string,
+  previous: RepublicBenchmarkCapabilityInput[],
+): RepublicBenchmarkCapabilityInput[] {
+  return [...previous, parseRepublicBenchmarkCapability(value)]
+}
+
 export async function republicBenchmarkReport(options: {
   run?: RepublicBenchmarkRunInput[]
   acceptance?: RepublicBenchmarkAcceptanceInput[]
+  capability?: RepublicBenchmarkCapabilityInput[]
   output?: string
   json?: boolean
 }): Promise<number> {
@@ -260,7 +356,7 @@ export async function republicBenchmarkReport(options: {
     return 1
   }
 
-  const report = buildRepublicBenchmarkReport({ runs, acceptance: options.acceptance })
+  const report = buildRepublicBenchmarkReport({ runs, acceptance: options.acceptance, capability: options.capability })
   const content = options.json ? JSON.stringify(report, null, 2) : formatRepublicBenchmarkReport(report)
 
   if (options.output) {
@@ -279,3 +375,4 @@ export async function republicBenchmarkReport(options: {
 
 export const republicBenchmarkRunCollector = collectRun
 export const republicBenchmarkAcceptanceCollector = collectAcceptance
+export const republicBenchmarkCapabilityCollector = collectCapability

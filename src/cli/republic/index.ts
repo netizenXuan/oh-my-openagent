@@ -1,6 +1,7 @@
 import { Command } from "commander"
 import {
   republicBenchmarkAcceptanceCollector,
+  republicBenchmarkCapabilityCollector,
   republicBenchmarkReport,
   republicBenchmarkRunCollector,
 } from "./benchmark-report"
@@ -91,12 +92,19 @@ export function createRepublicCommand(): Command {
       republicBenchmarkAcceptanceCollector,
       [],
     )
+    .option(
+      "--capability <label=path>",
+      "Capability-check JSON report to include for a run; repeatable",
+      republicBenchmarkCapabilityCollector,
+      [],
+    )
     .option("-o, --output <path>", "Write the report to a file instead of stdout")
     .option("--json", "Output structured JSON")
     .action(async (options) => {
       const exitCode = await republicBenchmarkReport({
         run: options.run,
         acceptance: options.acceptance,
+        capability: options.capability,
         output: options.output,
         json: options.json ?? false,
       })

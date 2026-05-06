@@ -17,6 +17,7 @@ import {
   buildRepublicBenchmarkReport,
   formatRepublicBenchmarkReport,
   parseRepublicBenchmarkAcceptance,
+  parseRepublicBenchmarkCapability,
   parseRepublicBenchmarkRun,
   republicBenchmarkReport,
 } from "./benchmark-report"
@@ -80,6 +81,10 @@ describe("republic benchmark report", () => {
       name: "hidden-edge",
       status: "fail",
       detail: "expected x got y",
+    })
+    expect(parseRepublicBenchmarkCapability(`treatment=${join(root, "capability.json")}`)).toEqual({
+      runLabel: "treatment",
+      path: join(root, "capability.json"),
     })
   })
 
@@ -156,6 +161,16 @@ describe("republic benchmark report", () => {
       files: ["orders.ts"],
       content: 'Implementation must expose OrderStatus, cancelOrder, and "cancelled".',
     })
+    const capabilityPath = join(root, "treatment-capability.json")
+    writeFileSync(capabilityPath, JSON.stringify({
+      passed: true,
+      failures: 0,
+      warnings: 0,
+      checks: [
+        { name: "commons-response", status: "pass", detail: "Found one matching response." },
+        { name: "scheduler-dispatch", status: "pass", detail: "Matching dispatch completed." },
+      ],
+    }), "utf-8")
 
     const report = buildRepublicBenchmarkReport({
       runs: [
@@ -176,6 +191,12 @@ describe("republic benchmark report", () => {
           detail: "got shipment_not_found",
         },
       ],
+      capability: [
+        {
+          runLabel: "treatment",
+          path: capabilityPath,
+        },
+      ],
     })
     const markdown = formatRepublicBenchmarkReport(report)
 
@@ -192,9 +213,12 @@ describe("republic benchmark report", () => {
     expect(report.runs[1]?.targetedMessages).toBe(1)
     expect(report.runs[1]?.referencedMessages).toBe(1)
     expect(report.runs[1]?.acceptance[0]?.status).toBe("fail")
+    expect(report.runs[1]?.capability[0]?.passed).toBe(true)
     expect(markdown).toContain("| control |")
     expect(markdown).toContain("| treatment |")
     expect(markdown).toContain("## Acceptance Checks")
+    expect(markdown).toContain("## Capability Checks")
+    expect(markdown).toContain("commons-response=pass")
     expect(markdown).toContain("got shipment_not_found")
     expect(markdown).toContain("Use this report as an evidence index")
   })
