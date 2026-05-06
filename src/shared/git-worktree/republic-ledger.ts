@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import type { NativeGitRepository } from "./native-git"
 
@@ -127,6 +127,23 @@ export interface RepublicDecision {
   reason: string
 }
 
+export interface RepublicContractTraceabilityItem {
+  contractID: string
+  path: string
+  files: string[]
+  terms: string[]
+  coveredTerms: string[]
+  uncoveredTerms: string[]
+  missingFiles: string[]
+  status: "pass" | "warning"
+}
+
+export interface RepublicContractTraceabilitySummary {
+  contractCount: number
+  warningCount: number
+  items: RepublicContractTraceabilityItem[]
+}
+
 export const DEFAULT_REPUBLIC_DECISION_POLICY: RepublicDecisionPolicy = {
   quorum: 4,
   supermajority: 0.67,
@@ -152,6 +169,10 @@ export function getRepublicAgentDocPath(repository: NativeGitRepository, seatID:
 
 export function getRepublicContractPath(repository: NativeGitRepository, workgroupID: string): string {
   return join(repository.gitCommonDir, "omo", "republic", "contracts", `${sanitizeRepublicDeliberationID(workgroupID)}.md`)
+}
+
+function getRepublicContractsDir(repository: NativeGitRepository): string {
+  return join(repository.gitCommonDir, "omo", "republic", "contracts")
 }
 
 function incrementCounter(counter: Record<string, number>, key: string | undefined): void {
@@ -430,6 +451,149 @@ export function writeRepublicContract(
 
   writeFileSync(contractPath, `${existing.trimEnd()}\n\n${entry}\n`, "utf-8")
   return contractPath
+}
+
+function extractContractFiles(content: string): string[] {
+  const files = new Set<string>()
+  for (const line of content.split(/\r?\n/)) {
+    const match = line.match(/^\s*-\s*files:\s*(.+)$/i)
+    if (!match?.[1]) {
+      continue
+    }
+    for (const file of match[1].split(",")) {
+      const normalized = file.trim().replace(/\\/g, "/")
+      if (normalized.length > 0) {
+        files.add(normalized)
+      }
+    }
+  }
+  return Array.from(files).sort()
+}
+
+const CONTRACT_TERM_STOP_WORDS = new Set([
+  "api",
+  "body",
+  "contract",
+  "contracts",
+  "data",
+  "docs",
+  "domain",
+  "error",
+  "exports",
+  "failure",
+  "file",
+  "files",
+  "from",
+  "function",
+  "generated",
+  "implementation",
+  "module",
+  "order",
+  "orders",
+  "package",
+  "request",
+  "response",
+  "status",
+  "success",
+  "test",
+  "tests",
+  "the",
+  "title",
+  "type",
+  "workgroup",
+])
+
+function isTraceableContractTerm(term: string): boolean {
+  const normalized = term.trim()
+  if (normalized.length < 3 || normalized.length > 80) {
+    return false
+  }
+  if (normalized.includes("/") || normalized.includes("\\") || normalized.includes(".")) {
+    return false
+  }
+  if (CONTRACT_TERM_STOP_WORDS.has(normalized.toLowerCase())) {
+    return false
+  }
+  return /_/.test(normalized)
+    || /[a-z][A-Z]/.test(normalized)
+    || /^[A-Z][A-Za-z0-9]+$/.test(normalized)
+    || /^[a-z][a-z0-9-]+$/.test(normalized)
+}
+
+function extractContractTerms(content: string): string[] {
+  const terms = new Set<string>()
+  for (const pattern of [/`([^`\r\n]{3,80})`/g, /"([^"\r\n]{3,80})"/g]) {
+    let match: RegExpExecArray | null
+    while ((match = pattern.exec(content)) !== null) {
+      const term = match[1]?.trim()
+      if (term && isTraceableContractTerm(term)) {
+        terms.add(term)
+      }
+    }
+  }
+
+  let identifierMatch: RegExpExecArray | null
+  const identifierPattern = /\b[A-Za-z][A-Za-z0-9_]{2,}\b/g
+  while ((identifierMatch = identifierPattern.exec(content)) !== null) {
+    const term = identifierMatch[0]
+    const looksLikeCodeIdentifier = /_/.test(term) || /[a-z][A-Z]/.test(term) || /^[A-Z][A-Za-z0-9]+$/.test(term)
+    if (looksLikeCodeIdentifier && isTraceableContractTerm(term)) {
+      terms.add(term)
+    }
+  }
+
+  return Array.from(terms).sort((left, right) => left.localeCompare(right))
+}
+
+export function analyzeRepublicContractTraceability(repository: NativeGitRepository): RepublicContractTraceabilitySummary {
+  const contractsDir = getRepublicContractsDir(repository)
+  if (!existsSync(contractsDir)) {
+    return { contractCount: 0, warningCount: 0, items: [] }
+  }
+
+  const items: RepublicContractTraceabilityItem[] = []
+  for (const entry of readdirSync(contractsDir, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".md")) {
+      continue
+    }
+
+    const contractPath = join(contractsDir, entry.name)
+    const content = readFileSync(contractPath, "utf-8")
+    const files = extractContractFiles(content)
+    const terms = extractContractTerms(content)
+    const fileTexts = files.flatMap((file) => {
+      const absolutePath = join(repository.repoRoot, file)
+      if (!existsSync(absolutePath)) {
+        return []
+      }
+      try {
+        return [readFileSync(absolutePath, "utf-8")]
+      } catch {
+        return []
+      }
+    })
+    const missingFiles = files.filter((file) => !existsSync(join(repository.repoRoot, file)))
+    const coveredTerms = terms.filter((term) => fileTexts.some((text) => text.includes(term)))
+    const uncoveredTerms = terms.filter((term) => !coveredTerms.includes(term))
+    const status = missingFiles.length > 0 || uncoveredTerms.length > 0 ? "warning" : "pass"
+
+    items.push({
+      contractID: entry.name.slice(0, -3),
+      path: contractPath,
+      files,
+      terms,
+      coveredTerms,
+      uncoveredTerms,
+      missingFiles,
+      status,
+    })
+  }
+
+  return {
+    contractCount: items.length,
+    warningCount: items.filter((item) => item.status === "warning").length,
+    items: items.sort((left, right) => left.contractID.localeCompare(right.contractID)),
+  }
 }
 
 export function summarizeRepublicLedgerRecords(

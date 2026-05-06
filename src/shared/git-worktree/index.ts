@@ -27,6 +27,7 @@ export {
 export {
   appendRepublicCommonsMessage,
   appendRepublicLedgerRecord,
+  analyzeRepublicContractTraceability,
   DEFAULT_REPUBLIC_DECISION_POLICY,
   evaluateRepublicDecision,
   getRepublicAgentDocPath,
@@ -44,6 +45,8 @@ export {
   summarizeRepublicLedger,
   summarizeRepublicLedgerRecords,
   writeRepublicContract,
+  type RepublicContractTraceabilityItem,
+  type RepublicContractTraceabilitySummary,
   type RepublicCommonsMessage,
   type RepublicCommonsSummary,
   type RepublicDecision,

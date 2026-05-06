@@ -161,6 +161,7 @@ The lesson has now been implemented as a first-class guardrail profile:
 - Governed mode can hard-block the same case with `weak_model_guardrails.pre_edit_context_gate: "block"`.
 - `weak_model_guardrails.require_explicit_context_read: true` can require a real `republic_inbox` or `republic_team_status` call instead of accepting injected context.
 - Governed mode now also has a post-change fail-closed fallback: if a real runtime misses the preflight hook and writes into a clean repository, OMO restores the changed files and records a `phase: "post-change"` guardrail entry.
+- Republic status and dashboard now include deterministic contract traceability: hard terms from contract files are checked against the files declared by those contracts, and missing files or uncovered terms are surfaced as warnings.
 
 ## Real CLI Guardrail Finding
 
@@ -222,7 +223,7 @@ Observed behavior:
 
 - The single-agent control completed the code task efficiently and native-git captured each file-changing tool call.
 - The Republic treatment also completed the code task, but added a durable planning proposal, a workgroup contract, a phase transition, seat state updates, native-git-to-Commons publication, dependency-gate records, and supervisor interventions for high-risk multi-module edits.
-- The treatment dashboard rendered from `.git/omo/republic/dashboard.html` with the simplified workgroup board and Seat Inspector view.
+- The treatment dashboard rendered from `.git/omo/republic/dashboard.html` with the simplified workgroup board and Seat Inspector view. Contract traceability reported `Contracts: 1`, `Warnings: 0`, and `api-workgroup: pass`.
 - This run was not a full parallel `republic_round_start` execution. It was a Republic-guided single session that proved the governance artifacts can be produced without breaking the product task. Full parallel-seat proof still requires a persistent scheduler benchmark.
 
 ## Interpretation

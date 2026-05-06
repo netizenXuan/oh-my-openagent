@@ -115,6 +115,8 @@ Adjacent module agents should declare a contract before implementation when thei
 
 It also publishes a `messageType: "contract"` Commons record and mirrors it into agent docs. The dashboard and status tooling can then connect the contract to seats, files, workgroups, and later implementation changes.
 
+Republic status and dashboard also run a lightweight contract traceability check. The checker reads contract files, extracts hard terms such as backticked names, quoted status strings, camelCase/PascalCase symbols, and snake_case error codes, then verifies those terms can be found in the files declared by the contract. Missing files or uncovered hard terms are reported as warnings. This is intentionally deterministic: weak models can phrase a good summary while drifting on exact field names, but contract traceability makes those drifts visible in `republic status` and the dashboard Seat Inspector.
+
 ## Governed Execution Hooks
 
 Republic execution has three live governance hooks:
@@ -182,6 +184,15 @@ The status report includes a governance decision:
 - `revise`: the plan should be revised before execution.
 
 It also includes a Commons section with message counts, channels, phases, authors, agents, message types, targeted messages, referenced messages, and files discussed.
+
+When contracts exist, the status report includes a Contract Traceability section:
+
+```text
+Contract Traceability
+Contracts: 1
+Warnings: 0
+- api-workgroup: pass
+```
 
 ## Dashboard
 

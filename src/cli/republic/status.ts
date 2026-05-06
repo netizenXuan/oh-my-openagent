@@ -1,5 +1,6 @@
 import {
   getNativeGitRepository,
+  analyzeRepublicContractTraceability,
   evaluateRepublicDecision,
   summarizeNativeGitAudit,
   summarizeRepublicCommons,
@@ -8,6 +9,7 @@ import {
   type NativeGitAuditSummary,
   type NativeGitRepository,
   type RepublicCommonsSummary,
+  type RepublicContractTraceabilitySummary,
   type RepublicLedgerSummary,
 } from "../../shared/git-worktree"
 
@@ -25,6 +27,7 @@ export interface RepublicStatusReport {
   commons: RepublicCommonsSummary
   decision: RepublicDecision
   nativeGit: NativeGitAuditSummary
+  contractTraceability: RepublicContractTraceabilitySummary
 }
 
 function formatCounter(counter: Record<string, number>): string {
@@ -115,6 +118,7 @@ export function buildRepublicStatusReport(options: RepublicStatusOptions = {}): 
     commons,
     decision: evaluateRepublicDecision(republic),
     nativeGit: repository ? summarizeNativeGitAudit(repository) : emptyNativeGitSummary(),
+    contractTraceability: repository ? analyzeRepublicContractTraceability(repository) : { contractCount: 0, warningCount: 0, items: [] },
   }
 }
 
@@ -127,6 +131,7 @@ export function formatRepublicStatusReport(report: RepublicStatusReport): string
   const commons = report.commons
   const decision = report.decision
   const nativeGit = report.nativeGit
+  const contractTraceability = report.contractTraceability
   const voteLine = `approve=${republic.votes.approve}, revise=${republic.votes.revise}, reject=${republic.votes.reject}, abstain=${republic.votes.abstain}, other=${republic.votes.other}`
   const nextAction =
     decision.status === "blocked"
@@ -187,6 +192,19 @@ export function formatRepublicStatusReport(report: RepublicStatusReport): string
     `Sessions: ${formatCounter(nativeGit.sessions)}`,
     `Files: ${formatList(nativeGit.files)}`,
     nativeGit.latestSummary ? `Latest: ${nativeGit.latestSummary}` : "Latest: none",
+    "",
+    "Contract Traceability",
+    `Contracts: ${contractTraceability.contractCount}`,
+    `Warnings: ${contractTraceability.warningCount}`,
+    contractTraceability.items.length > 0
+      ? contractTraceability.items.map((item) => {
+        const warnings = [
+          item.missingFiles.length ? `missing files: ${formatList(item.missingFiles, 6)}` : undefined,
+          item.uncoveredTerms.length ? `uncovered terms: ${formatList(item.uncoveredTerms, 8)}` : undefined,
+        ].filter((part): part is string => typeof part === "string")
+        return `- ${item.contractID}: ${item.status}${warnings.length ? ` (${warnings.join("; ")})` : ""}`
+      }).join("\n")
+      : "Contracts: none",
     "",
     `Next action: ${nextAction}`,
   ].join("\n")

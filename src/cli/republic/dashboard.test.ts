@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
@@ -11,6 +11,7 @@ import {
   appendRepublicLedgerRecord,
   getNativeGitRepository,
   initializeRepublicTeam,
+  writeRepublicContract,
 } from "../../shared/git-worktree"
 import {
   buildRepublicDashboardData,
@@ -54,6 +55,8 @@ describe("republic dashboard", () => {
   test("builds graph data from ledger, commons, and native git audit records", () => {
     git(directory, ["init"])
     writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")
+    mkdirSync(join(directory, "src", "api"), { recursive: true })
+    writeFileSync(join(directory, "src", "api", "routes.ts"), "export function getOrder() { return \"accepted\" }\n", "utf-8")
     commitAll(directory, "init")
 
     const repository = getNativeGitRepository(directory)
@@ -118,6 +121,13 @@ describe("republic dashboard", () => {
       files: ["src/api/routes.ts"],
       summary: "API route file changed",
     })
+    writeRepublicContract(repository!, {
+      workgroupID: "api-workgroup",
+      title: "API Contract",
+      authorSeatID: "api-planner-seat",
+      files: ["src/api/routes.ts"],
+      content: "The API must expose getOrder and \"accepted\".",
+    })
     initializeRepublicTeam(repository!, {
       manifest: {
         teamModel: "parliament_squad",
@@ -158,6 +168,8 @@ describe("republic dashboard", () => {
     expect(data.teamPhase?.phase).toBe("planning")
     expect(data.seatStates.some((state) => state.seatID === "api-planner-seat")).toBe(true)
     expect(data.report.commons.messageCount).toBe(2)
+    expect(data.report.contractTraceability.contractCount).toBe(1)
+    expect(data.report.contractTraceability.warningCount).toBe(0)
     expect(data.nodes.some((node) => node.id === "phase:planning")).toBe(true)
     expect(data.edges.some((edge) => edge.type === "team-seat")).toBe(true)
     expect(data.nodes.some((node) => node.id === "seat:planner-house-1")).toBe(true)
@@ -192,6 +204,7 @@ describe("republic dashboard", () => {
     expect(html).toContain("republic-data")
     expect(html).toContain("team-board")
     expect(html).toContain("Seat Inspector")
+    expect(html).toContain("Contract Traceability")
     expect(html).not.toContain('id="graph"')
     expect(git(directory, ["status", "--porcelain"])).toBe("")
   })

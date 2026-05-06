@@ -9,6 +9,7 @@ import { getNativeGitRepository } from "./native-git"
 import {
   appendRepublicCommonsMessage,
   appendRepublicLedgerRecord,
+  analyzeRepublicContractTraceability,
   evaluateRepublicDecision,
   getRepublicAgentDocPath,
   getRepublicCommonsPath,
@@ -412,5 +413,64 @@ describe("republic ledger", () => {
       { deliberationID: "decision", phase: "review", seatID: "bench-1", vote: "revise" },
     ], "decision")
     expect(evaluateRepublicDecision(reviseSummary).status).toBe("revise")
+  })
+
+  test("analyzes contract traceability against governed files", () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")
+    writeFileSync(join(directory, "orders.ts"), [
+      'export type OrderStatus = "accepted" | "cancelled" | "shipped"',
+      "export function cancelOrder(currentStatus: OrderStatus) {",
+      '  return currentStatus === "accepted" ? "cancelled" : "cannot_cancel"',
+      "}",
+      "",
+    ].join("\n"), "utf-8")
+    commitAll(directory, "init")
+
+    const repository = getNativeGitRepository(directory)
+    expect(repository).not.toBeNull()
+
+    writeRepublicContract(repository!, {
+      workgroupID: "api-workgroup",
+      title: "Orders API Contract",
+      authorSeatID: "api-seat",
+      files: ["orders.ts"],
+      content: 'The API must expose OrderStatus, cancelOrder, "accepted", "cancelled", "shipped", and "cannot_cancel".',
+    })
+
+    const summary = analyzeRepublicContractTraceability(repository!)
+    expect(summary.contractCount).toBe(1)
+    expect(summary.warningCount).toBe(0)
+    expect(summary.items[0]?.coveredTerms).toContain("OrderStatus")
+    expect(summary.items[0]?.coveredTerms).toContain("cannot_cancel")
+    expect(summary.items[0]?.status).toBe("pass")
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
+  test("flags missing files and uncovered contract terms", () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")
+    writeFileSync(join(directory, "orders.ts"), "export const status = \"accepted\"\n", "utf-8")
+    commitAll(directory, "init")
+
+    const repository = getNativeGitRepository(directory)
+    expect(repository).not.toBeNull()
+
+    writeRepublicContract(repository!, {
+      workgroupID: "api-workgroup",
+      title: "Orders API Contract",
+      authorSeatID: "api-seat",
+      files: ["orders.ts", "missing-docs.md"],
+      content: "The API must expose cancelOrder and \"cannot_cancel\".",
+    })
+
+    const summary = analyzeRepublicContractTraceability(repository!)
+    expect(summary.contractCount).toBe(1)
+    expect(summary.warningCount).toBe(1)
+    expect(summary.items[0]?.missingFiles).toEqual(["missing-docs.md"])
+    expect(summary.items[0]?.uncoveredTerms).toContain("cancelOrder")
+    expect(summary.items[0]?.uncoveredTerms).toContain("cannot_cancel")
+    expect(summary.items[0]?.status).toBe("warning")
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
   })
 })

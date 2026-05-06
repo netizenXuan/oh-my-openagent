@@ -893,6 +893,15 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       };
     }
 
+    function contractsForSeat(data, seat) {
+      const contracts = data.report.contractTraceability?.items ?? [];
+      return contracts.filter((contract) => {
+        if (seat.workgroupID && contract.contractID === seat.workgroupID) return true;
+        const moduleName = seat.module ? String(seat.module).replace(/\\\\/g, "/") : "";
+        return moduleName.length > 0 && contract.files.some((file) => String(file).replace(/\\\\/g, "/").startsWith(moduleName + "/"));
+      });
+    }
+
     function renderSeatCard(data, seat) {
       const state = seatStateByID(data).get(seat.seatID);
       const status = state?.status ?? "standby";
@@ -966,6 +975,8 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
         metric("Done", statusCount("done")),
         metric("Commons messages", data.report.commons.messageCount),
         metric("Native git records", data.report.nativeGit.recordCount),
+        metric("Contracts", data.report.contractTraceability?.contractCount ?? 0),
+        metric("Contract warnings", data.report.contractTraceability?.warningCount ?? 0),
         metric("Targeted messages", data.report.commons.targetedMessages),
         metric("Referenced messages", data.report.commons.referencedMessages),
         metric("Reason", safe(decision.reason))
@@ -987,6 +998,7 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       const state = seatStateByID(data).get(seat.seatID);
       const related = messagesForSeat(data, seat.seatID).sort((left, right) => String(right.timestamp ?? "").localeCompare(String(left.timestamp ?? "")));
       const completion = completionForSeat(data, seat.seatID);
+      const contracts = contractsForSeat(data, seat);
       inspector.innerHTML = '<h2>Seat Inspector</h2>'
         + '<div class="inspector-title"><strong>' + safe(seat.seatID) + '</strong><span class="' + statusClass(state?.status ?? "standby") + '">' + safe(state?.status ?? "standby") + '</span><p class="muted">' + safe(seat.role) + '</p></div>'
         + '<div>' + [
@@ -999,6 +1011,7 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
           metric("Task", safe(state?.taskID ?? seat.taskID ?? "none")),
         ].join("") + '</div>'
         + '<div><h3>Interaction Completion</h3><div class="progress"><div style="width:' + completion.percent + '%"></div></div><p class="muted">' + completion.done + ' / ' + completion.total + ' question threads completed. Authored questions: ' + completion.authoredQuestions + '. Inbound questions: ' + completion.inboundQuestions + '.</p></div>'
+        + '<div><h3>Contract Traceability</h3><div class="inspector-list">' + (contracts.length ? contracts.map((contract) => '<div class="item"><strong>' + safe(contract.contractID) + ' / ' + safe(contract.status) + '</strong><p>' + safe((contract.uncoveredTerms ?? []).length ? 'Uncovered terms: ' + contract.uncoveredTerms.join(", ") : 'All extracted hard terms are covered.') + '</p><small>' + safe((contract.files ?? []).join(", ") || "no governed files") + '</small></div>').join("") : '<div class="empty">No contract linked to this seat yet.</div>') + '</div></div>'
         + '<div><h3>Recent Seat Interactions</h3><div class="inspector-list">' + (related.length ? related.slice(0, 10).map((message) => '<div class="item"><strong>' + safe(message.messageType) + (message.targetSeatID ? ' to ' + safe(message.targetSeatID) : '') + '</strong><p>' + safe(message.content) + '</p><small>' + safe(message.channel) + ' / ' + safe(message.phase) + ' / round ' + safe(message.round ?? "n/a") + '</small></div>').join("") : '<div class="empty">No direct interactions for this seat yet.</div>') + '</div></div>';
     }
 
