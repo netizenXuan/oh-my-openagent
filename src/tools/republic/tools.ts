@@ -1,5 +1,6 @@
 import type { PluginInput, ToolDefinition } from "@opencode-ai/plugin"
 import { tool } from "@opencode-ai/plugin/tool"
+import { existsSync, readFileSync } from "node:fs"
 import type { RepublicConfig } from "../../config"
 import { RepublicConfigSchema } from "../../config/schema"
 import type { BackgroundManager } from "../../features/background-agent"
@@ -10,6 +11,7 @@ import {
   appendRepublicCommonsMessage,
   appendRepublicLedgerRecord,
   appendRepublicSeatMemory,
+  getRepublicContractPath,
   getNativeGitRepository,
   initializeRepublicTeam,
   readRepublicAgentDoc,
@@ -74,6 +76,13 @@ type AgentInfo = {
 type DispatchAgentResolution = {
   requestedAgent: string
   runtimeAgent: string
+}
+
+type LockedContractContext = {
+  id: string
+  path: string
+  found: boolean
+  content?: string
 }
 
 function getToolRepository(ctx: PluginInput, context: ToolContextLike): NativeGitRepository | null {
@@ -145,6 +154,27 @@ function tailText(value: string, maxChars: number): string {
     return value
   }
   return value.slice(value.length - maxChars)
+}
+
+function normalizeLockedContractID(contractID: string): string {
+  const normalized = contractID.replace(/\\/g, "/").split("/").pop() ?? contractID
+  return normalized.endsWith(".md") ? normalized.slice(0, -3) : normalized
+}
+
+function readLockedContractContexts(
+  repository: NativeGitRepository,
+  lockedContracts: string[] | undefined,
+  maxChars: number,
+): LockedContractContext[] {
+  return (lockedContracts ?? []).map((contractID) => {
+    const normalizedID = normalizeLockedContractID(contractID)
+    const path = getRepublicContractPath(repository, normalizedID)
+    if (!existsSync(path)) {
+      return { id: normalizedID, path, found: false }
+    }
+    const content = maxChars > 0 ? tailText(readFileSync(path, "utf-8"), maxChars) : undefined
+    return { id: normalizedID, path, found: true, content }
+  })
 }
 
 function findReferencedResponses(args: {
@@ -359,11 +389,20 @@ function buildRoundPrompt(args: {
   round: number
   lockedContracts: string[]
   blockedBy: string[]
+  lockedContractContext: LockedContractContext[]
   requestedAgent: string
   runtimeAgent: string
 }): string {
-  const { seat, phase, deliberationID, goal, round, lockedContracts, blockedBy, requestedAgent, runtimeAgent } = args
+  const { seat, phase, deliberationID, goal, round, lockedContracts, blockedBy, lockedContractContext, requestedAgent, runtimeAgent } = args
   const allowedEdit = phase === "execution"
+  const contractLines = lockedContractContext.flatMap((contract) => [
+    `### ${contract.id}`,
+    `path: ${contract.path}`,
+    contract.found && contract.content
+      ? ["```contract", contract.content.trim(), "```"].join("\n")
+      : "missing: contract file was not found at this path",
+    "",
+  ])
   const lines = [
     `You are persistent Republic seat "${seat.seatID}".`,
     `Requested OMO role: "${requestedAgent}". Runtime OpenCode agent: "${runtimeAgent}".`,
@@ -375,6 +414,10 @@ function buildRoundPrompt(args: {
     seat.reason ? `Allocation reason: ${seat.reason}.` : undefined,
     lockedContracts.length ? `Locked contracts: ${lockedContracts.join(", ")}.` : undefined,
     blockedBy.length ? `Known blockers: ${blockedBy.join(", ")}.` : undefined,
+    lockedContractContext.length
+      ? "Locked contract files live under the Git common dir, not the worktree. Use these paths/excerpts before asking where contracts are:"
+      : undefined,
+    ...contractLines,
     "",
     "Round objective:",
     goal.trim(),
@@ -753,6 +796,11 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
       const recentMessages = limit > 0
         ? readRepublicCommonsMessages(repository, deliberationID).slice(-limit)
         : []
+      const lockedContracts = readLockedContractContexts(
+        repository,
+        phase?.lockedContracts,
+        args.include_memory === true ? memoryChars : 0,
+      )
 
       return JSON.stringify({
         ok: true,
@@ -763,6 +811,12 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
           default_runtime_agent: manifest.defaultRuntimeAgent,
         },
         phase,
+        locked_contracts: lockedContracts.map((contract) => ({
+          id: contract.id,
+          path: contract.path,
+          found: contract.found,
+          ...(contract.content ? { content: contract.content } : {}),
+        })),
         seats: selectedSeats.map((seat) => {
           const state = readRepublicSeatState(repository, seat.seatID)
           return {
@@ -1054,6 +1108,11 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
       })
 
       const dispatches = []
+      const lockedContractContext = readLockedContractContexts(
+        repository,
+        phaseState?.lockedContracts,
+        4_000,
+      )
       for (const seat of selectedSeats) {
         const requestedAgent = resolveDispatchAgent(seat.seatID, {
           target_agent: seat.runtimeAgent,
@@ -1081,6 +1140,7 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
           round,
           lockedContracts: phaseState?.lockedContracts ?? [],
           blockedBy: phaseState?.blockedBy ?? [],
+          lockedContractContext,
           requestedAgent: dispatchAgent.requestedAgent,
           runtimeAgent: dispatchAgent.runtimeAgent,
         })

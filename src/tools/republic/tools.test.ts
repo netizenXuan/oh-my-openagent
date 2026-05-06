@@ -303,6 +303,65 @@ describe("republic tools", () => {
     expect(git(directory, ["status", "--porcelain"])).toBe("")
   })
 
+  test("injects locked contract excerpts into execution seats", async () => {
+    const launched: Array<{ agent: string; prompt: string; description: string }> = []
+    const tools = createRepublicTools({ directory } as PluginInput, {
+      manager: createDispatchManager(launched),
+    })
+    const context = createToolContext(directory)
+
+    await tools.republic_team_init.execute({
+      goal: "Build order API with tests and docs",
+      files: ["src/api/orders.ts", "tests/orders.test.ts", "docs/orders.md"],
+      deliberation_id: "order-contract-team",
+      team_model: "parliament_squad",
+      seat_allocation: "auto",
+    }, context)
+    await tools.republic_contract.execute({
+      title: "API Contract v1",
+      content: "OrderRequest must use discountCode?: string and accepted responses include shipmentEvents: [].",
+      author_seat_id: "api-planner-seat",
+      workgroup_id: "api-workgroup",
+      deliberation_id: "order-contract-team",
+      status: "accepted",
+    }, context)
+    await tools.republic_phase_update.execute({
+      phase: "execution",
+      status: "in-progress",
+      deliberation_id: "order-contract-team",
+      locked_contracts: ["api-workgroup.md"],
+    }, context)
+
+    const repository = getNativeGitRepository(directory)!
+    const contractPath = getRepublicContractPath(repository, "api-workgroup")
+    const statusResult = await tools.republic_team_status.execute({
+      deliberation_id: "order-contract-team",
+      include_memory: true,
+    }, context)
+    const status = JSON.parse(String(statusResult))
+    expect(status.locked_contracts[0]).toMatchObject({
+      id: "api-workgroup",
+      path: contractPath,
+      found: true,
+    })
+    expect(status.locked_contracts[0]?.content).toContain("discountCode?: string")
+
+    await tools.republic_round_start.execute({
+      goal: "Implement the locked order API contract.",
+      phase: "execution",
+      deliberation_id: "order-contract-team",
+      seat_ids: ["api-executor-seat"],
+      max_seats: 1,
+      round: 2,
+    }, context)
+
+    expect(launched).toHaveLength(1)
+    expect(launched[0]?.prompt).toContain("Locked contract files live under the Git common dir")
+    expect(launched[0]?.prompt).toContain(contractPath)
+    expect(launched[0]?.prompt).toContain("discountCode?: string")
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
   test("reserves a round slot for supervisor when requested", async () => {
     const launched: Array<{ agent: string; prompt: string; description: string }> = []
     const tools = createRepublicTools({ directory } as PluginInput, {
