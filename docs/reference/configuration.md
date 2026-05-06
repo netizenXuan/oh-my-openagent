@@ -630,6 +630,13 @@ Configure the deliberative multi-agent workflow and ledger:
     "contracts": {
       "enabled": true
     },
+    "weak_model_guardrails": {
+      "enabled": true,
+      "labeled_context": true,
+      "require_context_before_edit": true,
+      "require_explicit_context_read": false,
+      "pre_edit_context_gate": "advisory"
+    },
     "scheduler": {
       "enabled": true,
       "auto_dispatch": true,
@@ -667,6 +674,11 @@ Configure the deliberative multi-agent workflow and ledger:
 | `dependency_gate.mode`                   | `"advisory"` | `"advisory"` warns and records; `"block"` blocks only when `republic.mode` is `"governed"` |
 | `dependency_gate.cross_module_threshold` | `2`          | Number of inferred modules that triggers the dependency gate                 |
 | `contracts.enabled`                      | `true`       | Enable workgroup contract storage under `.git/omo/republic/contracts/`      |
+| `weak_model_guardrails.enabled`          | `true`       | Enable short labeled constraints and pre-edit Republic context checks for weaker models |
+| `weak_model_guardrails.labeled_context`  | `true`       | Prefer extractable labels such as `hard_dependency_rule` in Republic prompts and inboxes |
+| `weak_model_guardrails.require_context_before_edit` | `true` | Require locked execution contracts or Republic context before mutating tools proceed |
+| `weak_model_guardrails.require_explicit_context_read` | `false` | Require an explicit `republic_inbox` or `republic_team_status` read instead of accepting injected context |
+| `weak_model_guardrails.pre_edit_context_gate` | `"advisory"` | `"advisory"` records and warns; `"block"` blocks only when `republic.mode` is `"governed"` |
 | `scheduler.enabled`                      | `true`       | Enable active dispatch for targeted Commons messages                         |
 | `scheduler.auto_dispatch`                | `true`       | Launch a background response seat when a targeted dispatchable message is published |
 | `scheduler.message_types`                | see example  | Message types that trigger dispatch: `question`, `handoff`, `objection`     |
@@ -677,7 +689,7 @@ Configure the deliberative multi-agent workflow and ledger:
 
 Deliberation ledgers live under the Git common dir at `.git/omo/republic/ledger.jsonl`. Agent-to-agent Commons messages live beside them at `.git/omo/republic/commons.jsonl`, so parallel seats can publish proposals, questions, objections, answers, revisions, handoffs, status updates, dependency-gate events, and supervisor interventions without dirtying the worktree. Persistent team state lives under `.git/omo/republic/team/` with `manifest.json`, `phase.json`, and per-seat `state.json` / `memory.md`. Per-seat working docs live at `.git/omo/republic/agents/<seat-id>.md`; workgroup contracts live at `.git/omo/republic/contracts/<workgroup-id>.md`. Tool-caused dirty Git changes are audited separately at `.git/omo/native-git/audit.jsonl`. Use `/republic-status` or `oh-my-opencode republic status` to combine these views.
 
-The interactive Republic tools are `republic_team_init`, `republic_team_status`, `republic_seat_update`, `republic_phase_update`, `republic_round_start`, `republic_publish`, `republic_inbox`, `republic_wait`, and `republic_contract`. They are available to agents as normal tools and store their records under the Git common dir. `republic_team_init` can allocate seats automatically from task goals/files, by user-provided counts, or from explicit config. `republic_round_start` actively launches selected seats for a planning, execution, review, or idle round while respecting `team.max_parallel_seats`. `republic_seat_update` records each seat's current running/waiting/blocked/done status, blockers, task metadata, and durable memory; `republic_team_status` reads that state back for supervisor review and dashboard views. `republic_phase_update` records planning/execution/review transitions and can lock contracts or blockers into `phase.json`. When the scheduler is enabled, targeted `question`, `handoff`, and `objection` messages also create background response sessions for the target seat and write `channel: "scheduler"` dispatch records. The sender can call `republic_wait` on the published `message_id` to wait for a referenced response. Objections and messages marked `blocked` or `review-required` additionally create supervisor review dispatch records. Dispatch validates the preferred agent against the current OpenCode runtime registry; when the preferred OMO role is unavailable, OMO falls back to an available runtime agent such as `general` and records the requested role in the prompt/output.
+The interactive Republic tools are `republic_team_init`, `republic_team_status`, `republic_seat_update`, `republic_phase_update`, `republic_round_start`, `republic_publish`, `republic_inbox`, `republic_wait`, and `republic_contract`. They are available to agents as normal tools and store their records under the Git common dir. `republic_team_init` can allocate seats automatically from task goals/files, by user-provided counts, or from explicit config. `republic_round_start` actively launches selected seats for a planning, execution, review, or idle round while respecting `team.max_parallel_seats`. `republic_seat_update` records each seat's current running/waiting/blocked/done status, blockers, task metadata, and durable memory; `republic_team_status` reads that state back for supervisor review and dashboard views. `republic_phase_update` records planning/execution/review transitions and can lock contracts or blockers into `phase.json`. When the scheduler is enabled, targeted `question`, `handoff`, and `objection` messages also create background response sessions for the target seat and write `channel: "scheduler"` dispatch records. The sender can call `republic_wait` on the published `message_id` to wait for a referenced response. Objections and messages marked `blocked` or `review-required` additionally create supervisor review dispatch records. Weak-model guardrails add deterministic enforcement around this loop: execution-phase writes with locked contracts require either injected Republic context or, when configured, an explicit `republic_inbox` / `republic_team_status` read before mutating tools are allowed. Dispatch validates the preferred agent against the current OpenCode runtime registry; when the preferred OMO role is unavailable, OMO falls back to an available runtime agent such as `general` and records the requested role in the prompt/output.
 
 ### Git Master
 

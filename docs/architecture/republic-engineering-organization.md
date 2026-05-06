@@ -135,9 +135,10 @@ This graph is intentionally close to a future visual editor. A later UI can let 
    - automatic Commons publication from native-git changes
    - automatic supervisor intervention records
    - advisory dependency gate for cross-workgroup writes
-   - interactive Commons inbox, per-seat docs, policy-loop prompts, and workgroup contracts
+   - interactive Commons inbox, per-seat docs, policy-loop prompts, workgroup contracts, and weak-model context warnings
 2. Governed execution:
    - hard dependency gate for cross-workgroup explicit write tools
+   - hard pre-edit Republic context gate for locked execution contracts
    - enforce supervisor approval before high-risk execution
    - require explicit dependency acknowledgements before dependent modules proceed
 3. Worktree isolation:
@@ -159,4 +160,4 @@ The first OpenCode smoke pass used `kimi-for-coding/k2p6` with a local plugin pa
 - Prometheus remains constrained to planning files under `.sisyphus/`, and its allowed plan write is still audited.
 - The dashboard can render native-git audit records into agent, tool, file, and module nodes even before a Republic ledger exists.
 
-The current layer has moved from recording into first-stage collaborative governance: automatic Commons publication, supervisor intervention, dependency gates, interactive inbox messages, per-seat docs, policy-loop records, prompt injection, and workgroup contracts are live. It is still not a complete engineering operating system; per-workgroup worktrees, merge orchestration, strict dependency acknowledgement enforcement, and true live multi-agent streaming remain next-stage work.
+The current layer has moved from recording into first-stage collaborative governance: automatic Commons publication, supervisor intervention, dependency gates, interactive inbox messages, per-seat docs, policy-loop records, prompt injection, workgroup contracts, and weak-model context gates are live. The weak-model lesson from Ling and Hy3 testing is now encoded as product behavior: critical constraints use extractable labels, and mutating tools can be warned or blocked until the seat has received locked contract context. It is still not a complete engineering operating system; per-workgroup worktrees, merge orchestration, strict dependency acknowledgement enforcement beyond context reads, and true live multi-agent streaming remain next-stage work.

@@ -2,6 +2,7 @@ import { z } from "zod"
 
 export const RepublicModeSchema = z.enum(["manual", "advisory", "governed"])
 export const RepublicDependencyGateModeSchema = z.enum(["advisory", "block"])
+export const RepublicGuardrailGateModeSchema = z.enum(["advisory", "block"])
 export const RepublicSchedulerMessageTypeSchema = z.enum(["question", "handoff", "objection"])
 export const RepublicTeamModelSchema = z.enum(["single", "advisory", "parliament", "squad", "parliament_squad"])
 export const RepublicSeatAllocationSchema = z.enum(["auto", "count", "explicit"])
@@ -114,6 +115,20 @@ export const RepublicConfigSchema = z.object({
   }).default({
     enabled: true,
   }),
+  /** Guardrails that make Republic safer for cheaper or weaker models. */
+  weak_model_guardrails: z.object({
+    enabled: z.boolean().default(true),
+    labeled_context: z.boolean().default(true),
+    require_context_before_edit: z.boolean().default(true),
+    require_explicit_context_read: z.boolean().default(false),
+    pre_edit_context_gate: RepublicGuardrailGateModeSchema.default("advisory"),
+  }).default({
+    enabled: true,
+    labeled_context: true,
+    require_context_before_edit: true,
+    require_explicit_context_read: false,
+    pre_edit_context_gate: "advisory",
+  }),
   /** Actively dispatch targeted Commons messages to background seat sessions. */
   scheduler: z.object({
     enabled: z.boolean().default(true),
@@ -136,6 +151,7 @@ export const RepublicConfigSchema = z.object({
 
 export type RepublicMode = z.infer<typeof RepublicModeSchema>
 export type RepublicDependencyGateMode = z.infer<typeof RepublicDependencyGateModeSchema>
+export type RepublicGuardrailGateMode = z.infer<typeof RepublicGuardrailGateModeSchema>
 export type RepublicSchedulerMessageType = z.infer<typeof RepublicSchedulerMessageTypeSchema>
 export type RepublicTeamModel = z.infer<typeof RepublicTeamModelSchema>
 export type RepublicSeatAllocation = z.infer<typeof RepublicSeatAllocationSchema>

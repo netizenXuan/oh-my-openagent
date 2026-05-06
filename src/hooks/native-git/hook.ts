@@ -23,6 +23,8 @@ import { getMainSessionID, getSessionAgent } from "../../features/claude-code-se
 import { getAgentConfigKey } from "../../shared/agent-display-names"
 
 const TRACKED_TOOLS = new Set(["write", "edit", "multiedit", "apply_patch", "hashline_edit", "bash", "task"])
+const MUTATING_TOOLS = new Set(["write", "edit", "multiedit", "apply_patch", "hashline_edit", "bash"])
+const REPUBLIC_CONTEXT_READ_TOOLS = new Set(["republic_inbox", "republic_team_status"])
 
 type NativeGitToolInput = {
   tool: string
@@ -214,6 +216,24 @@ ${files.map((file) => `- ${file}`).join("\n")}
 </system-reminder>`
 }
 
+function buildRepublicContextGateMessage(args: {
+  blocked: boolean
+  tool: string
+  lockedContracts: string[]
+  explicitRequired: boolean
+}): string {
+  return `
+<system-reminder>
+Republic weak-model guardrail ${args.blocked ? "blocked" : "recorded"} this ${args.tool} call before execution.
+
+locked_contracts: ${args.lockedContracts.join(", ")}
+context_required: ${args.explicitRequired ? "explicit republic_inbox or republic_team_status read" : "injected Republic context or explicit republic_inbox/republic_team_status read"}
+hard_dependency_rule: ${REPUBLIC_HARD_DEPENDENCY_RULE}
+
+Read republic_inbox or republic_team_status for this seat before editing against locked contracts.
+</system-reminder>`
+}
+
 function getStringArray(value: unknown): string[] {
   if (typeof value === "string" && value.length > 0) {
     return [value]
@@ -240,18 +260,22 @@ function formatConstrainedOperatingChecklist(args: {
   phase?: string
   workgroupID?: string
   module?: string
+  labeledContext?: boolean
 }): string[] {
   const scope = [
     args.workgroupID ? `workgroup=${args.workgroupID}` : undefined,
     args.module ? `module=${args.module}` : undefined,
   ].filter((part): part is string => typeof part === "string")
   const execution = args.phase === "execution"
+  const dependencyRule = args.labeledContext === false
+    ? `- ${REPUBLIC_HARD_DEPENDENCY_RULE}`
+    : `- hard_dependency_rule: ${REPUBLIC_HARD_DEPENDENCY_RULE}`
   return [
     "operating_checklist:",
     scope.length ? `- Treat this seat scope as authoritative: ${scope.join(", ")}.` : "- Treat the current seat scope as authoritative.",
     "- Work in one bounded step at a time; if the next step is unclear, publish a targeted question before editing.",
     "- Do not invent substitute field names, status values, file paths, or environment variables when the objective or contracts already name them.",
-    `- hard_dependency_rule: ${REPUBLIC_HARD_DEPENDENCY_RULE}`,
+    dependencyRule,
     execution
       ? "- Keep execution edits inside this seat's workgroup; if another workgroup is needed, publish a handoff or objection and stop."
       : "- Keep outputs in Republic tools during planning/review; do not modify project files from this phase.",
@@ -502,8 +526,10 @@ export function createNativeGitHook(
   const dependencyGateReminderCallKeys = new Set<string>()
   const supervisorReminderCallKeys = new Set<string>()
   const taskReminderCallKeys = new Set<string>()
+  const republicGuardrailPublishedCallKeys = new Set<string>()
   const initialStatusByRepo = new Map<string, string>()
   const sessionContextBySession = new Map<string, NativeGitSessionContext>()
+  const republicContextBySession = new Map<string, { key: string; explicit: boolean }>()
   const policyLoopStatusBySession = new Map<string, string>()
 
   const initialStatus = mode === "manual" ? null : getNativeGitStatus(ctx.directory)
@@ -515,6 +541,7 @@ export function createNativeGitHook(
     dirtyStateBySession.delete(sessionID)
     lastToastStatusBySession.delete(sessionID)
     sessionContextBySession.delete(sessionID)
+    republicContextBySession.delete(sessionID)
     policyLoopStatusBySession.delete(sessionID)
     deleteSessionMapEntries(lastStatusBySessionRepo, sessionID)
     deleteSessionMapEntries(baselineByCall, sessionID)
@@ -529,6 +556,7 @@ export function createNativeGitHook(
       dependencyGateReminderCallKeys,
       supervisorReminderCallKeys,
       taskReminderCallKeys,
+      republicGuardrailPublishedCallKeys,
     ]) {
       for (const key of set) {
         if (key.startsWith(`${sessionID}:`)) {
@@ -547,6 +575,64 @@ export function createNativeGitHook(
       category: input.category ?? previous?.category,
       requestedPaths: requestedPaths.length > 0 ? requestedPaths : previous?.requestedPaths,
     })
+  }
+
+  function getRepublicContextKey(repository: NativeGitRepository): string | undefined {
+    const phase = readRepublicTeamPhase(repository)
+    if (phase?.phase !== "execution" || (phase.lockedContracts?.length ?? 0) === 0) {
+      return undefined
+    }
+
+    return [
+      repository.repoRoot,
+      phase.deliberationID ?? "unknown",
+      phase.phase,
+      phase.status,
+      ...(phase.lockedContracts ?? []),
+    ].join(":")
+  }
+
+  function markRepublicContextReceived(
+    sessionID: string | undefined,
+    repository: NativeGitRepository,
+    explicit: boolean,
+  ): void {
+    if (!sessionID) {
+      return
+    }
+
+    const contextKey = getRepublicContextKey(repository)
+    if (!contextKey) {
+      return
+    }
+
+    const current = republicContextBySession.get(sessionID)
+    republicContextBySession.set(sessionID, {
+      key: contextKey,
+      explicit: explicit || current?.explicit === true,
+    })
+  }
+
+  function hasRequiredRepublicContext(sessionID: string | undefined, repository: NativeGitRepository): boolean {
+    if (!sessionID) {
+      return false
+    }
+
+    const contextKey = getRepublicContextKey(repository)
+    if (!contextKey) {
+      return true
+    }
+
+    const current = republicContextBySession.get(sessionID)
+    if (current?.key !== contextKey) {
+      return false
+    }
+
+    if (republicConfig?.weak_model_guardrails?.require_explicit_context_read ?? false) {
+      return current.explicit
+    }
+
+    return true
   }
 
   function enrichToolInput(input: NativeGitToolInput): NativeGitToolInput {
@@ -640,6 +726,7 @@ export function createNativeGitHook(
         phase: phase?.phase ?? definition?.phase ?? state?.phase,
         workgroupID: state?.workgroupID ?? definition?.workgroupID,
         module: state?.module ?? definition?.module,
+        labeledContext: republicConfig?.weak_model_guardrails?.labeled_context ?? true,
       }),
       lockedContractLines.length ? "" : undefined,
       lockedContractLines.length ? "locked_contract_excerpts:" : undefined,
@@ -704,6 +791,10 @@ export function createNativeGitHook(
 
     const context = buildRepublicChatContext(input)
     if (context) {
+      const status = getNativeGitStatus(ctx.directory)
+      if (status) {
+        markRepublicContextReceived(input.sessionID, status.repository, false)
+      }
       prependChatContext(output, context)
     }
   }
@@ -761,6 +852,11 @@ export function createNativeGitHook(
     })
     if (!context) {
       return
+    }
+
+    const status = getNativeGitStatus(ctx.directory)
+    if (status) {
+      markRepublicContextReceived(sessionID, status.repository, false)
     }
 
     const textPartIndex = lastUserMessage.parts.findIndex(
@@ -1135,6 +1231,122 @@ export function createNativeGitHook(
     appendBeforeMessage(output, message)
   }
 
+  function recordRepublicContextGate(
+    repository: NativeGitRepository,
+    input: NativeGitToolInput,
+    files: string[],
+    lockedContracts: string[],
+    blocked: boolean,
+  ): void {
+    const callKey = getCallKey(input)
+    if (callKey && republicGuardrailPublishedCallKeys.has(callKey)) {
+      return
+    }
+
+    const phase = readRepublicTeamPhase(repository)
+    const deliberationID = phase?.deliberationID ?? getDeliberationID(input)
+    const moduleName = getPrimaryModule(files)
+    const workgroupID = getWorkgroupID(moduleName)
+    const targetSeatID = getSeatID(input)
+    const summary = [
+      `Republic weak-model guardrail ${blocked ? "blocked" : "recorded"} ${input.tool} before execution because locked contracts exist but the session has not received the required contract context.`,
+      `locked_contracts: ${lockedContracts.join(", ")}`,
+      `hard_dependency_rule: ${REPUBLIC_HARD_DEPENDENCY_RULE}`,
+    ].join("\n")
+
+    appendRepublicCommonsMessage(repository, {
+      deliberationID,
+      channel: "guardrail",
+      phase: "preflight",
+      authorSeatID: "weak-model-guardrail",
+      authorAgent: "republic-supervisor",
+      authorRole: "supervisor",
+      targetSeatID,
+      workgroupID,
+      module: moduleName,
+      supervisorSeatID: "republic-supervisor",
+      status: blocked ? "blocked" : "review-required",
+      messageType: "supervisor-policy",
+      files,
+      content: summary,
+    })
+
+    appendRepublicLedgerRecord(repository, {
+      deliberationID,
+      phase: "preflight",
+      chamber: "supervisor",
+      seatID: "weak-model-guardrail",
+      role: "supervisor",
+      agent: "republic-supervisor",
+      sessionID: input.sessionID,
+      callID: input.callID,
+      workgroupID,
+      module: moduleName,
+      supervisorSeatID: "republic-supervisor",
+      status: blocked ? "blocked" : "review-required",
+      files,
+      summary,
+    })
+
+    if (callKey) {
+      republicGuardrailPublishedCallKeys.add(callKey)
+    }
+  }
+
+  function isMutatingToolCall(input: NativeGitToolInput, args: Record<string, unknown>): boolean {
+    const tool = input.tool.toLowerCase()
+    if (!MUTATING_TOOLS.has(tool)) {
+      return false
+    }
+
+    if (tool === "bash") {
+      const command = typeof args.command === "string" ? args.command : ""
+      return isBashMutationCommand(command)
+    }
+
+    return true
+  }
+
+  function evaluateRepublicContextGate(
+    input: NativeGitToolInput,
+    output: { args: Record<string, unknown>; message?: string },
+  ): void {
+    const guardrails = republicConfig?.weak_model_guardrails
+    if (
+      mode === "manual" ||
+      !isRepublicLedgerEnabled(republicConfig) ||
+      guardrails?.enabled === false ||
+      guardrails?.require_context_before_edit === false ||
+      !isMutatingToolCall(input, output.args)
+    ) {
+      return
+    }
+
+    const status = getNativeGitStatus(ctx.directory)
+    const phase = status ? readRepublicTeamPhase(status.repository) : undefined
+    const lockedContracts = phase?.phase === "execution" ? phase.lockedContracts ?? [] : []
+    if (!status || lockedContracts.length === 0 || hasRequiredRepublicContext(input.sessionID, status.repository)) {
+      return
+    }
+
+    const blocked = (republicConfig?.mode ?? "advisory") === "governed"
+      && (guardrails?.pre_edit_context_gate ?? "advisory") === "block"
+    const files = getToolTargetPaths(input.tool, output.args)
+    recordRepublicContextGate(status.repository, input, files, lockedContracts, blocked)
+
+    const message = buildRepublicContextGateMessage({
+      blocked,
+      tool: input.tool,
+      lockedContracts,
+      explicitRequired: guardrails?.require_explicit_context_read ?? false,
+    })
+    if (blocked) {
+      throw new Error(message.replace(/<\/?system-reminder>/g, "").trim())
+    }
+
+    appendBeforeMessage(output, message)
+  }
+
   function publishPostChangeDependencyGate(input: NativeGitToolInput, files: string[]): string | undefined {
     if (mode === "manual" || !isRepublicLedgerEnabled(republicConfig) || !(republicConfig?.dependency_gate?.enabled ?? true)) {
       return undefined
@@ -1365,7 +1577,9 @@ export function createNativeGitHook(
       input: { tool: string; sessionID: string; callID: string },
       output: { args: Record<string, unknown>; message?: string },
     ): Promise<void> => {
-      evaluateDependencyGate(enrichToolInput(input), output)
+      const enrichedInput = enrichToolInput(input)
+      evaluateRepublicContextGate(enrichedInput, output)
+      evaluateDependencyGate(enrichedInput, output)
     },
     event: async (input: NativeGitEventInput): Promise<void> => {
       if (mode === "manual") {
@@ -1413,6 +1627,14 @@ export function createNativeGitHook(
       }
 
       const tool = input.tool.toLowerCase()
+      if (REPUBLIC_CONTEXT_READ_TOOLS.has(tool)) {
+        const status = getNativeGitStatus(ctx.directory)
+        if (status) {
+          markRepublicContextReceived(input.sessionID, status.repository, true)
+        }
+        return
+      }
+
       if (!TRACKED_TOOLS.has(tool)) {
         return
       }

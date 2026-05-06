@@ -6028,6 +6028,13 @@
         "contracts": {
           "enabled": true
         },
+        "weak_model_guardrails": {
+          "enabled": true,
+          "labeled_context": true,
+          "require_context_before_edit": true,
+          "require_explicit_context_read": false,
+          "pre_edit_context_gate": "advisory"
+        },
         "scheduler": {
           "enabled": true,
           "auto_dispatch": true,
@@ -6400,6 +6407,50 @@
           ],
           "additionalProperties": false
         },
+        "weak_model_guardrails": {
+          "default": {
+            "enabled": true,
+            "labeled_context": true,
+            "require_context_before_edit": true,
+            "require_explicit_context_read": false,
+            "pre_edit_context_gate": "advisory"
+          },
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "type": "boolean"
+            },
+            "labeled_context": {
+              "default": true,
+              "type": "boolean"
+            },
+            "require_context_before_edit": {
+              "default": true,
+              "type": "boolean"
+            },
+            "require_explicit_context_read": {
+              "default": false,
+              "type": "boolean"
+            },
+            "pre_edit_context_gate": {
+              "default": "advisory",
+              "type": "string",
+              "enum": [
+                "advisory",
+                "block"
+              ]
+            }
+          },
+          "required": [
+            "enabled",
+            "labeled_context",
+            "require_context_before_edit",
+            "require_explicit_context_read",
+            "pre_edit_context_gate"
+          ],
+          "additionalProperties": false
+        },
         "scheduler": {
           "default": {
             "enabled": true,
@@ -6499,6 +6550,7 @@
         "supervisor",
         "dependency_gate",
         "contracts",
+        "weak_model_guardrails",
         "scheduler"
       ],
       "additionalProperties": false

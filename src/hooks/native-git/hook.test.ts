@@ -630,6 +630,183 @@ describe("native git hook", () => {
     expect(git(directory, ["status", "--porcelain"])).toBe("")
   })
 
+  test("weak model guardrail records advisory pre-edit when locked contracts were not received", async () => {
+    const hook = createNativeGitHook(
+      { directory } as never,
+      { mode: "tracked", audit_log: true },
+      {
+        enabled: true,
+        mode: "advisory",
+        ledger: true,
+        weak_model_guardrails: {
+          enabled: true,
+          labeled_context: true,
+          require_context_before_edit: true,
+          require_explicit_context_read: false,
+          pre_edit_context_gate: "advisory",
+        },
+      } as never,
+    )
+    const repository = getNativeGitRepository(directory)!
+    initializeRepublicTeam(repository, {
+      manifest: {
+        teamModel: "parliament_squad",
+        seatAllocation: "auto",
+        maxParallelSeats: 4,
+        defaultRuntimeAgent: "general",
+        seats: [
+          {
+            seatID: "sisyphus-executor",
+            role: "executor",
+            phase: "execution",
+            workgroupID: "wg-src-api",
+            module: "src/api",
+            runtimeAgent: "sisyphus",
+          },
+        ],
+      },
+      phase: {
+        phase: "execution",
+        status: "in-progress",
+        deliberationID: "order-guard",
+        lockedContracts: ["wg-src-api"],
+      },
+    })
+
+    const output = { args: { filePath: "src/api/orders.ts" }, message: undefined as string | undefined }
+    await hook["tool.execute.before"]?.({ tool: "write", sessionID: "ses_guard", callID: "call_guard" }, output)
+
+    expect(output.message).toContain("Republic weak-model guardrail recorded")
+    expect(output.message).toContain("hard_dependency_rule")
+    const commons = readRepublicCommonsMessages(repository, "order-guard")
+    expect(commons[0]?.channel).toBe("guardrail")
+    expect(commons[0]?.messageType).toBe("supervisor-policy")
+    expect(commons[0]?.status).toBe("review-required")
+    expect(commons[0]?.files).toEqual(["src/api/orders.ts"])
+  })
+
+  test("weak model guardrail accepts injected republic context before edits", async () => {
+    const hook = createNativeGitHook(
+      { directory } as never,
+      { mode: "tracked", audit_log: true },
+      {
+        enabled: true,
+        mode: "advisory",
+        ledger: true,
+        commons: {
+          auto_publish: true,
+          inbox: true,
+          inject_max_messages: 4,
+          agent_docs: true,
+        },
+        weak_model_guardrails: {
+          enabled: true,
+          labeled_context: true,
+          require_context_before_edit: true,
+          require_explicit_context_read: false,
+          pre_edit_context_gate: "advisory",
+        },
+      } as never,
+    )
+    const repository = getNativeGitRepository(directory)!
+    initializeRepublicTeam(repository, {
+      manifest: {
+        teamModel: "parliament_squad",
+        seatAllocation: "auto",
+        maxParallelSeats: 4,
+        defaultRuntimeAgent: "general",
+        seats: [
+          {
+            seatID: "sisyphus-executor",
+            role: "executor",
+            phase: "execution",
+            workgroupID: "wg-src-api",
+            module: "src/api",
+            runtimeAgent: "sisyphus",
+          },
+        ],
+      },
+      phase: {
+        phase: "execution",
+        status: "in-progress",
+        deliberationID: "order-context",
+        lockedContracts: ["wg-src-api"],
+      },
+    })
+
+    await hook["chat.message"]?.({
+      sessionID: "ses_context_gate",
+      agent: "sisyphus",
+      promptText: "Continue src/api/orders.ts",
+    }, { parts: [{ type: "text", text: "Continue src/api/orders.ts" }] })
+    const output = { args: { filePath: "src/api/orders.ts" }, message: undefined as string | undefined }
+    await hook["tool.execute.before"]?.({ tool: "write", sessionID: "ses_context_gate", callID: "call_context_gate" }, output)
+
+    expect(output.message).toBeUndefined()
+    expect(readRepublicCommonsMessages(repository, "order-context")).toEqual([])
+  })
+
+  test("weak model guardrail can require explicit inbox or team status read in governed block mode", async () => {
+    const hook = createNativeGitHook(
+      { directory } as never,
+      { mode: "tracked", audit_log: true },
+      {
+        enabled: true,
+        mode: "governed",
+        ledger: true,
+        weak_model_guardrails: {
+          enabled: true,
+          labeled_context: true,
+          require_context_before_edit: true,
+          require_explicit_context_read: true,
+          pre_edit_context_gate: "block",
+        },
+      } as never,
+    )
+    const repository = getNativeGitRepository(directory)!
+    initializeRepublicTeam(repository, {
+      manifest: {
+        teamModel: "parliament_squad",
+        seatAllocation: "auto",
+        maxParallelSeats: 4,
+        defaultRuntimeAgent: "general",
+        seats: [
+          {
+            seatID: "sisyphus-executor",
+            role: "executor",
+            phase: "execution",
+            workgroupID: "wg-src-api",
+            module: "src/api",
+            runtimeAgent: "sisyphus",
+          },
+        ],
+      },
+      phase: {
+        phase: "execution",
+        status: "in-progress",
+        deliberationID: "order-explicit",
+        lockedContracts: ["wg-src-api"],
+      },
+    })
+
+    await expect(hook["tool.execute.before"]?.(
+      { tool: "write", sessionID: "ses_explicit", callID: "call_blocked" },
+      { args: { filePath: "src/api/orders.ts" } },
+    )).rejects.toThrow("Republic weak-model guardrail blocked")
+
+    await hook["tool.execute.after"]?.(
+      { tool: "republic_inbox", sessionID: "ses_explicit", callID: "call_inbox" },
+      { output: "read inbox", metadata: {} },
+    )
+    const output = { args: { filePath: "src/api/orders.ts" }, message: undefined as string | undefined }
+    await hook["tool.execute.before"]?.(
+      { tool: "write", sessionID: "ses_explicit", callID: "call_allowed" },
+      output,
+    )
+
+    expect(output.message).toBeUndefined()
+  })
+
   test("dependency gate blocks in governed block mode", async () => {
     const hook = createNativeGitHook(
       { directory } as never,

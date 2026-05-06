@@ -150,6 +150,15 @@ Results:
 
 This is the main weak-model lesson: cheap models should not be governed only by prose. They need short, labeled, repeated constraints plus deterministic tool-level gates.
 
+The lesson has now been implemented as a first-class guardrail profile:
+
+- Republic prompts expose the dependency rule with a stable `hard_dependency_rule` label.
+- `weak_model_guardrails.labeled_context` is enabled by default so critical constraints remain easy to extract.
+- `weak_model_guardrails.require_context_before_edit` is enabled by default so execution-phase writes with locked contracts require Republic context before mutating tools proceed.
+- Advisory mode records a `channel: "guardrail"` / `messageType: "supervisor-policy"` Commons entry when a seat starts editing before receiving the locked execution context.
+- Governed mode can hard-block the same case with `weak_model_guardrails.pre_edit_context_gate: "block"`.
+- `weak_model_guardrails.require_explicit_context_read: true` can require a real `republic_inbox` or `republic_team_status` call instead of accepting injected context.
+
 ## Interpretation
 
 The current Republic design is already distinct from ordinary multi-agent delegation because the collaboration record, contracts, audit log, and seat state all live under the Git common dir. The more important finding is that this approach is especially suited to weaker models. Instead of trusting a weak model to remember everything, the system repeatedly exposes the same hard boundaries through contracts, inboxes, and supervisor checks.
@@ -160,6 +169,6 @@ This does not yet prove autonomous "always correct" collaboration. It does show 
 
 1. Add a persistent scheduler/orchestrator daemon so targeted questions can wake the right seat without relying on the parent CLI session staying alive.
 2. Add a model capability gate that tests tool-call compliance before assigning a model to Republic work.
-3. Upgrade dependency gates from advisory to hard block in governed mode.
-4. Add a contract-diff QA pass that checks public docs, tests, and implementation against locked contract terms.
-5. Add a weak-model guardrail profile that compresses injected Republic context into labeled fields, requires pre-edit contract acknowledgement, and fails closed on missing contract/inbox reads for governed execution.
+3. Add a contract-diff QA pass that checks public docs, tests, and implementation against locked contract terms.
+4. Add per-workgroup worktrees so each execution seat can commit, test, and merge through an isolated Git lane.
+5. Add a model capability gate that runs a short tool-call compliance smoke before assigning a model to governed Republic work.

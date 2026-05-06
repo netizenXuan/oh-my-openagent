@@ -130,6 +130,13 @@ export const OhMyOpenCodeConfigSchema = z.object({
     contracts: {
       enabled: true,
     },
+    weak_model_guardrails: {
+      enabled: true,
+      labeled_context: true,
+      require_context_before_edit: true,
+      require_explicit_context_read: false,
+      pre_edit_context_gate: "advisory",
+    },
     scheduler: {
       enabled: true,
       auto_dispatch: true,

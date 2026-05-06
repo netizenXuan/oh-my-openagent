@@ -50,6 +50,8 @@ const SEAT_ALLOCATIONS = ["auto", "count", "explicit"] as const
 const TEAM_PHASES = ["planning", "execution", "review", "idle"] as const
 const TEAM_STATUSES = ["planned", "in-progress", "blocked", "review", "done"] as const
 const SEAT_STATUSES = ["standby", "running", "waiting", "blocked", "done", "error"] as const
+const REPUBLIC_HARD_DEPENDENCY_RULE =
+  "Do not create or update dependencies, lockfiles, generated scripts, global config, or helper files unless the objective or a locked contract explicitly names them."
 
 type ToolContextLike = {
   sessionID?: string
@@ -180,18 +182,22 @@ function readLockedContractContexts(
 function buildConstrainedOperatingRules(args: {
   phase: typeof TEAM_PHASES[number]
   seat?: RepublicTeamSeatDefinition
+  labeledContext?: boolean
 }): string[] {
   const { phase, seat } = args
   const scope = [
     seat?.workgroupID ? `workgroup=${seat.workgroupID}` : undefined,
     seat?.module ? `module=${seat.module}` : undefined,
   ].filter((part): part is string => typeof part === "string")
+  const dependencyRule = args.labeledContext === false
+    ? `4. ${REPUBLIC_HARD_DEPENDENCY_RULE}`
+    : `4. hard_dependency_rule: ${REPUBLIC_HARD_DEPENDENCY_RULE}`
   return [
     "Constrained operating rules:",
     scope.length ? `1. Treat this seat scope as authoritative: ${scope.join(", ")}.` : "1. Treat the current seat scope as authoritative.",
     "2. Work in one bounded step at a time; if the next step is unclear, publish a targeted question before editing.",
     "3. Do not invent substitute field names, status values, file paths, or environment variables when the objective or contracts already name them.",
-    "4. Do not create or update dependencies, lockfiles, generated scripts, global config, or helper files unless the objective or a locked contract explicitly names them.",
+    dependencyRule,
     phase === "execution"
       ? "5. Before execution edits, keep the intended file set inside this seat's workgroup; if another workgroup is needed, publish a handoff or objection and stop."
       : "5. Keep outputs in Republic tools during planning/review; do not modify project files from this phase.",
@@ -416,8 +422,9 @@ function buildRoundPrompt(args: {
   lockedContractContext: LockedContractContext[]
   requestedAgent: string
   runtimeAgent: string
+  labeledContext: boolean
 }): string {
-  const { seat, phase, deliberationID, goal, round, lockedContracts, blockedBy, lockedContractContext, requestedAgent, runtimeAgent } = args
+  const { seat, phase, deliberationID, goal, round, lockedContracts, blockedBy, lockedContractContext, requestedAgent, runtimeAgent, labeledContext } = args
   const allowedEdit = phase === "execution"
   const contractLines = lockedContractContext.flatMap((contract) => [
     `### ${contract.id}`,
@@ -452,7 +459,7 @@ function buildRoundPrompt(args: {
     "3. If you need a new name or shape not present in the objective/contracts, publish it as a proposal or targeted question; do not lock it as consensus silently.",
     "4. Before writing or revising a contract, quote the exact objective/contract terms that justify it.",
     "",
-    ...buildConstrainedOperatingRules({ phase, seat }),
+    ...buildConstrainedOperatingRules({ phase, seat, labeledContext }),
     "",
     "Protocol:",
     `1. Call republic_seat_update(seat_id="${seat.seatID}", status="running", phase="${phase}", deliberation_id="${deliberationID}", memory="...") when you start.`,
@@ -1175,6 +1182,7 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
           lockedContractContext,
           requestedAgent: dispatchAgent.requestedAgent,
           runtimeAgent: dispatchAgent.runtimeAgent,
+          labeledContext: options.config?.weak_model_guardrails?.labeled_context ?? true,
         })
         const task = await options.manager!.launch({
           description: `Republic ${phase} round ${round}: ${seat.seatID}`,
@@ -1390,6 +1398,7 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
           parts.push("", "## Operating Checklist", buildConstrainedOperatingRules({
             phase: phase?.phase ?? teamSeat.phase ?? "idle",
             seat: teamSeat,
+            labeledContext: options.config?.weak_model_guardrails?.labeled_context ?? true,
           }).join("\n"))
         }
       }
