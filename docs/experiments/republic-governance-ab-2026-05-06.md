@@ -396,8 +396,16 @@ bun src\cli\index.ts republic contract-check --directory D:\OMO\republic-hard-tr
 
 `republic doctor` gives the machine-readable health view before assigning work to cheap seats: repository state, ledger, Commons, scheduler queue, and contract warning state. `contract-check` then turns the dashboard's contract traceability into a CI-style pass/fail command. It is designed for the hidden-QA lesson from the hard fulfillment run: public tests can pass while a model drifts on exact error taxonomy or field names, so the locked contract needs a deterministic hard-term check before the result is treated as product-ready.
 
+Per-workgroup worktree planning is now also scriptable:
+
+```powershell
+bun src\cli\index.ts republic worktrees --directory D:\OMO\republic-hard-treatment-kimi-20260506 --deliberation-id hard-returns
+```
+
+The command reads the Republic team manifest and produces one branch/worktree lane per distinct workgroup. `--create` performs the `git worktree add` step, but defaults to clean-root enforcement so the root repository is not split into branches while user or agent changes are still uncommitted.
+
 ## Next Steps
 
 1. Add a persistent scheduler/orchestrator daemon loop on top of the new `republic scheduler` queue consumer, so queued target seats can be woken repeatedly without a manual command.
-2. Add per-workgroup worktrees so each execution seat can commit, test, and merge through an isolated Git lane.
+2. Add supervisor merge/review orchestration for per-workgroup worktree branches.
 3. Extend the benchmark report into a full benchmark harness that runs single-agent, advisory Republic, and governed Republic variants against the same project tasks.

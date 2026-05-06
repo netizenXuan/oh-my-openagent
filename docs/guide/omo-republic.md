@@ -236,6 +236,16 @@ bunx oh-my-opencode republic contract-check --directory /path/to/repo --strict -
 
 `contract-check` is the scriptable form of dashboard contract traceability. Advisory mode reports missing governed files and uncovered hard terms. `--strict` exits non-zero when any contract warning is present, which makes it suitable for CI, benchmark acceptance, or a final reviewer seat. This is especially important for weaker models: a seat can write a convincing explanation while missing an exact field name, enum value, error code, or public API symbol.
 
+Plan or create isolated worktrees for each Republic workgroup:
+
+```bash
+bunx oh-my-opencode republic worktrees --directory /path/to/repo --deliberation-id order-system
+bunx oh-my-opencode republic worktrees --directory /path/to/repo --deliberation-id order-system --create
+bunx oh-my-opencode republic worktrees --directory /path/to/repo --deliberation-id order-system --create --root /tmp/order-system-worktrees
+```
+
+The worktree command reads the Republic team manifest and creates one branch/worktree lane per distinct `workgroupID`, for example `republic/order-system/api-workgroup`. It defaults to a plan-only mode. `--create` calls `git worktree add`, but only when the root worktree is clean unless `--allow-dirty` is explicitly set. This is the Git-native execution bridge for future parallel executor seats: each workgroup can run tests and commits in an isolated branch before supervisor merge or review.
+
 Open the dashboard from OpenCode:
 
 ```text

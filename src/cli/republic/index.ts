@@ -11,10 +11,36 @@ import { republicDashboard } from "./dashboard"
 import { republicDoctor } from "./doctor"
 import { republicScheduler } from "./scheduler"
 import { republicStatus } from "./status"
+import { republicWorktrees } from "./worktrees"
 
 export function createRepublicCommand(): Command {
   const command = new Command("republic")
     .description("Inspect OMO Republic deliberation and native Git audit state")
+
+  command
+    .command("worktrees")
+    .description("Plan or create per-workgroup Git worktrees")
+    .option("-d, --directory <path>", "Working directory to inspect")
+    .option("--deliberation-id <id>", "Deliberation id for generated branch and worktree paths")
+    .option("--base-ref <ref>", "Base ref for new worktree branches", "HEAD")
+    .option("--root <path>", "Root directory for generated worktrees")
+    .option("--create", "Create missing worktrees with git worktree add")
+    .option("--allow-dirty", "Allow creation even when the root worktree is dirty")
+    .option("-o, --output <path>", "Write the plan to a file instead of stdout")
+    .option("--json", "Output structured JSON")
+    .action(async (options) => {
+      const exitCode = await republicWorktrees({
+        directory: options.directory,
+        deliberationId: options.deliberationId,
+        baseRef: options.baseRef,
+        root: options.root,
+        create: options.create ?? false,
+        allowDirty: options.allowDirty ?? false,
+        output: options.output,
+        json: options.json ?? false,
+      })
+      process.exit(exitCode)
+    })
 
   command
     .command("doctor")
