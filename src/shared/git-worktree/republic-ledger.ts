@@ -380,10 +380,10 @@ export function appendRepublicSchedulerQueueRecord(
   mkdirSync(dirname(queuePath), { recursive: true })
   const timestamp = new Date().toISOString()
   const normalizedRecord = {
+    ...record,
     version: 1,
     timestamp,
     repoRoot: repository.repoRoot,
-    ...record,
     deliberationID: sanitizeRepublicDeliberationID(record.deliberationID),
     dispatchID: record.dispatchID ?? createRepublicDispatchID(record, timestamp),
   }

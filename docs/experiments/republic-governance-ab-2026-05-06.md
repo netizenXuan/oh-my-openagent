@@ -298,6 +298,28 @@ The current Republic design is already distinct from ordinary multi-agent delega
 
 This does not yet prove autonomous "always correct" collaboration. It does show a credible path: use cheap models for bounded seat work, use Commons for communication, use contracts for shared truth, and use deterministic checks plus supervisor intervention for recovery.
 
+## Scheduler Queue Smoke
+
+A focused CLI smoke verified the new external scheduler path without spending model quota:
+
+```text
+D:\OMO\republic-scheduler-smoke
+```
+
+Setup:
+
+1. Initialized a clean Git repository.
+2. Appended one queued scheduler dispatch for `docs-seat`.
+3. Ran `republic scheduler --write-prompts` to generate a wake prompt under `.git/omo/republic/scheduler/prompts/`.
+4. Ran `republic scheduler --command-template 'cmd /c type {prompt} > NUL'` to simulate an external host consuming that prompt.
+
+Observed result:
+
+- `queue.jsonl` retained the original `status: "queued"` record.
+- A second record with the same `dispatchID` and `status: "dispatched"` was appended.
+- The dispatched record had a fresh timestamp, `runtimeAgent: "sisyphus"`, and `taskID: "external:smoke-docs-seat-1"`.
+- `git status --short` remained clean because all scheduler records and prompts live under `.git/omo/republic`.
+
 ## Next Steps
 
 1. Add a persistent scheduler/orchestrator daemon loop on top of the new `republic scheduler` queue consumer, so queued target seats can be woken repeatedly without a manual command.

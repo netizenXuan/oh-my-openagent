@@ -278,6 +278,7 @@ describe("republic ledger", () => {
       summary: "Queue docs-seat for a response.",
     })
     appendRepublicSchedulerQueueRecord(repository!, {
+      timestamp: "2000-01-01T00:00:00.000Z",
       queueType: "seat-response",
       status: "dispatched",
       deliberationID: "agent republic",
@@ -299,6 +300,7 @@ describe("republic ledger", () => {
     expect(records).toHaveLength(2)
     expect(records[0]?.status).toBe("queued")
     expect(records[1]?.taskID).toBe("bg_1")
+    expect(records[1]?.timestamp).not.toBe("2000-01-01T00:00:00.000Z")
     expect(summary.recordCount).toBe(2)
     expect(summary.queued).toBe(1)
     expect(summary.dispatched).toBe(1)
