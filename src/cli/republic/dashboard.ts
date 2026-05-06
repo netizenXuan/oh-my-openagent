@@ -751,7 +751,6 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
     </aside>
   </main>
   <script>
-    const typeOrder = ["repository","deliberation","phase","chamber","workgroup","seat","agent","task","message","module","file","tool","decision"];
     const colors = { approved:"status-approved", blocked:"status-blocked", "needs-quorum":"status-needs-quorum", revise:"status-revise" };
     let currentData = null;
     let selectedSeatID = null;
