@@ -1,9 +1,11 @@
 import type { PluginInput } from "@opencode-ai/plugin"
+import { existsSync, readFileSync } from "node:fs"
 import type { NativeGitConfig, RepublicConfig } from "../../config"
 import {
   appendNativeGitAuditRecord,
   appendRepublicCommonsMessage,
   appendRepublicLedgerRecord,
+  getRepublicContractPath,
   getNativeGitChangeSummary,
   getNativeGitStatus,
   readRepublicCommonsMessages,
@@ -209,6 +211,36 @@ function tailText(value: string, maxChars: number): string {
     return value
   }
   return value.slice(value.length - maxChars)
+}
+
+function normalizeLockedContractID(contractID: string): string {
+  const normalized = contractID.replace(/\\/g, "/").split("/").pop() ?? contractID
+  return normalized.endsWith(".md") ? normalized.slice(0, -3) : normalized
+}
+
+function formatConstrainedOperatingChecklist(args: {
+  phase?: string
+  workgroupID?: string
+  module?: string
+}): string[] {
+  const scope = [
+    args.workgroupID ? `workgroup=${args.workgroupID}` : undefined,
+    args.module ? `module=${args.module}` : undefined,
+  ].filter((part): part is string => typeof part === "string")
+  const execution = args.phase === "execution"
+  return [
+    "operating_checklist:",
+    scope.length ? `- Treat this seat scope as authoritative: ${scope.join(", ")}.` : "- Treat the current seat scope as authoritative.",
+    "- Work in one bounded step at a time; if the next step is unclear, publish a targeted question before editing.",
+    "- Do not invent substitute field names, status values, file paths, or environment variables when the objective or contracts already name them.",
+    "- Do not create or update dependencies, lockfiles, generated scripts, global config, or helper files unless the objective or a locked contract explicitly names them.",
+    execution
+      ? "- Keep execution edits inside this seat's workgroup; if another workgroup is needed, publish a handoff or objection and stop."
+      : "- Keep outputs in Republic tools during planning/review; do not modify project files from this phase.",
+    execution
+      ? "- After execution edits, run the smallest relevant verification named by the objective/contracts and publish the result or blocker."
+      : "- Prefer concise proposals, questions, objections, revisions, or contracts that other seats can answer directly.",
+  ]
 }
 
 function isBashMutationCommand(command: string): boolean {
@@ -552,6 +584,17 @@ export function createNativeGitHook(
     const state = readRepublicSeatState(repository, seatID)
     const definition = manifest?.seats.find((seat) => seat.seatID === seatID)
     const memory = state || definition ? readRepublicSeatMemory(repository, seatID).trim() : ""
+    const lockedContractLines = (phase?.lockedContracts ?? []).slice(0, 5).flatMap((contractID) => {
+      const normalizedID = normalizeLockedContractID(contractID)
+      const contractPath = getRepublicContractPath(repository, normalizedID)
+      if (!existsSync(contractPath)) {
+        return [`- ${normalizedID}: missing at ${contractPath}`]
+      }
+      return [
+        `- ${normalizedID}: ${contractPath}`,
+        tailText(readFileSync(contractPath, "utf-8"), 1200),
+      ]
+    })
     const roster = manifest?.seats.slice(0, 12).map((seat) => {
       const seatState = readRepublicSeatState(repository, seat.seatID)
       return `- ${seat.seatID}: ${seat.role}${seat.phase ? `/${seat.phase}` : ""}${seat.workgroupID ? ` workgroup=${seat.workgroupID}` : ""}${seat.module ? ` module=${seat.module}` : ""}${seatState?.status ? ` status=${seatState.status}` : ""}`
@@ -573,6 +616,15 @@ export function createNativeGitHook(
       state?.module || definition?.module ? `module: ${state?.module ?? definition?.module}` : undefined,
       state?.taskID || definition?.taskID ? `task: ${state?.taskID ?? definition?.taskID}` : undefined,
       state?.waitingOn?.length ? `waiting_on: ${state.waitingOn.join(", ")}` : undefined,
+      "",
+      ...formatConstrainedOperatingChecklist({
+        phase: phase?.phase ?? definition?.phase ?? state?.phase,
+        workgroupID: state?.workgroupID ?? definition?.workgroupID,
+        module: state?.module ?? definition?.module,
+      }),
+      lockedContractLines.length ? "" : undefined,
+      lockedContractLines.length ? "locked_contract_excerpts:" : undefined,
+      ...lockedContractLines,
       memory ? "" : undefined,
       memory ? "memory_tail:" : undefined,
       memory ? tailText(memory, 1200) : undefined,

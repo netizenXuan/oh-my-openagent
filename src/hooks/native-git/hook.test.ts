@@ -13,6 +13,7 @@ import {
   initializeRepublicTeam,
   readRepublicCommonsMessages,
   readRepublicLedgerRecords,
+  writeRepublicContract,
   writeRepublicSeatState,
 } from "../../shared/git-worktree"
 import { createNativeGitHook, NATIVE_GIT_TASK_REMINDER } from "./hook"
@@ -240,6 +241,13 @@ describe("native git hook", () => {
         lockedContracts: ["wg-src-api"],
       },
     })
+    writeRepublicContract(repository, {
+      workgroupID: "wg-src-api",
+      title: "Order API Contract",
+      content: "OrderRequest must use customerID and discountCode exactly.",
+      authorSeatID: "api-planner-seat",
+      status: "accepted",
+    })
     writeRepublicSeatState(repository, {
       seatID: "sisyphus-executor",
       role: "executor",
@@ -266,6 +274,10 @@ describe("native git hook", () => {
     expect(output.parts[0]?.text).toContain("phase: execution/in-progress")
     expect(output.parts[0]?.text).toContain("current_seat: sisyphus-executor")
     expect(output.parts[0]?.text).toContain("waiting_on: docs-seat")
+    expect(output.parts[0]?.text).toContain("operating_checklist")
+    expect(output.parts[0]?.text).toContain("Do not create or update dependencies")
+    expect(output.parts[0]?.text).toContain("locked_contract_excerpts")
+    expect(output.parts[0]?.text).toContain("discountCode exactly")
     expect(output.parts[0]?.text).toContain("Use the locked order API contract")
   })
 
