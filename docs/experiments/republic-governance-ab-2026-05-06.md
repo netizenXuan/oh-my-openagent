@@ -378,10 +378,11 @@ bun src\cli\index.ts republic benchmark-report --run scheduler-kimi=D:\OMO\repub
 The next deterministic gate is contract checking:
 
 ```powershell
+bun src\cli\index.ts republic doctor --directory D:\OMO\republic-hard-treatment-kimi-20260506 --strict
 bun src\cli\index.ts republic contract-check --directory D:\OMO\republic-hard-treatment-kimi-20260506 --strict
 ```
 
-This turns the dashboard's contract traceability into a CI-style pass/fail command. It is designed for the hidden-QA lesson from the hard fulfillment run: public tests can pass while a model drifts on exact error taxonomy or field names, so the locked contract needs a deterministic hard-term check before the result is treated as product-ready.
+`republic doctor` gives the machine-readable health view before assigning work to cheap seats: repository state, ledger, Commons, scheduler queue, and contract warning state. `contract-check` then turns the dashboard's contract traceability into a CI-style pass/fail command. It is designed for the hidden-QA lesson from the hard fulfillment run: public tests can pass while a model drifts on exact error taxonomy or field names, so the locked contract needs a deterministic hard-term check before the result is treated as product-ready.
 
 ## Next Steps
 

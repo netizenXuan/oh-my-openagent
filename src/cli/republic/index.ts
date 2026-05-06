@@ -8,12 +8,32 @@ import {
 import { collectCapabilityContentTerm, republicCapabilityCheck } from "./capability-check"
 import { republicContractCheck } from "./contract-check"
 import { republicDashboard } from "./dashboard"
+import { republicDoctor } from "./doctor"
 import { republicScheduler } from "./scheduler"
 import { republicStatus } from "./status"
 
 export function createRepublicCommand(): Command {
   const command = new Command("republic")
     .description("Inspect OMO Republic deliberation and native Git audit state")
+
+  command
+    .command("doctor")
+    .description("Run a machine-readable Republic health check")
+    .option("-d, --directory <path>", "Working directory to inspect")
+    .option("--deliberation-id <id>", "Filter to one deliberation id")
+    .option("--strict", "Exit non-zero when warnings are present")
+    .option("-o, --output <path>", "Write the report to a file instead of stdout")
+    .option("--json", "Output structured JSON")
+    .action(async (options) => {
+      const exitCode = await republicDoctor({
+        directory: options.directory,
+        deliberationId: options.deliberationId,
+        strict: options.strict ?? false,
+        output: options.output,
+        json: options.json ?? false,
+      })
+      process.exit(exitCode)
+    })
 
   command
     .command("contract-check")
