@@ -222,6 +222,16 @@ bunx oh-my-opencode republic capability-check --directory /path/to/repo --delibe
 
 The capability check is a weak-model productization gate. It does not trust a model's final prose. It verifies hard fields in Git-recorded evidence: the response must be in Commons, it must reference the source message, it must come from the expected seat, it must target the expected requester, required content terms must appear in a matching response, an exact `--dispatch-id` can be required to show `dispatched`, and the worktree can be required to stay clean. This is the recommended way to compare Kimi, Ling, Hy3, or another cheap model before assigning it real Republic seat work.
 
+Check locked contracts against governed files:
+
+```bash
+bunx oh-my-opencode republic contract-check --directory /path/to/repo
+bunx oh-my-opencode republic contract-check --directory /path/to/repo --strict
+bunx oh-my-opencode republic contract-check --directory /path/to/repo --strict --json --output ./contract-check.json
+```
+
+`contract-check` is the scriptable form of dashboard contract traceability. Advisory mode reports missing governed files and uncovered hard terms. `--strict` exits non-zero when any contract warning is present, which makes it suitable for CI, benchmark acceptance, or a final reviewer seat. This is especially important for weaker models: a seat can write a convincing explanation while missing an exact field name, enum value, error code, or public API symbol.
+
 Open the dashboard from OpenCode:
 
 ```text

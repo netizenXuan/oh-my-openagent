@@ -375,9 +375,16 @@ bun src\cli\index.ts republic capability-check --directory D:\OMO\republic-sched
 bun src\cli\index.ts republic benchmark-report --run scheduler-kimi=D:\OMO\republic-scheduler-kimi-smoke-20260506 --capability scheduler-kimi=D:\OMO\experiment-logs\republic-scheduler-kimi-capability.json --output D:\OMO\experiment-logs\republic-scheduler-kimi-benchmark.md
 ```
 
+The next deterministic gate is contract checking:
+
+```powershell
+bun src\cli\index.ts republic contract-check --directory D:\OMO\republic-hard-treatment-kimi-20260506 --strict
+```
+
+This turns the dashboard's contract traceability into a CI-style pass/fail command. It is designed for the hidden-QA lesson from the hard fulfillment run: public tests can pass while a model drifts on exact error taxonomy or field names, so the locked contract needs a deterministic hard-term check before the result is treated as product-ready.
+
 ## Next Steps
 
 1. Add a persistent scheduler/orchestrator daemon loop on top of the new `republic scheduler` queue consumer, so queued target seats can be woken repeatedly without a manual command.
-2. Add a contract-diff QA pass that checks public docs, tests, and implementation against locked contract terms.
-3. Add per-workgroup worktrees so each execution seat can commit, test, and merge through an isolated Git lane.
-4. Extend the benchmark report into a full benchmark harness that runs single-agent, advisory Republic, and governed Republic variants against the same project tasks.
+2. Add per-workgroup worktrees so each execution seat can commit, test, and merge through an isolated Git lane.
+3. Extend the benchmark report into a full benchmark harness that runs single-agent, advisory Republic, and governed Republic variants against the same project tasks.
