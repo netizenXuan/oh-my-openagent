@@ -360,10 +360,17 @@ Failed: 2
 
 The two failed historical records in this smoke came from discovering the correct OpenCode CLI invocation. `opencode run` requires `--file {prompt} -- <message>`; passing a bare positional message after `--file` was interpreted as another file path.
 
+The same smoke can now be checked with a deterministic capability gate:
+
+```powershell
+bun src\cli\index.ts republic capability-check --directory D:\OMO\republic-scheduler-kimi-smoke-20260506 --deliberation-id scheduler-kimi-smoke --dispatch-id scheduler-kimi-docs-seat-4 --source-message-id scheduler-kimi-question-1 --expected-author-seat docs-seat --expected-target-seat api-seat --expected-message-type answer --require-content pending --require-content delivered --expect-clean-worktree --require-dispatched-queue
+```
+
+This command is the productized form of the weak-model lesson. It checks the Git-recorded facts instead of the model's self-report: the Commons response must reference the original question, use the expected author and target seats, contain required hard terms, have the exact requested dispatch reach `dispatched`, and leave the worktree clean. This makes Kimi, Ling, Hy3, or other cheap-model runs comparable with the same acceptance contract.
+
 ## Next Steps
 
 1. Add a persistent scheduler/orchestrator daemon loop on top of the new `republic scheduler` queue consumer, so queued target seats can be woken repeatedly without a manual command.
-2. Add a model capability gate that tests tool-call compliance before assigning a model to Republic work.
-3. Add a contract-diff QA pass that checks public docs, tests, and implementation against locked contract terms.
-4. Add per-workgroup worktrees so each execution seat can commit, test, and merge through an isolated Git lane.
-5. Extend the benchmark report into a full benchmark harness that runs single-agent, advisory Republic, and governed Republic variants against the same project tasks.
+2. Add a contract-diff QA pass that checks public docs, tests, and implementation against locked contract terms.
+3. Add per-workgroup worktrees so each execution seat can commit, test, and merge through an isolated Git lane.
+4. Extend the benchmark report into a full benchmark harness that runs single-agent, advisory Republic, and governed Republic variants against the same project tasks.

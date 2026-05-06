@@ -4,6 +4,7 @@ import {
   republicBenchmarkReport,
   republicBenchmarkRunCollector,
 } from "./benchmark-report"
+import { collectCapabilityContentTerm, republicCapabilityCheck } from "./capability-check"
 import { republicDashboard } from "./dashboard"
 import { republicScheduler } from "./scheduler"
 import { republicStatus } from "./status"
@@ -11,6 +12,39 @@ import { republicStatus } from "./status"
 export function createRepublicCommand(): Command {
   const command = new Command("republic")
     .description("Inspect OMO Republic deliberation and native Git audit state")
+
+  command
+    .command("capability-check")
+    .description("Verify a Republic model/seat run against machine-checkable collaboration evidence")
+    .option("-d, --directory <path>", "Working directory to inspect")
+    .option("--deliberation-id <id>", "Filter to one deliberation id")
+    .option("--dispatch-id <id>", "Expected scheduler dispatch id")
+    .option("--source-message-id <id>", "Expected Commons source message id")
+    .option("--expected-author-seat <seat>", "Expected responding seat id")
+    .option("--expected-target-seat <seat>", "Expected response target seat id")
+    .option("--expected-message-type <type>", "Expected Commons response message type", "answer")
+    .option("--require-content <term>", "Required substring in a matching Commons response", collectCapabilityContentTerm, [])
+    .option("--expect-clean-worktree", "Fail if the git worktree is dirty")
+    .option("--require-dispatched-queue", "Fail unless a matching scheduler queue record reached dispatched status")
+    .option("-o, --output <path>", "Write the report to a file instead of stdout")
+    .option("--json", "Output structured JSON")
+    .action(async (options) => {
+      const exitCode = await republicCapabilityCheck({
+        directory: options.directory,
+        deliberationId: options.deliberationId,
+        dispatchId: options.dispatchId,
+        sourceMessageId: options.sourceMessageId,
+        expectedAuthorSeat: options.expectedAuthorSeat,
+        expectedTargetSeat: options.expectedTargetSeat,
+        expectedMessageType: options.expectedMessageType,
+        requireContent: options.requireContent,
+        expectCleanWorktree: options.expectCleanWorktree ?? false,
+        requireDispatchedQueue: options.requireDispatchedQueue ?? false,
+        output: options.output,
+        json: options.json ?? false,
+      })
+      process.exit(exitCode)
+    })
 
   command
     .command("scheduler")

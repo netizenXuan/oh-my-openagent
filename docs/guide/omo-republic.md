@@ -212,6 +212,15 @@ bunx oh-my-opencode republic benchmark-report --run treatment=/path/to/treatment
 
 The benchmark report does not run models or mutate inspected repositories. It reads native-git audit records, Republic ledger records, Commons messages, dirty files, contract traceability, targeted messages, referenced messages, seats, workgroups, tools, agents, and optional acceptance or hidden-QA checks. Use it after a control/treatment smoke run so experiment evidence stays comparable across Kimi, Ling, Hy3, or other cheaper-model trials.
 
+Verify one model/seat run against machine-checkable collaboration evidence:
+
+```bash
+bunx oh-my-opencode republic capability-check --directory /path/to/repo --deliberation-id scheduler-kimi-smoke --dispatch-id scheduler-kimi-docs-seat-4 --source-message-id scheduler-kimi-question-1 --expected-author-seat docs-seat --expected-target-seat api-seat --expected-message-type answer --require-content OrderStatus --require-content delivered --expect-clean-worktree --require-dispatched-queue
+bunx oh-my-opencode republic capability-check --directory /path/to/repo --deliberation-id scheduler-kimi-smoke --json
+```
+
+The capability check is a weak-model productization gate. It does not trust a model's final prose. It verifies hard fields in Git-recorded evidence: the response must be in Commons, it must reference the source message, it must come from the expected seat, it must target the expected requester, required content terms must appear in a matching response, an exact `--dispatch-id` can be required to show `dispatched`, and the worktree can be required to stay clean. This is the recommended way to compare Kimi, Ling, Hy3, or another cheap model before assigning it real Republic seat work.
+
 Open the dashboard from OpenCode:
 
 ```text
