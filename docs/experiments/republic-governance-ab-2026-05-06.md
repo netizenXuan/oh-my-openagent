@@ -28,7 +28,7 @@ Model and workflow variants:
 | Ling control | `inclusionai/ling-2.6-1t:free` | single agent | Implemented a direct task successfully, tests passed, but the CLI run timed out during final narrative output. |
 | Ling treatment v1-v3 | `inclusionai/ling-2.6-1t:free` | Republic tools | Exposed prompt-drift failures: contract wording drift, experiment-word contamination, and invalid shell commands. |
 | Ling treatment v4 | `inclusionai/ling-2.6-1t:free` | Republic with short explicit seat sessions | Produced usable governance evidence, contracts, inter-seat ask/reply, supervisor intervention, and passing final verification. |
-| Kimi check | `kimi-for-coding/k2p6` | CLI smoke | Not evaluated in this pass because the CLI channel was rate-limited/hanging during the experiment window. |
+| Kimi check | `kimi-for-coding/k2p6` | CLI smoke | CLI channel recovered; Kimi read injected Republic team state, operating checklist, locked contract excerpts, and the hard dependency rule. |
 
 ## Ling v4 Setup
 
@@ -116,7 +116,7 @@ tests/orders.test.ts
 - Hy3 was not tool-call reliable enough for Republic tools in this environment.
 - Ling can execute tool calls, but it is highly sensitive to prompt wording. Phrases like "experiment" caused it to optimize for an experiment design instead of the product task.
 - Weak models still need deterministic final QA. Reviewer seats caught some mismatches, but not all.
-- Kimi could not be evaluated during this pass because the CLI channel was unavailable during the test window.
+- Kimi was unavailable during the first experiment window, then later recovered and passed the context-injection smoke.
 
 ## Engineering Changes From This Pass
 
@@ -138,6 +138,18 @@ After this change, a Ling smoke check was run against the v4 experiment reposito
 
 No additional worktree changes were created by this smoke check.
 
+Follow-up smoke checks then moved the same constraints into the pre-send message transform, so seats can receive Republic context even when they do not proactively call `republic_inbox`.
+
+Results:
+
+| Smoke check | Model | Result |
+| --- | --- | --- |
+| explicit inbox | `inclusionai/ling-2.6-1t:free` | Passed. Ling called `republic_inbox` and saw operating checklist, locked contracts, dependency rule, and contract field names. |
+| automatic context | `kimi-for-coding/k2p6` | Passed. Kimi reported `republic-team-state`, `operating_checklist`, `locked_contract_excerpts`, exact contract fields, and the dependency rule. |
+| automatic context | `inclusionai/ling-2.6-1t:free` | Partial. Ling detected contract fields and the hard dependency rule after the rule was given a stable `hard_dependency_rule` label, but it still misclassified one marker presence check. |
+
+This is the main weak-model lesson: cheap models should not be governed only by prose. They need short, labeled, repeated constraints plus deterministic tool-level gates.
+
 ## Interpretation
 
 The current Republic design is already distinct from ordinary multi-agent delegation because the collaboration record, contracts, audit log, and seat state all live under the Git common dir. The more important finding is that this approach is especially suited to weaker models. Instead of trusting a weak model to remember everything, the system repeatedly exposes the same hard boundaries through contracts, inboxes, and supervisor checks.
@@ -150,4 +162,4 @@ This does not yet prove autonomous "always correct" collaboration. It does show 
 2. Add a model capability gate that tests tool-call compliance before assigning a model to Republic work.
 3. Upgrade dependency gates from advisory to hard block in governed mode.
 4. Add a contract-diff QA pass that checks public docs, tests, and implementation against locked contract terms.
-5. Re-run the same A/B design with Kimi once the CLI channel is available.
+5. Add a weak-model guardrail profile that compresses injected Republic context into labeled fields, requires pre-edit contract acknowledgement, and fails closed on missing contract/inbox reads for governed execution.
