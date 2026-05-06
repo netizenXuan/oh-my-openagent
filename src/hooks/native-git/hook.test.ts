@@ -807,6 +807,64 @@ describe("native git hook", () => {
     expect(output.message).toBeUndefined()
   })
 
+  test("weak model guardrail requires a fresh explicit context read for a new prompt", async () => {
+    const hook = createNativeGitHook(
+      { directory } as never,
+      { mode: "tracked", audit_log: true },
+      {
+        enabled: true,
+        mode: "governed",
+        ledger: true,
+        weak_model_guardrails: {
+          enabled: true,
+          labeled_context: true,
+          require_context_before_edit: true,
+          require_explicit_context_read: true,
+          pre_edit_context_gate: "block",
+        },
+      } as never,
+    )
+    const repository = getNativeGitRepository(directory)!
+    initializeRepublicTeam(repository, {
+      manifest: {
+        teamModel: "parliament_squad",
+        seatAllocation: "auto",
+        maxParallelSeats: 4,
+        defaultRuntimeAgent: "general",
+        seats: [
+          {
+            seatID: "sisyphus-executor",
+            role: "executor",
+            phase: "execution",
+            workgroupID: "wg-src-api",
+            module: "src/api",
+            runtimeAgent: "sisyphus",
+          },
+        ],
+      },
+      phase: {
+        phase: "execution",
+        status: "in-progress",
+        deliberationID: "order-fresh-context",
+        lockedContracts: ["wg-src-api"],
+      },
+    })
+
+    await hook["tool.execute.after"]?.(
+      { tool: "republic_team_status", sessionID: "ses_fresh_context", callID: "call_status" },
+      { output: "read team status", metadata: {} },
+    )
+    await hook["chat.message"]?.(
+      { sessionID: "ses_fresh_context", agent: "sisyphus", promptText: "new order implementation task" },
+      { parts: [{ type: "text", text: "new order implementation task" }] },
+    )
+
+    await expect(hook["tool.execute.before"]?.(
+      { tool: "write", sessionID: "ses_fresh_context", callID: "call_stale_context" },
+      { args: { filePath: "src/api/orders.ts" } },
+    )).rejects.toThrow("Republic weak-model guardrail blocked")
+  })
+
   test("weak model guardrail rolls back post-change edits when before hook was missed", async () => {
     const hook = createNativeGitHook(
       { directory } as never,

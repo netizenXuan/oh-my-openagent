@@ -543,6 +543,7 @@ export function createNativeGitHook(
   const initialStatusByRepo = new Map<string, string>()
   const sessionContextBySession = new Map<string, NativeGitSessionContext>()
   const republicContextBySession = new Map<string, { key: string; explicit: boolean }>()
+  const republicPromptBySession = new Map<string, string>()
   const policyLoopStatusBySession = new Map<string, string>()
 
   const initialStatus = mode === "manual" ? null : getNativeGitStatus(ctx.directory)
@@ -555,6 +556,7 @@ export function createNativeGitHook(
     lastToastStatusBySession.delete(sessionID)
     sessionContextBySession.delete(sessionID)
     republicContextBySession.delete(sessionID)
+    republicPromptBySession.delete(sessionID)
     policyLoopStatusBySession.delete(sessionID)
     deleteSessionMapEntries(lastStatusBySessionRepo, sessionID)
     deleteSessionMapEntries(baselineByCall, sessionID)
@@ -647,6 +649,20 @@ export function createNativeGitHook(
     }
 
     return true
+  }
+
+  function resetExplicitRepublicContextForPrompt(sessionID: string | undefined, promptText: string | undefined): void {
+    if (!sessionID || !(republicConfig?.weak_model_guardrails?.require_explicit_context_read ?? false)) {
+      return
+    }
+
+    const normalizedPrompt = (promptText ?? "").trim()
+    if (!normalizedPrompt || republicPromptBySession.get(sessionID) === normalizedPrompt) {
+      return
+    }
+
+    republicPromptBySession.set(sessionID, normalizedPrompt)
+    republicContextBySession.delete(sessionID)
   }
 
   function enrichToolInput(input: NativeGitToolInput): NativeGitToolInput {
@@ -803,6 +819,7 @@ export function createNativeGitHook(
       return
     }
 
+    resetExplicitRepublicContextForPrompt(input.sessionID, input.promptText)
     const context = buildRepublicChatContext(input)
     if (context) {
       const status = getNativeGitStatus(ctx.directory)
@@ -853,6 +870,7 @@ export function createNativeGitHook(
 
     const agent = getSessionAgent(sessionID)
     const promptText = extractTransformPromptText(lastUserMessage.parts)
+    resetExplicitRepublicContextForPrompt(sessionID, promptText)
     rememberSessionContext({
       sessionID,
       agent,

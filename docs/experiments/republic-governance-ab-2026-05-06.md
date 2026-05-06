@@ -170,6 +170,7 @@ The fix was to make the context gate two-layered:
 - post-change fallback re-checks the locked contract context after mutating tools complete
 - when the repository was clean before the tool call, post-change fallback restores the touched files
 - when the repository was already dirty, it records the violation and skips rollback to avoid deleting unrelated user work
+- explicit context reads are scoped to the current prompt, so a reused OpenCode session cannot carry an old Republic read into a new locked-contract task
 
 The new unit coverage asserts both post-change rollback and dirty-baseline no-rollback behavior. This changes the product lesson from "add a before hook" to "make weak-model gates observable and fail-closed at the tool boundary the runtime actually guarantees."
 
