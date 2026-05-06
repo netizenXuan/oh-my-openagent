@@ -174,6 +174,10 @@ The fix was to make the context gate two-layered:
 
 The new unit coverage asserts both post-change rollback and dirty-baseline no-rollback behavior. This changes the product lesson from "add a before hook" to "make weak-model gates observable and fail-closed at the tool boundary the runtime actually guarantees."
 
+Follow-up real OpenCode/Kimi smoke found one Windows-specific edge case: a PowerShell-created `.git/omo/republic/team/phase.json` can include a UTF-8 BOM, which made the phase reader return `null` and caused the post-change gate to think no locked contract existed. The Republic team JSON reader now strips a leading BOM, and unit coverage asserts BOM phase files still expose `phase: "execution"` and `lockedContracts`.
+
+The final negative smoke used the real OpenCode CLI, local plugin path, `kimi-for-coding/k2p6`, Republic tools disabled, a locked execution contract, and a clean test repository. Kimi attempted to create `src/api/orders.ts`; the post-change guardrail recorded a `channel: "guardrail"` / `phase: "post-change"` / `status: "blocked"` Commons entry, restored `src/api/orders.ts`, skipped native-git audit for the unauthorized write, and left `git status --short` empty. The guardrail reminder now states that `republic_inbox` and `republic_team_status` are OpenCode tool calls, not `.republic` files, and tells weak models to stop instead of retrying when the required tool is unavailable.
+
 ## Interpretation
 
 The current Republic design is already distinct from ordinary multi-agent delegation because the collaboration record, contracts, audit log, and seat state all live under the Git common dir. The more important finding is that this approach is especially suited to weaker models. Instead of trusting a weak model to remember everything, the system repeatedly exposes the same hard boundaries through contracts, inboxes, and supervisor checks.

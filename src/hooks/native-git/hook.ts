@@ -240,6 +240,8 @@ Republic weak-model guardrail ${args.blocked ? "blocked" : "recorded"} this ${ar
 
 locked_contracts: ${args.lockedContracts.join(", ")}
 context_required: ${args.explicitRequired ? "explicit republic_inbox or republic_team_status read" : "injected Republic context or explicit republic_inbox/republic_team_status read"}
+required_tool_call: call the OpenCode tool named republic_inbox or republic_team_status; do not read .republic files from the filesystem.
+if_unavailable: stop immediately and report this guardrail block instead of retrying the edit.
 hard_dependency_rule: ${REPUBLIC_HARD_DEPENDENCY_RULE}
 
 Read republic_inbox or republic_team_status for this seat before editing against locked contracts.
@@ -1289,6 +1291,8 @@ export function createNativeGitHook(
     const summary = [
       `Republic weak-model guardrail ${blocked ? "blocked" : "recorded"} ${input.tool} ${timing === "post-change" ? "after execution" : "before execution"} because locked contracts exist but the session has not received the required contract context.`,
       `locked_contracts: ${lockedContracts.join(", ")}`,
+      "required_tool_call: call the OpenCode tool named republic_inbox or republic_team_status; do not read .republic files from the filesystem.",
+      "if_unavailable: stop immediately and report this guardrail block instead of retrying the edit.",
       `hard_dependency_rule: ${REPUBLIC_HARD_DEPENDENCY_RULE}`,
       options.restored?.length ? `restored_files: ${options.restored.join(", ")}` : undefined,
       options.restoreFailed?.length ? `restore_failed: ${options.restoreFailed.join(", ")}` : undefined,
@@ -1424,6 +1428,8 @@ export function createNativeGitHook(
       `Republic weak-model guardrail ${blocked ? "blocked" : "recorded"} ${tool} after execution because locked contracts exist but the session did not perform the required Republic context read.`,
       `locked_contracts: ${lockedContracts.join(", ")}`,
       `context_required: ${guardrails?.require_explicit_context_read ? "explicit republic_inbox or republic_team_status read" : "injected Republic context or explicit republic_inbox/republic_team_status read"}`,
+      "required_tool_call: call the OpenCode tool named republic_inbox or republic_team_status; do not read .republic files from the filesystem.",
+      "if_unavailable: stop immediately and report this guardrail block instead of retrying the edit.",
       `hard_dependency_rule: ${REPUBLIC_HARD_DEPENDENCY_RULE}`,
       restored.restored.length ? `restored_files: ${restored.restored.join(", ")}` : undefined,
       blocked && !baselineWasClean ? "rollback_skipped: repository was already dirty before this tool call" : undefined,

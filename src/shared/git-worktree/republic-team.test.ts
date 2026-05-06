@@ -2,9 +2,9 @@
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 import { getNativeGitRepository } from "./native-git"
 import {
   appendRepublicSeatMemory,
@@ -136,5 +136,27 @@ describe("republic team state", () => {
     expect(memory).toContain("Waiting on API contract answer.")
     expect(existsSync(getRepublicSeatStatePath(repository, "test-seat"))).toBe(true)
     expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
+  test("reads team phase files that include a UTF-8 BOM", () => {
+    const repository = getNativeGitRepository(directory)!
+    mkdirSync(dirname(getRepublicTeamPhasePath(repository)), { recursive: true })
+    writeFileSync(
+      getRepublicTeamPhasePath(repository),
+      `\uFEFF${JSON.stringify({
+        version: 1,
+        repoRoot: repository.repoRoot,
+        phase: "execution",
+        status: "in-progress",
+        deliberationID: "bom-phase",
+        lockedContracts: ["wg-src-api"],
+      })}`,
+      "utf-8",
+    )
+
+    const phase = readRepublicTeamPhase(repository)!
+
+    expect(phase.phase).toBe("execution")
+    expect(phase.lockedContracts).toEqual(["wg-src-api"])
   })
 })

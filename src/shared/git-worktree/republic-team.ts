@@ -72,7 +72,7 @@ function readJSON<T>(path: string): T | null {
   }
 
   try {
-    return JSON.parse(readFileSync(path, "utf-8")) as T
+    return JSON.parse(readFileSync(path, "utf-8").replace(/^\uFEFF/, "")) as T
   } catch {
     return null
   }
