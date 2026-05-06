@@ -79,7 +79,7 @@ export const RepublicConfigSchema = z.object({
   commons: z.object({
     auto_publish: z.boolean().default(true),
     inbox: z.boolean().default(true),
-    inject_max_messages: z.number().int().min(1).max(20).default(6),
+    inject_max_messages: z.number().int().min(0).max(20).default(6),
     agent_docs: z.boolean().default(true),
   }).default({
     auto_publish: true,

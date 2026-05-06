@@ -1175,6 +1175,23 @@ describe("RepublicConfigSchema", () => {
     }
   })
 
+  test("allows zero inbox message injection for strict smoke harnesses", () => {
+    //#when
+    const result = RepublicConfigSchema.safeParse({
+      commons: {
+        inbox: false,
+        inject_max_messages: 0,
+      },
+    })
+
+    //#then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.commons.inbox).toBe(false)
+      expect(result.data.commons.inject_max_messages).toBe(0)
+    }
+  })
+
   test("accepts dynamic persistent team controls", () => {
     //#when
     const result = RepublicConfigSchema.safeParse({

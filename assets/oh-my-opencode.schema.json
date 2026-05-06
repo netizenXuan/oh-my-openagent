@@ -6287,7 +6287,7 @@
             "inject_max_messages": {
               "default": 6,
               "type": "integer",
-              "minimum": 1,
+              "minimum": 0,
               "maximum": 20
             },
             "agent_docs": {
