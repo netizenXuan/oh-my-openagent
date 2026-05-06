@@ -9,6 +9,7 @@ import { getNativeGitRepository } from "./native-git"
 import {
   appendRepublicCommonsMessage,
   appendRepublicLedgerRecord,
+  appendRepublicSchedulerQueueRecord,
   analyzeRepublicContractTraceability,
   evaluateRepublicDecision,
   getRepublicAgentDocPath,
@@ -16,15 +17,18 @@ import {
   getRepublicContractPath,
   getRepublicDeliberationDir,
   getRepublicLedgerPath,
+  getRepublicSchedulerQueuePath,
   readRepublicAgentDoc,
   readRepublicCommonsMessages,
   readRepublicInboxMessages,
   readRepublicLedgerRecords,
+  readRepublicSchedulerQueueRecords,
   sanitizeRepublicDeliberationID,
   summarizeRepublicCommons,
   summarizeRepublicCommonsMessages,
   summarizeRepublicLedger,
   summarizeRepublicLedgerRecords,
+  summarizeRepublicSchedulerQueue,
   writeRepublicContract,
 } from "./republic-ledger"
 
@@ -249,6 +253,57 @@ describe("republic ledger", () => {
     expect(docsDoc).toContain("Can docs publish")
     expect(apiDoc).toContain("Can docs publish")
     expect(apiDoc).toContain("Resolve the outstanding docs question")
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
+  test("writes scheduler queue under git common dir without dirtying the worktree", () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")
+    commitAll(directory, "init")
+
+    const repository = getNativeGitRepository(directory)
+    expect(repository).not.toBeNull()
+
+    const queuePath = appendRepublicSchedulerQueueRecord(repository!, {
+      queueType: "seat-response",
+      status: "queued",
+      reason: "manager_unavailable",
+      deliberationID: "agent republic",
+      phase: "collaboration",
+      sourceMessageID: "msg-1",
+      sourceMessageType: "question",
+      targetSeatID: "docs-seat",
+      requestedAgent: "sisyphus",
+      files: ["README.md"],
+      summary: "Queue docs-seat for a response.",
+    })
+    appendRepublicSchedulerQueueRecord(repository!, {
+      queueType: "seat-response",
+      status: "dispatched",
+      deliberationID: "agent republic",
+      phase: "dispatch",
+      sourceMessageID: "msg-1",
+      sourceMessageType: "question",
+      targetSeatID: "docs-seat",
+      requestedAgent: "sisyphus",
+      runtimeAgent: "general",
+      taskID: "bg_1",
+      summary: "Dispatched docs-seat.",
+    })
+
+    const records = readRepublicSchedulerQueueRecords(repository!, "agent republic")
+    const summary = summarizeRepublicSchedulerQueue(repository!, "agent republic")
+
+    expect(queuePath).toBe(getRepublicSchedulerQueuePath(repository!))
+    expect(queuePath).toContain(join(".git", "omo", "republic", "scheduler", "queue.jsonl"))
+    expect(records).toHaveLength(2)
+    expect(records[0]?.status).toBe("queued")
+    expect(records[1]?.taskID).toBe("bg_1")
+    expect(summary.recordCount).toBe(2)
+    expect(summary.queued).toBe(1)
+    expect(summary.dispatched).toBe(1)
+    expect(summary.targetSeats["docs-seat"]).toBe(2)
+    expect(summary.requestedAgents.sisyphus).toBe(2)
     expect(git(directory, ["status", "--porcelain"])).toBe("")
   })
 

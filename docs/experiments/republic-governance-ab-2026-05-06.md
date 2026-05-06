@@ -294,13 +294,13 @@ Observed behavior:
 
 ## Interpretation
 
-The current Republic design is already distinct from ordinary multi-agent delegation because the collaboration record, contracts, audit log, and seat state all live under the Git common dir. The more important finding is that this approach is especially suited to weaker models. Instead of trusting a weak model to remember everything, the system repeatedly exposes the same hard boundaries through contracts, inboxes, and supervisor checks.
+The current Republic design is already distinct from ordinary multi-agent delegation because the collaboration record, contracts, audit log, scheduler queue, and seat state all live under the Git common dir. The more important finding is that this approach is especially suited to weaker models. Instead of trusting a weak model to remember everything, the system repeatedly exposes the same hard boundaries through contracts, inboxes, scheduler dispatch records, and supervisor checks.
 
 This does not yet prove autonomous "always correct" collaboration. It does show a credible path: use cheap models for bounded seat work, use Commons for communication, use contracts for shared truth, and use deterministic checks plus supervisor intervention for recovery.
 
 ## Next Steps
 
-1. Add a persistent scheduler/orchestrator daemon so targeted questions can wake the right seat without relying on the parent CLI session staying alive.
+1. Add a persistent scheduler/orchestrator daemon that consumes `.git/omo/republic/scheduler/queue.jsonl`, wakes queued target seats, and writes answers back to Commons.
 2. Add a model capability gate that tests tool-call compliance before assigning a model to Republic work.
 3. Add a contract-diff QA pass that checks public docs, tests, and implementation against locked contract terms.
 4. Add per-workgroup worktrees so each execution seat can commit, test, and merge through an isolated Git lane.

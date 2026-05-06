@@ -15,6 +15,7 @@ import {
   getRepublicContractPath,
   readRepublicCommonsMessages,
   readRepublicLedgerRecords,
+  readRepublicSchedulerQueueRecords,
   readRepublicSeatState,
   readRepublicTeamManifest,
   readRepublicTeamPhase,
@@ -491,14 +492,50 @@ describe("republic tools", () => {
     const repository = getNativeGitRepository(directory)!
     const messages = readRepublicCommonsMessages(repository, "session-ses_republic_tools")
     const ledger = readRepublicLedgerRecords(repository, "session-ses_republic_tools")
+    const queue = readRepublicSchedulerQueueRecords(repository, "session-ses_republic_tools")
 
     expect(parsed.dispatch).toEqual({ taskID: "bg_1", agent: "hephaestus" })
+    expect(parsed.queued_dispatch).toBeUndefined()
     expect(launched).toHaveLength(1)
     expect(launched[0]?.prompt).toContain('author_seat_id="docs-seat"')
     expect(launched[0]?.prompt).toContain('references=["session-ses_republic_tools-api-seat-question')
     expect(messages.map((message) => message.channel)).toEqual(["commons", "scheduler"])
     expect(messages[1]?.references).toEqual([messages[0]?.messageID])
     expect(ledger.map((record) => record.phase)).toEqual(["collaboration", "dispatch"])
+    expect(queue).toHaveLength(1)
+    expect(queue[0]?.status).toBe("dispatched")
+    expect(queue[0]?.targetSeatID).toBe("docs-seat")
+    expect(queue[0]?.requestedAgent).toBe("hephaestus")
+    expect(queue[0]?.runtimeAgent).toBe("hephaestus")
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
+  test("queues targeted messages when no background manager is available", async () => {
+    const tools = createRepublicTools({ directory } as PluginInput)
+    const context = createToolContext(directory)
+
+    const publishResult = await tools.republic_publish.execute({
+      message_type: "question",
+      content: "Can test-seat confirm the rollback boundary?",
+      author_seat_id: "api-seat",
+      target_seat_id: "test-seat",
+      deliberation_id: "queued-response",
+      target_agent: "sisyphus",
+    }, context)
+
+    const parsed = JSON.parse(String(publishResult))
+    const repository = getNativeGitRepository(directory)!
+    const queue = readRepublicSchedulerQueueRecords(repository, "queued-response")
+
+    expect(parsed.dispatch).toBeUndefined()
+    expect(parsed.queued_dispatch.target_seat_id).toBe("test-seat")
+    expect(parsed.queued_dispatch.requested_agent).toBe("sisyphus")
+    expect(parsed.queued_dispatch.reason).toBe("manager_unavailable")
+    expect(queue).toHaveLength(1)
+    expect(queue[0]?.queueType).toBe("seat-response")
+    expect(queue[0]?.status).toBe("queued")
+    expect(queue[0]?.targetSeatID).toBe("test-seat")
+    expect(queue[0]?.requestedAgent).toBe("sisyphus")
     expect(git(directory, ["status", "--porcelain"])).toBe("")
   })
 
@@ -566,12 +603,16 @@ describe("republic tools", () => {
     const parsed = JSON.parse(String(publishResult))
     const repository = getNativeGitRepository(directory)!
     const messages = readRepublicCommonsMessages(repository, "session-ses_republic_tools")
+    const queue = readRepublicSchedulerQueueRecords(repository, "session-ses_republic_tools")
 
     expect(parsed.dispatch).toEqual({ taskID: "bg_1", agent: "general", requested_agent: "hephaestus" })
     expect(launched[0]?.agent).toBe("general")
     expect(launched[0]?.prompt).toContain('Requested OMO role: "hephaestus"')
     expect(launched[0]?.prompt).toContain('Runtime OpenCode agent: "general"')
     expect(messages[1]?.content).toContain("via general (requested hephaestus)")
+    expect(queue[0]?.status).toBe("dispatched")
+    expect(queue[0]?.requestedAgent).toBe("hephaestus")
+    expect(queue[0]?.runtimeAgent).toBe("general")
     expect(git(directory, ["status", "--porcelain"])).toBe("")
   })
 
@@ -639,9 +680,11 @@ describe("republic tools", () => {
     const repository = getNativeGitRepository(directory)!
     const messages = readRepublicCommonsMessages(repository, "api-status-contract")
     const ledger = readRepublicLedgerRecords(repository, "api-status-contract")
+    const queue = readRepublicSchedulerQueueRecords(repository, "api-status-contract")
 
     expect(parsed.dispatch).toBeUndefined()
     expect(parsed.supervisor_dispatch).toEqual({ taskID: "bg_1", agent: "general", requested_agent: "hephaestus" })
+    expect(parsed.queued_supervisor_dispatch).toBeUndefined()
     expect(launched).toHaveLength(1)
     expect(launched[0]?.description).toContain("Republic supervisor review")
     expect(launched[0]?.prompt).toContain('author_seat_id="republic-supervisor"')
@@ -650,6 +693,11 @@ describe("republic tools", () => {
     expect(messages[1]?.targetSeatID).toBe("republic-supervisor")
     expect(messages[1]?.references).toEqual([messages[0]?.messageID])
     expect(ledger.map((record) => record.phase)).toEqual(["collaboration", "supervisor-dispatch"])
+    expect(queue).toHaveLength(1)
+    expect(queue[0]?.queueType).toBe("supervisor-review")
+    expect(queue[0]?.status).toBe("dispatched")
+    expect(queue[0]?.targetSeatID).toBe("republic-supervisor")
+    expect(queue[0]?.runtimeAgent).toBe("general")
     expect(git(directory, ["status", "--porcelain"])).toBe("")
   })
 

@@ -9,6 +9,7 @@ import {
   appendNativeGitAuditRecord,
   appendRepublicCommonsMessage,
   appendRepublicLedgerRecord,
+  appendRepublicSchedulerQueueRecord,
   getNativeGitRepository,
 } from "../../shared/git-worktree"
 import { buildRepublicStatusReport, formatRepublicStatusReport } from "./status"
@@ -103,6 +104,18 @@ describe("republic status report", () => {
       files: ["README.md"],
       summary: "README.md changed",
     })
+    appendRepublicSchedulerQueueRecord(repository!, {
+      queueType: "seat-response",
+      status: "queued",
+      reason: "manager_unavailable",
+      deliberationID: "native git republic",
+      phase: "cross-examination",
+      sourceMessageID: "question-1",
+      sourceMessageType: "question",
+      targetSeatID: "planner-house-1",
+      requestedAgent: "sisyphus",
+      summary: "Queue planner-house-1 for a response.",
+    })
 
     const report = buildRepublicStatusReport({
       directory,
@@ -121,6 +134,8 @@ describe("republic status report", () => {
     expect(report.commons.targetedMessages).toBe(1)
     expect(report.commons.referencedMessages).toBe(1)
     expect(report.nativeGit.recordCount).toBe(1)
+    expect(report.schedulerQueue.recordCount).toBe(1)
+    expect(report.schedulerQueue.queued).toBe(1)
     expect(formatted).toContain("OMO Republic Status")
     expect(formatted).toContain("Deliberations: native-git-republic")
     expect(formatted).toContain("Agents: prometheus=1")
@@ -131,6 +146,8 @@ describe("republic status report", () => {
     expect(formatted).toContain("Types: question=1")
     expect(formatted).toContain("Decision: needs-quorum")
     expect(formatted).toContain("Models: kimi-for-coding/k2p6=1")
+    expect(formatted).toContain("Republic Scheduler Queue")
+    expect(formatted).toContain("Queued: 1")
     expect(formatted).toContain("Next action:")
   })
 })

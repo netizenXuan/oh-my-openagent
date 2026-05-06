@@ -144,6 +144,46 @@ export interface RepublicContractTraceabilitySummary {
   items: RepublicContractTraceabilityItem[]
 }
 
+export type RepublicSchedulerQueueStatus = "queued" | "dispatched" | "skipped" | "failed"
+
+export interface RepublicSchedulerQueueRecord {
+  version?: number
+  timestamp?: string
+  repoRoot?: string
+  dispatchID?: string
+  queueType: "seat-response" | "supervisor-review"
+  status: RepublicSchedulerQueueStatus
+  reason?: string
+  deliberationID: string
+  phase?: string
+  sourceMessageID?: string
+  sourceMessageType?: RepublicCommonsMessage["messageType"]
+  targetSeatID?: string
+  requestedAgent?: string
+  runtimeAgent?: string
+  taskID?: string
+  workgroupID?: string
+  module?: string
+  files?: string[]
+  references?: string[]
+  summary?: string
+}
+
+export interface RepublicSchedulerQueueSummary {
+  recordCount: number
+  queued: number
+  dispatched: number
+  skipped: number
+  failed: number
+  statuses: Record<string, number>
+  queueTypes: Record<string, number>
+  targetSeats: Record<string, number>
+  requestedAgents: Record<string, number>
+  runtimeAgents: Record<string, number>
+  latestTimestamp?: string
+  latestSummary?: string
+}
+
 export const DEFAULT_REPUBLIC_DECISION_POLICY: RepublicDecisionPolicy = {
   quorum: 4,
   supermajority: 0.67,
@@ -169,6 +209,10 @@ export function getRepublicAgentDocPath(repository: NativeGitRepository, seatID:
 
 export function getRepublicContractPath(repository: NativeGitRepository, workgroupID: string): string {
   return join(repository.gitCommonDir, "omo", "republic", "contracts", `${sanitizeRepublicDeliberationID(workgroupID)}.md`)
+}
+
+export function getRepublicSchedulerQueuePath(repository: NativeGitRepository): string {
+  return join(repository.gitCommonDir, "omo", "republic", "scheduler", "queue.jsonl")
 }
 
 function getRepublicContractsDir(repository: NativeGitRepository): string {
@@ -208,6 +252,23 @@ function parseRepublicCommonsLine(line: string): RepublicCommonsMessage | null {
     }
 
     return parsed as RepublicCommonsMessage
+  } catch {
+    return null
+  }
+}
+
+function parseRepublicSchedulerQueueLine(line: string): RepublicSchedulerQueueRecord | null {
+  try {
+    const parsed = JSON.parse(line) as Partial<RepublicSchedulerQueueRecord>
+    if (
+      typeof parsed.deliberationID !== "string" ||
+      typeof parsed.queueType !== "string" ||
+      typeof parsed.status !== "string"
+    ) {
+      return null
+    }
+
+    return parsed as RepublicSchedulerQueueRecord
   } catch {
     return null
   }
@@ -254,6 +315,17 @@ function appendRepublicAgentDoc(repository: NativeGitRepository, seatID: string,
   appendFileSync(docPath, formatCommonsDocEntry(message, timestamp), "utf-8")
 }
 
+function createRepublicDispatchID(record: RepublicSchedulerQueueRecord, timestamp: string): string {
+  const base = [
+    sanitizeRepublicDeliberationID(record.deliberationID),
+    record.queueType,
+    record.targetSeatID ?? "broadcast",
+    record.sourceMessageID ?? timestamp,
+    record.status,
+  ].join("-")
+  return sanitizeRepublicDeliberationID(base).slice(0, 140)
+}
+
 export function readRepublicLedgerRecords(
   repository: NativeGitRepository,
   deliberationID?: string,
@@ -298,6 +370,90 @@ export function appendRepublicCommonsMessage(
     appendRepublicAgentDoc(repository, normalizedMessage.targetSeatID, normalizedMessage, timestamp)
   }
   return commonsPath
+}
+
+export function appendRepublicSchedulerQueueRecord(
+  repository: NativeGitRepository,
+  record: RepublicSchedulerQueueRecord,
+): string {
+  const queuePath = getRepublicSchedulerQueuePath(repository)
+  mkdirSync(dirname(queuePath), { recursive: true })
+  const timestamp = new Date().toISOString()
+  const normalizedRecord = {
+    version: 1,
+    timestamp,
+    repoRoot: repository.repoRoot,
+    ...record,
+    deliberationID: sanitizeRepublicDeliberationID(record.deliberationID),
+    dispatchID: record.dispatchID ?? createRepublicDispatchID(record, timestamp),
+  }
+  appendFileSync(queuePath, JSON.stringify(normalizedRecord) + "\n", "utf-8")
+  return queuePath
+}
+
+export function readRepublicSchedulerQueueRecords(
+  repository: NativeGitRepository,
+  deliberationID?: string,
+): RepublicSchedulerQueueRecord[] {
+  const queuePath = getRepublicSchedulerQueuePath(repository)
+  if (!existsSync(queuePath)) {
+    return []
+  }
+
+  const sanitizedID = deliberationID ? sanitizeRepublicDeliberationID(deliberationID) : undefined
+  return readFileSync(queuePath, "utf-8")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map(parseRepublicSchedulerQueueLine)
+    .filter((record): record is RepublicSchedulerQueueRecord => record !== null)
+    .filter((record) => !sanitizedID || sanitizeRepublicDeliberationID(record.deliberationID) === sanitizedID)
+}
+
+export function summarizeRepublicSchedulerQueueRecords(
+  records: RepublicSchedulerQueueRecord[],
+): RepublicSchedulerQueueSummary {
+  const statuses: Record<string, number> = {}
+  const queueTypes: Record<string, number> = {}
+  const targetSeats: Record<string, number> = {}
+  const requestedAgents: Record<string, number> = {}
+  const runtimeAgents: Record<string, number> = {}
+  let latestTimestamp: string | undefined
+  let latestSummary: string | undefined
+
+  for (const record of records) {
+    incrementCounter(statuses, record.status)
+    incrementCounter(queueTypes, record.queueType)
+    incrementCounter(targetSeats, record.targetSeatID)
+    incrementCounter(requestedAgents, record.requestedAgent)
+    incrementCounter(runtimeAgents, record.runtimeAgent)
+    if (record.timestamp && (!latestTimestamp || record.timestamp >= latestTimestamp)) {
+      latestTimestamp = record.timestamp
+      latestSummary = record.summary
+    }
+  }
+
+  return {
+    recordCount: records.length,
+    queued: statuses.queued ?? 0,
+    dispatched: statuses.dispatched ?? 0,
+    skipped: statuses.skipped ?? 0,
+    failed: statuses.failed ?? 0,
+    statuses,
+    queueTypes,
+    targetSeats,
+    requestedAgents,
+    runtimeAgents,
+    latestTimestamp,
+    latestSummary,
+  }
+}
+
+export function summarizeRepublicSchedulerQueue(
+  repository: NativeGitRepository,
+  deliberationID?: string,
+): RepublicSchedulerQueueSummary {
+  return summarizeRepublicSchedulerQueueRecords(readRepublicSchedulerQueueRecords(repository, deliberationID))
 }
 
 export function readRepublicCommonsMessages(

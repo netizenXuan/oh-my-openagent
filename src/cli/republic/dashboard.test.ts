@@ -9,6 +9,7 @@ import {
   appendNativeGitAuditRecord,
   appendRepublicCommonsMessage,
   appendRepublicLedgerRecord,
+  appendRepublicSchedulerQueueRecord,
   getNativeGitRepository,
   initializeRepublicTeam,
   writeRepublicContract,
@@ -121,6 +122,19 @@ describe("republic dashboard", () => {
       files: ["src/api/routes.ts"],
       summary: "API route file changed",
     })
+    appendRepublicSchedulerQueueRecord(repository!, {
+      queueType: "seat-response",
+      status: "queued",
+      reason: "manager_unavailable",
+      deliberationID: "large project",
+      phase: "cross-examination",
+      sourceMessageID: "house-2-r1-question",
+      sourceMessageType: "question",
+      targetSeatID: "planner-house-1",
+      requestedAgent: "sisyphus",
+      files: ["src/api/routes.ts"],
+      summary: "Queue planner-house-1 for UI contract drift response.",
+    })
     writeRepublicContract(repository!, {
       workgroupID: "api-workgroup",
       title: "API Contract",
@@ -168,6 +182,8 @@ describe("republic dashboard", () => {
     expect(data.teamPhase?.phase).toBe("planning")
     expect(data.seatStates.some((state) => state.seatID === "api-planner-seat")).toBe(true)
     expect(data.report.commons.messageCount).toBe(2)
+    expect(data.schedulerQueueRecords).toHaveLength(1)
+    expect(data.report.schedulerQueue.queued).toBe(1)
     expect(data.report.contractTraceability.contractCount).toBe(1)
     expect(data.report.contractTraceability.warningCount).toBe(0)
     expect(data.nodes.some((node) => node.id === "phase:planning")).toBe(true)
@@ -205,6 +221,7 @@ describe("republic dashboard", () => {
     expect(html).toContain("team-board")
     expect(html).toContain("Seat Inspector")
     expect(html).toContain("Contract Traceability")
+    expect(html).toContain("Scheduler Queue")
     expect(html).not.toContain('id="graph"')
     expect(git(directory, ["status", "--porcelain"])).toBe("")
   })

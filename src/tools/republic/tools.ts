@@ -10,6 +10,7 @@ import { getAgentConfigKey } from "../../shared/agent-display-names"
 import {
   appendRepublicCommonsMessage,
   appendRepublicLedgerRecord,
+  appendRepublicSchedulerQueueRecord,
   appendRepublicSeatMemory,
   getRepublicContractPath,
   getNativeGitRepository,
@@ -78,6 +79,13 @@ type AgentInfo = {
 type DispatchAgentResolution = {
   requestedAgent: string
   runtimeAgent: string
+}
+
+type QueuedDispatchResult = {
+  dispatch_id: string
+  target_seat_id: string
+  requested_agent?: string
+  reason: string
 }
 
 type LockedContractContext = {
@@ -411,6 +419,119 @@ function buildSupervisorReviewPrompt(
   return lines.filter((line): line is string => typeof line === "string").join("\n")
 }
 
+function createSchedulerDispatchID(
+  message: RepublicCommonsMessage,
+  queueType: "seat-response" | "supervisor-review",
+  status: "queued" | "dispatched",
+): string {
+  return sanitizeRepublicDeliberationID([
+    message.deliberationID,
+    queueType,
+    message.targetSeatID ?? "republic-supervisor",
+    message.messageID ?? Date.now(),
+    status,
+    Date.now(),
+  ].join("-")).slice(0, 140)
+}
+
+function appendSchedulerQueueRecord(args: {
+  repository: NativeGitRepository
+  message: RepublicCommonsMessage
+  queueType: "seat-response" | "supervisor-review"
+  status: "queued" | "dispatched"
+  reason?: string
+  targetSeatID?: string
+  requestedAgent?: string
+  runtimeAgent?: string
+  taskID?: string
+  summary: string
+}): string {
+  const dispatchID = createSchedulerDispatchID(args.message, args.queueType, args.status)
+  appendRepublicSchedulerQueueRecord(args.repository, {
+    dispatchID,
+    queueType: args.queueType,
+    status: args.status,
+    reason: args.reason,
+    deliberationID: args.message.deliberationID,
+    phase: args.message.phase,
+    sourceMessageID: args.message.messageID,
+    sourceMessageType: args.message.messageType,
+    targetSeatID: args.targetSeatID,
+    requestedAgent: args.requestedAgent,
+    runtimeAgent: args.runtimeAgent,
+    taskID: args.taskID,
+    workgroupID: args.message.workgroupID,
+    module: args.message.module,
+    files: args.message.files,
+    references: args.message.references,
+    summary: args.summary,
+  })
+  return dispatchID
+}
+
+function queueRepublicSeatDispatch(args: {
+  repository: NativeGitRepository
+  message: RepublicCommonsMessage
+  toolArgs: Record<string, unknown>
+  config?: RepublicConfig
+  reason: string
+}): QueuedDispatchResult | null {
+  if (!shouldAutoDispatch(args.message, args.config)) {
+    return null
+  }
+
+  const requestedAgent = resolveDispatchAgent(args.message.targetSeatID, args.toolArgs, args.config)
+  const summary = `Republic scheduler queued ${args.message.targetSeatID} for ${args.message.messageID ?? "the targeted Commons message"} because ${args.reason}.`
+  const dispatchID = appendSchedulerQueueRecord({
+    repository: args.repository,
+    message: args.message,
+    queueType: "seat-response",
+    status: "queued",
+    reason: args.reason,
+    targetSeatID: args.message.targetSeatID,
+    requestedAgent,
+    summary,
+  })
+
+  return {
+    dispatch_id: dispatchID,
+    target_seat_id: args.message.targetSeatID ?? "",
+    requested_agent: requestedAgent,
+    reason: args.reason,
+  }
+}
+
+function queueRepublicSupervisorDispatch(args: {
+  repository: NativeGitRepository
+  message: RepublicCommonsMessage
+  config?: RepublicConfig
+  reason: string
+}): QueuedDispatchResult | null {
+  if (!shouldAutoDispatchSupervisor(args.message, args.config)) {
+    return null
+  }
+
+  const requestedAgent = args.config?.scheduler?.supervisor_agent ?? "hephaestus"
+  const summary = `Republic scheduler queued supervisor review for ${args.message.messageID ?? "the governance event"} because ${args.reason}.`
+  const dispatchID = appendSchedulerQueueRecord({
+    repository: args.repository,
+    message: args.message,
+    queueType: "supervisor-review",
+    status: "queued",
+    reason: args.reason,
+    targetSeatID: "republic-supervisor",
+    requestedAgent,
+    summary,
+  })
+
+  return {
+    dispatch_id: dispatchID,
+    target_seat_id: "republic-supervisor",
+    requested_agent: requestedAgent,
+    reason: args.reason,
+  }
+}
+
 function buildRoundPrompt(args: {
   seat: RepublicTeamSeatDefinition
   phase: typeof TEAM_PHASES[number]
@@ -593,6 +714,17 @@ async function dispatchRepublicSeatResponse(args: {
     files: message.files,
     summary,
   })
+  appendSchedulerQueueRecord({
+    repository,
+    message,
+    queueType: "seat-response",
+    status: "dispatched",
+    targetSeatID: message.targetSeatID,
+    requestedAgent: dispatchAgent.requestedAgent,
+    runtimeAgent: dispatchAgent.runtimeAgent,
+    taskID: task.id,
+    summary,
+  })
 
   return {
     taskID: task.id,
@@ -666,6 +798,17 @@ async function dispatchRepublicSupervisorReview(args: {
     taskID: task.id,
     status: "dispatched",
     files: message.files,
+    summary,
+  })
+  appendSchedulerQueueRecord({
+    repository,
+    message,
+    queueType: "supervisor-review",
+    status: "dispatched",
+    targetSeatID: "republic-supervisor",
+    requestedAgent: dispatchAgent.requestedAgent,
+    runtimeAgent: dispatchAgent.runtimeAgent,
+    taskID: task.id,
     summary,
   })
 
@@ -1304,6 +1447,8 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
 
       let dispatch: { taskID: string; agent: string; requested_agent?: string } | null = null
       let supervisorDispatch: { taskID: string; agent: string; requested_agent?: string } | null = null
+      let queuedDispatch: QueuedDispatchResult | null = null
+      let queuedSupervisorDispatch: QueuedDispatchResult | null = null
       if (options.manager) {
         dispatch = await dispatchRepublicSeatResponse({
           repository,
@@ -1323,6 +1468,23 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
           ctx,
         })
       }
+      if (!dispatch) {
+        queuedDispatch = queueRepublicSeatDispatch({
+          repository,
+          message,
+          toolArgs: args,
+          config: options.config,
+          reason: options.manager ? "missing_parent_session_or_dispatch_unavailable" : "manager_unavailable",
+        })
+      }
+      if (!supervisorDispatch) {
+        queuedSupervisorDispatch = queueRepublicSupervisorDispatch({
+          repository,
+          message,
+          config: options.config,
+          reason: options.manager ? "missing_parent_session_or_dispatch_unavailable" : "manager_unavailable",
+        })
+      }
 
       return JSON.stringify({
         ok: true,
@@ -1332,6 +1494,8 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
         target_seat_id: message.targetSeatID,
         ...(dispatch ? { dispatch } : {}),
         ...(supervisorDispatch ? { supervisor_dispatch: supervisorDispatch } : {}),
+        ...(queuedDispatch ? { queued_dispatch: queuedDispatch } : {}),
+        ...(queuedSupervisorDispatch ? { queued_supervisor_dispatch: queuedSupervisorDispatch } : {}),
       })
     },
   })

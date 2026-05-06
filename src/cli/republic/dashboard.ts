@@ -5,6 +5,7 @@ import {
   readNativeGitAuditRecords,
   readRepublicCommonsMessages,
   readRepublicLedgerRecords,
+  readRepublicSchedulerQueueRecords,
   readRepublicSeatState,
   readRepublicTeamManifest,
   readRepublicTeamPhase,
@@ -13,6 +14,7 @@ import {
   type NativeGitRepository,
   type RepublicCommonsMessage,
   type RepublicLedgerRecord,
+  type RepublicSchedulerQueueRecord,
   type RepublicSeatState,
   type RepublicTeamManifest,
   type RepublicTeamPhaseState,
@@ -68,6 +70,7 @@ export interface RepublicDashboardData {
   seatStates: RepublicSeatState[]
   ledgerRecords: RepublicLedgerRecord[]
   commonsMessages: RepublicCommonsMessage[]
+  schedulerQueueRecords: RepublicSchedulerQueueRecord[]
   nativeGitRecords: NativeGitAuditRecord[]
   nodes: RepublicDashboardNode[]
   edges: RepublicDashboardEdge[]
@@ -266,6 +269,7 @@ export function buildRepublicDashboardData(options: RepublicDashboardOptions = {
   const repository = report.repository
   const ledgerRecords = repository ? readRepublicLedgerRecords(repository, options.deliberationId) : []
   const commonsMessages = repository ? readRepublicCommonsMessages(repository, options.deliberationId) : []
+  const schedulerQueueRecords = repository ? readRepublicSchedulerQueueRecords(repository, options.deliberationId) : []
   const nativeGitRecords = repository ? readNativeGitAuditRecords(repository) : []
   const teamManifest = repository ? readRepublicTeamManifest(repository) : null
   const teamPhase = repository ? readRepublicTeamPhase(repository) : null
@@ -646,6 +650,7 @@ export function buildRepublicDashboardData(options: RepublicDashboardOptions = {
     seatStates,
     ledgerRecords,
     commonsMessages,
+    schedulerQueueRecords,
     nativeGitRecords,
     nodes: Array.from(nodes.values()),
     edges: Array.from(edges.values()),
@@ -902,6 +907,10 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       });
     }
 
+    function schedulerRecordsForSeat(data, seatID) {
+      return (data.schedulerQueueRecords ?? []).filter((record) => record.targetSeatID === seatID);
+    }
+
     function renderSeatCard(data, seat) {
       const state = seatStateByID(data).get(seat.seatID);
       const status = state?.status ?? "standby";
@@ -974,6 +983,8 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
         metric("Blocked", statusCount("blocked") + statusCount("error")),
         metric("Done", statusCount("done")),
         metric("Commons messages", data.report.commons.messageCount),
+        metric("Queued dispatches", data.report.schedulerQueue?.queued ?? 0),
+        metric("Dispatched tasks", data.report.schedulerQueue?.dispatched ?? 0),
         metric("Native git records", data.report.nativeGit.recordCount),
         metric("Contracts", data.report.contractTraceability?.contractCount ?? 0),
         metric("Contract warnings", data.report.contractTraceability?.warningCount ?? 0),
@@ -999,6 +1010,7 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       const related = messagesForSeat(data, seat.seatID).sort((left, right) => String(right.timestamp ?? "").localeCompare(String(left.timestamp ?? "")));
       const completion = completionForSeat(data, seat.seatID);
       const contracts = contractsForSeat(data, seat);
+      const queueRecords = schedulerRecordsForSeat(data, seat.seatID).sort((left, right) => String(right.timestamp ?? "").localeCompare(String(left.timestamp ?? "")));
       inspector.innerHTML = '<h2>Seat Inspector</h2>'
         + '<div class="inspector-title"><strong>' + safe(seat.seatID) + '</strong><span class="' + statusClass(state?.status ?? "standby") + '">' + safe(state?.status ?? "standby") + '</span><p class="muted">' + safe(seat.role) + '</p></div>'
         + '<div>' + [
@@ -1011,6 +1023,7 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
           metric("Task", safe(state?.taskID ?? seat.taskID ?? "none")),
         ].join("") + '</div>'
         + '<div><h3>Interaction Completion</h3><div class="progress"><div style="width:' + completion.percent + '%"></div></div><p class="muted">' + completion.done + ' / ' + completion.total + ' question threads completed. Authored questions: ' + completion.authoredQuestions + '. Inbound questions: ' + completion.inboundQuestions + '.</p></div>'
+        + '<div><h3>Scheduler Queue</h3><div class="inspector-list">' + (queueRecords.length ? queueRecords.slice(0, 8).map((record) => '<div class="item"><strong>' + safe(record.status) + ' / ' + safe(record.queueType) + '</strong><p>' + safe(record.summary ?? record.reason ?? "") + '</p><small>' + safe(record.requestedAgent ?? "no requested agent") + (record.runtimeAgent ? ' -> ' + safe(record.runtimeAgent) : '') + (record.taskID ? ' / task ' + safe(record.taskID) : '') + '</small></div>').join("") : '<div class="empty">No queued or dispatched scheduler work for this seat.</div>') + '</div></div>'
         + '<div><h3>Contract Traceability</h3><div class="inspector-list">' + (contracts.length ? contracts.map((contract) => '<div class="item"><strong>' + safe(contract.contractID) + ' / ' + safe(contract.status) + '</strong><p>' + safe((contract.uncoveredTerms ?? []).length ? 'Uncovered terms: ' + contract.uncoveredTerms.join(", ") : 'All extracted hard terms are covered.') + '</p><small>' + safe((contract.files ?? []).join(", ") || "no governed files") + '</small></div>').join("") : '<div class="empty">No contract linked to this seat yet.</div>') + '</div></div>'
         + '<div><h3>Recent Seat Interactions</h3><div class="inspector-list">' + (related.length ? related.slice(0, 10).map((message) => '<div class="item"><strong>' + safe(message.messageType) + (message.targetSeatID ? ' to ' + safe(message.targetSeatID) : '') + '</strong><p>' + safe(message.content) + '</p><small>' + safe(message.channel) + ' / ' + safe(message.phase) + ' / round ' + safe(message.round ?? "n/a") + '</small></div>').join("") : '<div class="empty">No direct interactions for this seat yet.</div>') + '</div></div>';
     }

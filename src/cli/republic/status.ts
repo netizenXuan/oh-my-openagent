@@ -5,12 +5,14 @@ import {
   summarizeNativeGitAudit,
   summarizeRepublicCommons,
   summarizeRepublicLedger,
+  summarizeRepublicSchedulerQueue,
   type RepublicDecision,
   type NativeGitAuditSummary,
   type NativeGitRepository,
   type RepublicCommonsSummary,
   type RepublicContractTraceabilitySummary,
   type RepublicLedgerSummary,
+  type RepublicSchedulerQueueSummary,
 } from "../../shared/git-worktree"
 
 export interface RepublicStatusOptions {
@@ -28,6 +30,7 @@ export interface RepublicStatusReport {
   decision: RepublicDecision
   nativeGit: NativeGitAuditSummary
   contractTraceability: RepublicContractTraceabilitySummary
+  schedulerQueue: RepublicSchedulerQueueSummary
 }
 
 function formatCounter(counter: Record<string, number>): string {
@@ -103,6 +106,21 @@ function emptyNativeGitSummary(): NativeGitAuditSummary {
   }
 }
 
+function emptySchedulerQueueSummary(): RepublicSchedulerQueueSummary {
+  return {
+    recordCount: 0,
+    queued: 0,
+    dispatched: 0,
+    skipped: 0,
+    failed: 0,
+    statuses: {},
+    queueTypes: {},
+    targetSeats: {},
+    requestedAgents: {},
+    runtimeAgents: {},
+  }
+}
+
 export function buildRepublicStatusReport(options: RepublicStatusOptions = {}): RepublicStatusReport {
   const directory = options.directory ?? process.cwd()
   const repository = getNativeGitRepository(directory)
@@ -119,6 +137,7 @@ export function buildRepublicStatusReport(options: RepublicStatusOptions = {}): 
     decision: evaluateRepublicDecision(republic),
     nativeGit: repository ? summarizeNativeGitAudit(repository) : emptyNativeGitSummary(),
     contractTraceability: repository ? analyzeRepublicContractTraceability(repository) : { contractCount: 0, warningCount: 0, items: [] },
+    schedulerQueue: repository ? summarizeRepublicSchedulerQueue(repository, deliberationID) : emptySchedulerQueueSummary(),
   }
 }
 
@@ -132,17 +151,20 @@ export function formatRepublicStatusReport(report: RepublicStatusReport): string
   const decision = report.decision
   const nativeGit = report.nativeGit
   const contractTraceability = report.contractTraceability
+  const schedulerQueue = report.schedulerQueue
   const voteLine = `approve=${republic.votes.approve}, revise=${republic.votes.revise}, reject=${republic.votes.reject}, abstain=${republic.votes.abstain}, other=${republic.votes.other}`
   const nextAction =
     decision.status === "blocked"
       ? "Revise the plan before execution; at least one reject/blocker was recorded."
       : decision.status === "needs-quorum"
         ? "Continue deliberation until quorum is met."
-      : nativeGit.recordCount > 0
-        ? "Review native-git changes and commit with git-master when the work is ready."
-        : decision.status === "approved"
-          ? "Proceed to execution if the user accepts the recommendation."
-          : "Run /deliberate <problem-or-plan> to create the first Republic ledger."
+      : schedulerQueue.queued > 0
+        ? "Keep the Republic scheduler active or consume queued dispatches before treating collaboration as complete."
+        : nativeGit.recordCount > 0
+          ? "Review native-git changes and commit with git-master when the work is ready."
+          : decision.status === "approved"
+            ? "Proceed to execution if the user accepts the recommendation."
+            : "Run /deliberate <problem-or-plan> to create the first Republic ledger."
 
   return [
     "OMO Republic Status",
@@ -192,6 +214,16 @@ export function formatRepublicStatusReport(report: RepublicStatusReport): string
     `Sessions: ${formatCounter(nativeGit.sessions)}`,
     `Files: ${formatList(nativeGit.files)}`,
     nativeGit.latestSummary ? `Latest: ${nativeGit.latestSummary}` : "Latest: none",
+    "",
+    "Republic Scheduler Queue",
+    `Records: ${schedulerQueue.recordCount}`,
+    `Queued: ${schedulerQueue.queued}`,
+    `Dispatched: ${schedulerQueue.dispatched}`,
+    `Failed: ${schedulerQueue.failed}`,
+    `Types: ${formatCounter(schedulerQueue.queueTypes)}`,
+    `Target seats: ${formatCounter(schedulerQueue.targetSeats)}`,
+    `Requested agents: ${formatCounter(schedulerQueue.requestedAgents)}`,
+    schedulerQueue.latestSummary ? `Latest: ${schedulerQueue.latestSummary}` : "Latest: none",
     "",
     "Contract Traceability",
     `Contracts: ${contractTraceability.contractCount}`,
