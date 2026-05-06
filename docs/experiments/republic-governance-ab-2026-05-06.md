@@ -29,6 +29,8 @@ Model and workflow variants:
 | Ling treatment v1-v3 | `inclusionai/ling-2.6-1t:free` | Republic tools | Exposed prompt-drift failures: contract wording drift, experiment-word contamination, and invalid shell commands. |
 | Ling treatment v4 | `inclusionai/ling-2.6-1t:free` | Republic with short explicit seat sessions | Produced usable governance evidence, contracts, inter-seat ask/reply, supervisor intervention, and passing final verification. |
 | Kimi check | `kimi-for-coding/k2p6` | CLI smoke | CLI channel recovered; Kimi read injected Republic team state, operating checklist, locked contract excerpts, and the hard dependency rule. |
+| Kimi control | `kimi-for-coding/k2p6` | single agent with native-git tracking | Implemented order cancellation support, passed tests and typecheck, and produced 4 native-git audit records but no Republic Commons records. |
+| Kimi treatment | `kimi-for-coding/k2p6` | Republic-guided single session | Implemented the same task, passed tests and typecheck, initialized an auto team, wrote a contract, and produced Commons, ledger, dependency-gate, and supervisor records. |
 
 ## Ling v4 Setup
 
@@ -177,6 +179,51 @@ The new unit coverage asserts both post-change rollback and dirty-baseline no-ro
 Follow-up real OpenCode/Kimi smoke found one Windows-specific edge case: a PowerShell-created `.git/omo/republic/team/phase.json` can include a UTF-8 BOM, which made the phase reader return `null` and caused the post-change gate to think no locked contract existed. The Republic team JSON reader now strips a leading BOM, and unit coverage asserts BOM phase files still expose `phase: "execution"` and `lockedContracts`.
 
 The final negative smoke used the real OpenCode CLI, local plugin path, `kimi-for-coding/k2p6`, Republic tools disabled, a locked execution contract, and a clean test repository. Kimi attempted to create `src/api/orders.ts`; the post-change guardrail recorded a `channel: "guardrail"` / `phase: "post-change"` / `status: "blocked"` Commons entry, restored `src/api/orders.ts`, skipped native-git audit for the unauthorized write, and left `git status --short` empty. The guardrail reminder now states that `republic_inbox` and `republic_team_status` are OpenCode tool calls, not `.republic` files, and tells weak models to stop instead of retrying when the required tool is unavailable.
+
+## Clean Kimi A/B: Order Cancellation
+
+After the guardrail fixes, a clean Kimi A/B run used the same initial TypeScript order project and the same model, `kimi-for-coding/k2p6`. The task was to add order cancellation and shipment status support across domain, API, tests, and docs, with no dependency or lockfile changes.
+
+Control repository:
+
+```text
+D:\OMO\republic-ab-control-kimi-20260506
+```
+
+Treatment repository:
+
+```text
+D:\OMO\republic-ab-treatment-kimi-20260506
+```
+
+Both runs passed deterministic verification:
+
+```text
+bun test
+bun node_modules\typescript\bin\tsc --noEmit
+```
+
+Results:
+
+| Metric | Kimi control | Kimi treatment |
+| --- | ---: | ---: |
+| Product files changed | 4 | 4 |
+| Tests after run | 5 pass | 5 pass |
+| Typecheck after run | pass | pass |
+| Native-git audit records | 4 | 4 |
+| Republic ledger records | 0 | 18 |
+| Republic Commons messages | 0 | 18 |
+| Contracts written | 0 | 1 |
+| Dependency-gate records | 0 | 3 |
+| Supervisor intervention records | 0 | 4 |
+| Auto-allocated team seats | 0 | 8 |
+
+Observed behavior:
+
+- The single-agent control completed the code task efficiently and native-git captured each file-changing tool call.
+- The Republic treatment also completed the code task, but added a durable planning proposal, a workgroup contract, a phase transition, seat state updates, native-git-to-Commons publication, dependency-gate records, and supervisor interventions for high-risk multi-module edits.
+- The treatment dashboard rendered from `.git/omo/republic/dashboard.html` with the simplified workgroup board and Seat Inspector view.
+- This run was not a full parallel `republic_round_start` execution. It was a Republic-guided single session that proved the governance artifacts can be produced without breaking the product task. Full parallel-seat proof still requires a persistent scheduler benchmark.
 
 ## Interpretation
 

@@ -185,11 +185,12 @@ It also includes a Commons section with message counts, channels, phases, author
 
 ## Dashboard
 
-The Republic dashboard converts Git-native records into a network graph:
+The Republic dashboard converts Git-native records into a readable team board:
 
-- repository, deliberation, chamber, workgroup, seat, agent, task, message, module, file, tool, and decision nodes
-- `runs`, `published`, `targets`, `references`, `coordinates`, `assigns`, `supervises`, `depends-on`, `discusses`, `reviews`, and `changed` edges
-- a Commons timeline showing recent cross-seat proposals, questions, objections, revisions, and consensus
+- a left summary rail with execution state, decision, record counts, targeted messages, and native-git totals
+- a central workgroup board that groups seats by planning, execution, review, and supervisor responsibility
+- a Seat Inspector that opens when a seat is selected and shows status, workgroup, module, task, memory, messages, contracts, file activity, interventions, and dependencies
+- a Commons timeline showing recent proposals, questions, objections, revisions, contracts, supervisor notes, and native-git records
 
 By default the static HTML is written under:
 
@@ -197,7 +198,7 @@ By default the static HTML is written under:
 .git/omo/republic/dashboard.html
 ```
 
-The dashboard is intentionally data-first. The graph model is suitable for a future draggable editor where users can define custom agent teams, module workgroups, supervisors, and communication lanes visually.
+The dashboard intentionally avoids drawing every message edge by default. Dense runs can produce hundreds of relationships, so the UI keeps the top-level board stable and moves detailed communication state into the Seat Inspector. The underlying data still preserves workgroups, dependencies, targets, references, files, and supervisor records for a future draggable editor where users can define custom agent teams, module workgroups, supervisors, and communication lanes visually.
 
 ## OpenCode Smoke Verification
 
