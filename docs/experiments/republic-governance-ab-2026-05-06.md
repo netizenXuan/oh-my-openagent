@@ -129,6 +129,15 @@ The experiment directly motivated stronger weak-model constraints in Republic pr
 - execution seats are told to keep edits inside their workgroup or publish a handoff/objection and stop
 - tests assert that these constraints are present in the generated prompts and inbox output
 
+After this change, a Ling smoke check was run against the v4 experiment repository. The model was instructed not to edit files and to call `republic_inbox` for `api-executor-seat` with `include_agent_doc=true`. Ling successfully called the tool and confirmed that the inbox contained all four expected constraint anchors:
+
+- `Operating Checklist`
+- `Locked Contracts`
+- `Do not create or update dependencies`
+- `customerID`
+
+No additional worktree changes were created by this smoke check.
+
 ## Interpretation
 
 The current Republic design is already distinct from ordinary multi-agent delegation because the collaboration record, contracts, audit log, and seat state all live under the Git common dir. The more important finding is that this approach is especially suited to weaker models. Instead of trusting a weak model to remember everything, the system repeatedly exposes the same hard boundaries through contracts, inboxes, and supervisor checks.
