@@ -31,11 +31,13 @@ function makeHook(handler: TransformHook): NonNullable<CreatedHooks["toolPairVal
 
 function makeHooks(overrides: {
   contextInjector?: TransformHook
+  nativeGit?: TransformHook
   thinkingBlock?: TransformHook
   toolPair?: TransformHook
 }): CreatedHooks {
   return {
     contextInjectorMessagesTransform: overrides.contextInjector ? makeHook(overrides.contextInjector) : undefined,
+    nativeGit: overrides.nativeGit ? makeHook(overrides.nativeGit) : undefined,
     thinkingBlockValidator: overrides.thinkingBlock ? makeHook(overrides.thinkingBlock) : undefined,
     toolPairValidator: overrides.toolPair ? makeHook(overrides.toolPair) : undefined,
   } as unknown as CreatedHooks
@@ -57,6 +59,9 @@ describe("createMessagesTransformHandler", () => {
       contextInjector: async () => {
         callOrder.push("context-injector")
       },
+      nativeGit: async () => {
+        callOrder.push("native-git")
+      },
       thinkingBlock: async () => {
         callOrder.push("thinking-block-validator")
       },
@@ -71,6 +76,7 @@ describe("createMessagesTransformHandler", () => {
     //#then
     expect(callOrder).toEqual([
       "context-injector",
+      "native-git",
       "thinking-block-validator",
       "tool-pair-validator",
     ])

@@ -281,6 +281,82 @@ describe("native git hook", () => {
     expect(output.parts[0]?.text).toContain("Use the locked order API contract")
   })
 
+  test("tracked mode injects republic constraints through messages transform", async () => {
+    const hook = createNativeGitHook(
+      { directory } as never,
+      { mode: "tracked", audit_log: true },
+      {
+        enabled: true,
+        mode: "advisory",
+        ledger: true,
+        commons: {
+          auto_publish: true,
+          inbox: true,
+          inject_max_messages: 4,
+          agent_docs: true,
+        },
+      } as never,
+    )
+    const repository = getNativeGitRepository(directory)!
+    initializeRepublicTeam(repository, {
+      manifest: {
+        teamModel: "parliament_squad",
+        seatAllocation: "auto",
+        maxParallelSeats: 4,
+        defaultRuntimeAgent: "general",
+        seats: [
+          {
+            seatID: "sisyphus-executor",
+            role: "executor",
+            phase: "execution",
+            workgroupID: "wg-src-api",
+            module: "src/api",
+            runtimeAgent: "sisyphus",
+          },
+        ],
+      },
+      phase: {
+        phase: "execution",
+        status: "in-progress",
+        deliberationID: "session-ses_transform",
+        lockedContracts: ["wg-src-api"],
+      },
+    })
+    writeRepublicContract(repository, {
+      workgroupID: "wg-src-api",
+      title: "Order API Contract",
+      content: "OrderRequest must use customerID and discountCode exactly.",
+      authorSeatID: "api-planner-seat",
+      status: "accepted",
+    })
+
+    await hook["chat.message"]?.({
+      sessionID: "ses_transform",
+      agent: "sisyphus",
+      model: { providerID: "openrouter", modelID: "inclusionai/ling-2.6-1t:free" },
+      promptText: "Continue src/api/orders.ts",
+    }, { parts: [{ type: "text", text: "Continue src/api/orders.ts" }] })
+
+    const output = {
+      messages: [
+        {
+          info: { id: "msg_1", role: "user", sessionID: "ses_transform" },
+          parts: [{ type: "text", text: "Continue src/api/orders.ts" }],
+        },
+      ],
+    }
+
+    await hook["experimental.chat.messages.transform"]?.({} as never, output as never)
+
+    expect(output.messages[0]?.parts).toHaveLength(2)
+    expect(output.messages[0]?.parts[0]?.text).toContain("<republic-team-state>")
+    expect(output.messages[0]?.parts[0]?.text).toContain("operating_checklist")
+    expect(output.messages[0]?.parts[0]?.text).toContain("Do not create or update dependencies")
+    expect(output.messages[0]?.parts[0]?.text).toContain("locked_contract_excerpts")
+    expect(output.messages[0]?.parts[0]?.text).toContain("discountCode exactly")
+    expect(output.messages[0]?.parts[1]?.text).toBe("Continue src/api/orders.ts")
+  })
+
   test("session idle records supervisor policy for unresolved commons questions", async () => {
     const hook = createNativeGitHook(
       { directory } as never,

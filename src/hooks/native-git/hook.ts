@@ -19,7 +19,7 @@ import {
   type RepublicCommonsMessage,
 } from "../../shared/git-worktree"
 import { log } from "../../shared/logger"
-import { getSessionAgent } from "../../features/claude-code-session-state"
+import { getMainSessionID, getSessionAgent } from "../../features/claude-code-session-state"
 import { getAgentConfigKey } from "../../shared/agent-display-names"
 
 const TRACKED_TOOLS = new Set(["write", "edit", "multiedit", "apply_patch", "hashline_edit", "bash", "task"])
@@ -43,6 +43,22 @@ type NativeGitChatInput = {
 
 type NativeGitChatOutput = {
   parts: Array<{ type: string; text?: string; [key: string]: unknown }>
+}
+
+type NativeGitTransformPart = { type: string; text?: string; [key: string]: unknown }
+
+type NativeGitTransformMessage = {
+  info: {
+    role?: string
+    id?: string
+    sessionID?: string
+    [key: string]: unknown
+  }
+  parts: NativeGitTransformPart[]
+}
+
+type NativeGitMessagesTransformOutput = {
+  messages: NativeGitTransformMessage[]
 }
 
 type NativeGitSessionContext = {
@@ -521,12 +537,13 @@ export function createNativeGitHook(
   }
 
   function rememberSessionContext(input: NativeGitChatInput): void {
+    const previous = sessionContextBySession.get(input.sessionID)
     const requestedPaths = getPromptMentionedPaths(input.promptText)
     sessionContextBySession.set(input.sessionID, {
-      agent: normalizeAgent(input.agent),
-      model: formatModelID(input.model),
-      category: input.category,
-      requestedPaths: requestedPaths.length > 0 ? requestedPaths : undefined,
+      agent: normalizeAgent(input.agent) ?? previous?.agent,
+      model: formatModelID(input.model) ?? previous?.model,
+      category: input.category ?? previous?.category,
+      requestedPaths: requestedPaths.length > 0 ? requestedPaths : previous?.requestedPaths,
     })
   }
 
@@ -637,14 +654,14 @@ export function createNativeGitHook(
     return lines.filter((line): line is string => typeof line === "string").join("\n")
   }
 
-  function injectRepublicInbox(input: NativeGitChatInput, output: NativeGitChatOutput | undefined): void {
-    if (!output || !isRepublicLedgerEnabled(republicConfig) || !(republicConfig?.commons?.inbox ?? true)) {
-      return
+  function buildRepublicChatContext(input: NativeGitChatInput): string | undefined {
+    if (!isRepublicLedgerEnabled(republicConfig) || !(republicConfig?.commons?.inbox ?? true)) {
+      return undefined
     }
 
     const status = getNativeGitStatus(ctx.directory)
     if (!status) {
-      return
+      return undefined
     }
 
     const enriched = enrichToolInput({
@@ -675,9 +692,90 @@ export function createNativeGitHook(
       injections.push(formatInboxInjection(messages))
     }
 
-    if (injections.length > 0) {
-      prependChatContext(output, injections.join("\n\n"))
+    return injections.length > 0 ? injections.join("\n\n") : undefined
+  }
+
+  function injectRepublicInbox(input: NativeGitChatInput, output: NativeGitChatOutput | undefined): void {
+    if (!output) {
+      return
     }
+
+    const context = buildRepublicChatContext(input)
+    if (context) {
+      prependChatContext(output, context)
+    }
+  }
+
+  function extractTransformPromptText(parts: NativeGitTransformPart[]): string {
+    return parts
+      .filter((part) => part.type === "text" && typeof part.text === "string")
+      .map((part) => part.text)
+      .join("\n")
+      .trim()
+  }
+
+  function findLastUserMessage(output: NativeGitMessagesTransformOutput): NativeGitTransformMessage | undefined {
+    for (let index = output.messages.length - 1; index >= 0; index--) {
+      const message = output.messages[index]
+      if (message?.info.role === "user") {
+        return message
+      }
+    }
+    return undefined
+  }
+
+  function messageAlreadyHasRepublicContext(message: NativeGitTransformMessage): boolean {
+    return message.parts.some(
+      (part) =>
+        part.type === "text" &&
+        typeof part.text === "string" &&
+        (part.text.includes("<republic-team-state>") || part.text.includes("<republic-commons-inbox>")),
+    )
+  }
+
+  function injectRepublicTransformContext(output: NativeGitMessagesTransformOutput): void {
+    const lastUserMessage = findLastUserMessage(output)
+    if (!lastUserMessage || messageAlreadyHasRepublicContext(lastUserMessage)) {
+      return
+    }
+
+    const sessionID = lastUserMessage.info.sessionID ?? getMainSessionID()
+    if (!sessionID) {
+      return
+    }
+
+    const agent = getSessionAgent(sessionID)
+    const promptText = extractTransformPromptText(lastUserMessage.parts)
+    rememberSessionContext({
+      sessionID,
+      agent,
+      promptText,
+    })
+
+    const context = buildRepublicChatContext({
+      sessionID,
+      agent,
+      promptText,
+    })
+    if (!context) {
+      return
+    }
+
+    const textPartIndex = lastUserMessage.parts.findIndex(
+      (part) => part.type === "text" && typeof part.text === "string",
+    )
+    if (textPartIndex === -1) {
+      return
+    }
+
+    lastUserMessage.parts.splice(textPartIndex, 0, {
+      id: `synthetic_native_git_republic_${sessionID}`,
+      messageID: lastUserMessage.info.id,
+      sessionID,
+      type: "text",
+      text: context,
+      synthetic: true,
+    })
   }
 
   function findUnresolvedQuestions(messages: RepublicCommonsMessage[]): RepublicCommonsMessage[] {
@@ -1251,6 +1349,14 @@ export function createNativeGitHook(
       if (mode !== "manual") {
         rememberSessionContext(input)
         injectRepublicInbox(input, output)
+      }
+    },
+    "experimental.chat.messages.transform": async (
+      _input: Record<string, never>,
+      output: NativeGitMessagesTransformOutput,
+    ): Promise<void> => {
+      if (mode !== "manual") {
+        injectRepublicTransformContext(output)
       }
     },
     "tool.execute.before": async (

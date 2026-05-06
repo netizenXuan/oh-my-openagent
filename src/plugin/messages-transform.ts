@@ -45,6 +45,15 @@ export function createMessagesTransformHandler(args: {
     )
 
     await runMessagesTransformHookSafely(
+      "nativeGit",
+      args.hooks.nativeGit?.[
+        "experimental.chat.messages.transform"
+      ],
+      input,
+      output,
+    )
+
+    await runMessagesTransformHookSafely(
       "thinkingBlockValidator",
       args.hooks.thinkingBlockValidator?.[
         "experimental.chat.messages.transform"
