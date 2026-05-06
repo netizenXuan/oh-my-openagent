@@ -194,6 +194,14 @@ bunx oh-my-opencode republic scheduler --directory /path/to/repo --command-templ
 
 The command template supports `{repo}`, `{prompt}`, `{agent}`, `{target_seat}`, `{dispatch_id}`, and `{deliberation_id}`. Values are shell-quoted before substitution. A successful command appends a `status: "dispatched"` record to `.git/omo/republic/scheduler/queue.jsonl`; a failed command appends `status: "failed"`.
 
+Run it as a lightweight daemon:
+
+```bash
+bunx oh-my-opencode republic scheduler --directory /path/to/repo --watch --poll-interval-ms 5000 --command-template "opencode run --agent {agent} --prompt-file {prompt}"
+```
+
+This is still a host-level scheduler, not a mid-token live chat bus. It continuously consumes Git-recorded dispatches and wakes new seat sessions when the host command is available.
+
 Generate a reproducible benchmark report from one or more experiment repositories:
 
 ```bash

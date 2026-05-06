@@ -23,6 +23,9 @@ export function createRepublicCommand(): Command {
       "--command-template <template>",
       "External command to launch each queued dispatch; supports {repo}, {prompt}, {agent}, {target_seat}, {dispatch_id}, {deliberation_id}",
     )
+    .option("--watch", "Keep polling the scheduler queue")
+    .option("--poll-interval-ms <ms>", "Polling interval for --watch", (value) => Number.parseInt(value, 10))
+    .option("--max-cycles <n>", "Maximum watch cycles; mainly useful for tests and smoke runs", (value) => Number.parseInt(value, 10))
     .option("--json", "Output structured JSON")
     .action(async (options) => {
       const exitCode = await republicScheduler({
@@ -31,6 +34,9 @@ export function createRepublicCommand(): Command {
         limit: options.limit,
         writePrompts: options.writePrompts ?? false,
         commandTemplate: options.commandTemplate,
+        watch: options.watch ?? false,
+        pollIntervalMs: options.pollIntervalMs,
+        maxCycles: options.maxCycles,
         json: options.json ?? false,
       })
       process.exit(exitCode)

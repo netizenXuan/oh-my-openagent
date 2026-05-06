@@ -16,6 +16,9 @@ export interface RepublicSchedulerOptions {
   limit?: number
   writePrompts?: boolean
   commandTemplate?: string
+  watch?: boolean
+  pollIntervalMs?: number
+  maxCycles?: number
   json?: boolean
 }
 
@@ -238,14 +241,44 @@ export function formatRepublicSchedulerPlan(plan: RepublicSchedulerPlan): string
   ].join("\n")
 }
 
-export async function republicScheduler(options: RepublicSchedulerOptions = {}): Promise<number> {
-  const plan = buildRepublicSchedulerPlan(options)
-  if (options.json) {
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function printSchedulerPlan(plan: RepublicSchedulerPlan, json?: boolean): void {
+  if (json) {
     console.log(JSON.stringify(plan, null, 2))
   } else {
     console.log(formatRepublicSchedulerPlan(plan))
   }
+}
 
+export async function republicScheduler(options: RepublicSchedulerOptions = {}): Promise<number> {
+  if (options.watch) {
+    const pollIntervalMs = options.pollIntervalMs && options.pollIntervalMs > 0 ? options.pollIntervalMs : 5000
+    const maxCycles = options.maxCycles && options.maxCycles > 0 ? options.maxCycles : Number.POSITIVE_INFINITY
+    let cycle = 0
+    let exitCode = 0
+    while (cycle < maxCycles) {
+      const plan = buildRepublicSchedulerPlan(options)
+      printSchedulerPlan(plan, options.json)
+      if (!plan.repository) {
+        return 1
+      }
+      if (plan.actions.some((action) => action.status === "failed")) {
+        exitCode = 1
+      }
+      cycle += 1
+      if (cycle >= maxCycles) {
+        break
+      }
+      await sleep(pollIntervalMs)
+    }
+    return exitCode
+  }
+
+  const plan = buildRepublicSchedulerPlan(options)
+  printSchedulerPlan(plan, options.json)
   if (!plan.repository) {
     return 1
   }

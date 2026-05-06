@@ -13,6 +13,7 @@ import {
 import {
   buildRepublicSchedulerPlan,
   formatRepublicSchedulerPlan,
+  republicScheduler,
 } from "./scheduler"
 
 function git(cwd: string, args: string[]): string {
@@ -129,5 +130,32 @@ describe("republic scheduler cli", () => {
     expect(plan.queuedCount).toBe(0)
     expect(plan.actions).toEqual([])
     expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
+  test("watch mode exits after the requested max cycles", async () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")
+    commitAll(directory, "init")
+
+    const logs: string[] = []
+    const originalLog = console.log
+    console.log = (value?: unknown) => {
+      logs.push(String(value ?? ""))
+    }
+    try {
+      const exitCode = await republicScheduler({
+        directory,
+        watch: true,
+        maxCycles: 1,
+        pollIntervalMs: 1,
+        json: true,
+      })
+
+      expect(exitCode).toBe(0)
+      expect(logs).toHaveLength(1)
+      expect(logs[0]).toContain('"queuedCount": 0')
+    } finally {
+      console.log = originalLog
+    }
   })
 })
