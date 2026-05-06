@@ -8,6 +8,7 @@ import {
   getRepublicContractPath,
   getNativeGitChangeSummary,
   getNativeGitStatus,
+  restoreNativeGitFiles,
   readRepublicCommonsMessages,
   readRepublicInboxMessages,
   readRepublicSeatMemory,
@@ -83,6 +84,7 @@ type NativeGitTrackResult = {
   summary?: string
   supervisorMessage?: string
   dependencyGateMessage?: string
+  guardrailMessage?: string
 }
 
 type NativeGitDirtyState = {
@@ -200,6 +202,16 @@ function buildPostChangeDependencyGateMessage(message: string): string {
   return `
 <system-reminder>
 Republic workgroup dependency gate ${status}.
+
+${message.trim()}
+</system-reminder>`
+}
+
+function buildPostChangeRepublicGuardrailMessage(message: string): string {
+  const status = message.includes("guardrail blocked") ? "blocked" : "recorded"
+  return `
+<system-reminder>
+Republic weak-model guardrail ${status}.
 
 ${message.trim()}
 </system-reminder>`
@@ -527,6 +539,7 @@ export function createNativeGitHook(
   const supervisorReminderCallKeys = new Set<string>()
   const taskReminderCallKeys = new Set<string>()
   const republicGuardrailPublishedCallKeys = new Set<string>()
+  const republicGuardrailReminderCallKeys = new Set<string>()
   const initialStatusByRepo = new Map<string, string>()
   const sessionContextBySession = new Map<string, NativeGitSessionContext>()
   const republicContextBySession = new Map<string, { key: string; explicit: boolean }>()
@@ -557,6 +570,7 @@ export function createNativeGitHook(
       supervisorReminderCallKeys,
       taskReminderCallKeys,
       republicGuardrailPublishedCallKeys,
+      republicGuardrailReminderCallKeys,
     ]) {
       for (const key of set) {
         if (key.startsWith(`${sessionID}:`)) {
@@ -1237,6 +1251,11 @@ export function createNativeGitHook(
     files: string[],
     lockedContracts: string[],
     blocked: boolean,
+    options: {
+      timing?: "preflight" | "post-change"
+      restored?: string[]
+      restoreFailed?: string[]
+    } = {},
   ): void {
     const callKey = getCallKey(input)
     if (callKey && republicGuardrailPublishedCallKeys.has(callKey)) {
@@ -1248,16 +1267,19 @@ export function createNativeGitHook(
     const moduleName = getPrimaryModule(files)
     const workgroupID = getWorkgroupID(moduleName)
     const targetSeatID = getSeatID(input)
+    const timing = options.timing ?? "preflight"
     const summary = [
-      `Republic weak-model guardrail ${blocked ? "blocked" : "recorded"} ${input.tool} before execution because locked contracts exist but the session has not received the required contract context.`,
+      `Republic weak-model guardrail ${blocked ? "blocked" : "recorded"} ${input.tool} ${timing === "post-change" ? "after execution" : "before execution"} because locked contracts exist but the session has not received the required contract context.`,
       `locked_contracts: ${lockedContracts.join(", ")}`,
       `hard_dependency_rule: ${REPUBLIC_HARD_DEPENDENCY_RULE}`,
-    ].join("\n")
+      options.restored?.length ? `restored_files: ${options.restored.join(", ")}` : undefined,
+      options.restoreFailed?.length ? `restore_failed: ${options.restoreFailed.join(", ")}` : undefined,
+    ].filter((line): line is string => typeof line === "string").join("\n")
 
     appendRepublicCommonsMessage(repository, {
       deliberationID,
       channel: "guardrail",
-      phase: "preflight",
+      phase: timing,
       authorSeatID: "weak-model-guardrail",
       authorAgent: "republic-supervisor",
       authorRole: "supervisor",
@@ -1273,7 +1295,7 @@ export function createNativeGitHook(
 
     appendRepublicLedgerRecord(repository, {
       deliberationID,
-      phase: "preflight",
+      phase: timing,
       chamber: "supervisor",
       seatID: "weak-model-guardrail",
       role: "supervisor",
@@ -1345,6 +1367,50 @@ export function createNativeGitHook(
     }
 
     appendBeforeMessage(output, message)
+  }
+
+  function publishPostChangeRepublicContextGate(
+    repository: NativeGitRepository,
+    input: NativeGitToolInput,
+    files: string[],
+    baselineWasClean: boolean,
+  ): string | undefined {
+    const guardrails = republicConfig?.weak_model_guardrails
+    const tool = input.tool.toLowerCase()
+    if (
+      mode === "manual" ||
+      !isRepublicLedgerEnabled(republicConfig) ||
+      guardrails?.enabled === false ||
+      guardrails?.require_context_before_edit === false ||
+      !MUTATING_TOOLS.has(tool)
+    ) {
+      return undefined
+    }
+
+    const phase = readRepublicTeamPhase(repository)
+    const lockedContracts = phase?.phase === "execution" ? phase.lockedContracts ?? [] : []
+    if (lockedContracts.length === 0 || hasRequiredRepublicContext(input.sessionID, repository)) {
+      return undefined
+    }
+
+    const blocked = (republicConfig?.mode ?? "advisory") === "governed"
+      && (guardrails?.pre_edit_context_gate ?? "advisory") === "block"
+    const restored = blocked && baselineWasClean ? restoreNativeGitFiles(repository, files) : { restored: [], failed: [] }
+    recordRepublicContextGate(repository, input, files, lockedContracts, blocked, {
+      timing: "post-change",
+      restored: restored.restored,
+      restoreFailed: restored.failed,
+    })
+
+    return [
+      `Republic weak-model guardrail ${blocked ? "blocked" : "recorded"} ${tool} after execution because locked contracts exist but the session did not perform the required Republic context read.`,
+      `locked_contracts: ${lockedContracts.join(", ")}`,
+      `context_required: ${guardrails?.require_explicit_context_read ? "explicit republic_inbox or republic_team_status read" : "injected Republic context or explicit republic_inbox/republic_team_status read"}`,
+      `hard_dependency_rule: ${REPUBLIC_HARD_DEPENDENCY_RULE}`,
+      restored.restored.length ? `restored_files: ${restored.restored.join(", ")}` : undefined,
+      blocked && !baselineWasClean ? "rollback_skipped: repository was already dirty before this tool call" : undefined,
+      restored.failed.length ? `restore_failed: ${restored.failed.join(", ")}` : undefined,
+    ].filter((line): line is string => typeof line === "string").join("\n")
   }
 
   function publishPostChangeDependencyGate(input: NativeGitToolInput, files: string[]): string | undefined {
@@ -1521,7 +1587,22 @@ export function createNativeGitHook(
 
     let supervisorMessage: string | undefined
     let dependencyGateMessage: string | undefined
+    let guardrailMessage: string | undefined
     if (changedSinceLastCheck) {
+      guardrailMessage = publishPostChangeRepublicContextGate(status.repository, input, status.files, previousStatusKey === "")
+      if (guardrailMessage) {
+        const postGuardrailStatus = getNativeGitStatus(ctx.directory)
+        if (postGuardrailStatus && !postGuardrailStatus.dirty) {
+          lastStatusBySessionRepo.set(stateKey, "")
+          dirtyStateBySession.delete(sessionID)
+          const result = { dirty: false, changedSinceLastCheck, summary, guardrailMessage }
+          if (callKey) {
+            changedResultByCall.set(callKey, result)
+          }
+          return result
+        }
+      }
+
       if (auditLog && (!callKey || !auditedCallKeys.has(callKey))) {
         appendNativeGitAuditRecord(status.repository, {
           tool,
@@ -1550,7 +1631,7 @@ export function createNativeGitHook(
       })
     }
 
-    const result = { dirty: true, changedSinceLastCheck, summary, supervisorMessage, dependencyGateMessage }
+    const result = { dirty: true, changedSinceLastCheck, summary, supervisorMessage, dependencyGateMessage, guardrailMessage }
     if (callKey && changedSinceLastCheck) {
       changedResultByCall.set(callKey, result)
     }
@@ -1655,6 +1736,13 @@ export function createNativeGitHook(
         appendOutput(output, buildPostChangeDependencyGateMessage(result.dependencyGateMessage))
         if (callKey) {
           dependencyGateReminderCallKeys.add(callKey)
+        }
+      }
+
+      if (result.guardrailMessage && (!callKey || !republicGuardrailReminderCallKeys.has(callKey))) {
+        appendOutput(output, buildPostChangeRepublicGuardrailMessage(result.guardrailMessage))
+        if (callKey) {
+          republicGuardrailReminderCallKeys.add(callKey)
         }
       }
 

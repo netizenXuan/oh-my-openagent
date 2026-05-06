@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
-import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync } from "node:fs"
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync } from "node:fs"
 import { dirname, isAbsolute, join, resolve } from "node:path"
 import { collectGitDiffStats } from "./collect-git-diff-stats"
 import { formatFileChanges } from "./format-file-changes"
@@ -17,6 +17,12 @@ export interface NativeGitStatus {
   files: string[]
   dirty: boolean
   statusKey: string
+}
+
+export interface NativeGitStatusEntry {
+  status: string
+  file: string
+  originalFile?: string
 }
 
 export interface NativeGitAuditRecord {
@@ -74,10 +80,14 @@ export function getNativeGitRepository(directory: string): NativeGitRepository |
 }
 
 export function parseNativeGitStatusPorcelainZ(output: string): string[] {
+  return parseNativeGitStatusEntriesPorcelainZ(output).map((entry) => entry.file)
+}
+
+export function parseNativeGitStatusEntriesPorcelainZ(output: string): NativeGitStatusEntry[] {
   if (!output) return []
 
   const entries = output.split("\0").filter(Boolean)
-  const files: string[] = []
+  const parsed: NativeGitStatusEntry[] = []
 
   for (let index = 0; index < entries.length; index += 1) {
     const entry = entries[index]
@@ -87,7 +97,14 @@ export function parseNativeGitStatusPorcelainZ(output: string): string[] {
     const status = scoredStatus ? scoredStatus[1] : entry.slice(0, 2)
     const filePath = scoredStatus ? scoredStatus[2] : entry.slice(3)
     if (filePath) {
-      files.push(filePath)
+      const statusEntry: NativeGitStatusEntry = { status, file: filePath }
+      if (status.includes("R") || status.includes("C")) {
+        const originalFile = entries[index + 1]
+        if (originalFile) {
+          statusEntry.originalFile = originalFile
+        }
+      }
+      parsed.push(statusEntry)
     }
 
     if (status.includes("R") || status.includes("C")) {
@@ -95,7 +112,7 @@ export function parseNativeGitStatusPorcelainZ(output: string): string[] {
     }
   }
 
-  return files
+  return parsed
 }
 
 function createNativeGitStatusKey(repository: NativeGitRepository, statusOutput: string, files: string[]): string {
@@ -147,6 +164,52 @@ export function getNativeGitStatus(directory: string): NativeGitStatus | null {
   } catch {
     return null
   }
+}
+
+export function getNativeGitStatusEntries(directory: string): {
+  repository: NativeGitRepository
+  entries: NativeGitStatusEntry[]
+} | null {
+  const repository = getNativeGitRepository(directory)
+  if (!repository) return null
+
+  try {
+    const output = runGit(directory, ["status", "--porcelain=v1", "-z", "--untracked-files=all"])
+    return {
+      repository,
+      entries: parseNativeGitStatusEntriesPorcelainZ(output),
+    }
+  } catch {
+    return null
+  }
+}
+
+export function restoreNativeGitFiles(repository: NativeGitRepository, files: string[]): {
+  restored: string[]
+  failed: string[]
+} {
+  const wanted = new Set(files)
+  const status = getNativeGitStatusEntries(repository.repoRoot)
+  const entries = status?.entries.filter((entry) => wanted.has(entry.file)) ?? []
+  const restored: string[] = []
+  const failed: string[] = []
+
+  for (const file of files) {
+    const entry = entries.find((candidate) => candidate.file === file)
+    try {
+      if (entry?.status === "??") {
+        rmSync(join(repository.repoRoot, file), { recursive: true, force: true })
+      } else {
+        const restorePaths = entry?.originalFile ? [entry.originalFile, file] : [file]
+        runGit(repository.repoRoot, ["restore", "--staged", "--worktree", "--", ...restorePaths])
+      }
+      restored.push(file)
+    } catch {
+      failed.push(file)
+    }
+  }
+
+  return { restored, failed }
 }
 
 export function getNativeGitChangeSummary(directory: string): string {

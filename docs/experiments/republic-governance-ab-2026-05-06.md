@@ -158,6 +158,20 @@ The lesson has now been implemented as a first-class guardrail profile:
 - Advisory mode records a `channel: "guardrail"` / `messageType: "supervisor-policy"` Commons entry when a seat starts editing before receiving the locked execution context.
 - Governed mode can hard-block the same case with `weak_model_guardrails.pre_edit_context_gate: "block"`.
 - `weak_model_guardrails.require_explicit_context_read: true` can require a real `republic_inbox` or `republic_team_status` call instead of accepting injected context.
+- Governed mode now also has a post-change fail-closed fallback: if a real runtime misses the preflight hook and writes into a clean repository, OMO restores the changed files and records a `phase: "post-change"` guardrail entry.
+
+## Real CLI Guardrail Finding
+
+A later Kimi CLI smoke showed a product-critical integration issue: the unit-tested `tool.execute.before` guardrail path was not sufficient by itself in the real OpenCode CLI runtime. With Republic read tools disabled and a locked execution contract present, Kimi wrote `src/api/orders.ts`; the `tool.execute.after` audit path fired, but the preflight block did not stop the write in that environment.
+
+The fix was to make the context gate two-layered:
+
+- preflight still blocks when the runtime exposes the write before execution
+- post-change fallback re-checks the locked contract context after mutating tools complete
+- when the repository was clean before the tool call, post-change fallback restores the touched files
+- when the repository was already dirty, it records the violation and skips rollback to avoid deleting unrelated user work
+
+The new unit coverage asserts both post-change rollback and dirty-baseline no-rollback behavior. This changes the product lesson from "add a before hook" to "make weak-model gates observable and fail-closed at the tool boundary the runtime actually guarantees."
 
 ## Interpretation
 
@@ -171,4 +185,4 @@ This does not yet prove autonomous "always correct" collaboration. It does show 
 2. Add a model capability gate that tests tool-call compliance before assigning a model to Republic work.
 3. Add a contract-diff QA pass that checks public docs, tests, and implementation against locked contract terms.
 4. Add per-workgroup worktrees so each execution seat can commit, test, and merge through an isolated Git lane.
-5. Add a model capability gate that runs a short tool-call compliance smoke before assigning a model to governed Republic work.
+5. Add a benchmark harness that runs single-agent, advisory Republic, and governed Republic variants against the same project tasks.

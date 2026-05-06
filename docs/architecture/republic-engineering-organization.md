@@ -63,6 +63,8 @@ Each workgroup owns one or more modules and task IDs. Workgroup members should p
 
 The dependency gate now performs a lightweight preflight check for explicit path tools. If one call touches multiple inferred modules, it writes a dependency-gate Commons message before execution. In advisory mode that is a warning; in governed block mode it becomes a hard gate.
 
+The weak-model context gate protects execution-phase contracts. A seat must receive injected Republic context or explicitly read `republic_inbox` / `republic_team_status` before mutating files covered by locked contracts. Governed block mode first tries to stop the write before execution. Because real OpenCode runtimes can expose some writes only after the tool completes, the gate also has a post-change fail-closed path: when the repository was clean before the tool call, unauthorized changes are restored and the guardrail record is written to Commons and ledger.
+
 Workgroups can now publish contracts before implementation. A contract describes the shared API shape, data structure, test boundary, handoff rule, or ownership constraint that adjacent seats must honor. Contracts are stored under `.git/omo/republic/contracts/` and are also published as Commons messages.
 
 ### Same-Role Seats
@@ -138,7 +140,7 @@ This graph is intentionally close to a future visual editor. A later UI can let 
    - interactive Commons inbox, per-seat docs, policy-loop prompts, workgroup contracts, and weak-model context warnings
 2. Governed execution:
    - hard dependency gate for cross-workgroup explicit write tools
-   - hard pre-edit Republic context gate for locked execution contracts
+   - hard Republic context gate for locked execution contracts, including post-change rollback when a clean worktree receives an unauthorized write
    - enforce supervisor approval before high-risk execution
    - require explicit dependency acknowledgements before dependent modules proceed
 3. Worktree isolation:
@@ -160,4 +162,4 @@ The first OpenCode smoke pass used `kimi-for-coding/k2p6` with a local plugin pa
 - Prometheus remains constrained to planning files under `.sisyphus/`, and its allowed plan write is still audited.
 - The dashboard can render native-git audit records into agent, tool, file, and module nodes even before a Republic ledger exists.
 
-The current layer has moved from recording into first-stage collaborative governance: automatic Commons publication, supervisor intervention, dependency gates, interactive inbox messages, per-seat docs, policy-loop records, prompt injection, workgroup contracts, and weak-model context gates are live. The weak-model lesson from Ling and Hy3 testing is now encoded as product behavior: critical constraints use extractable labels, and mutating tools can be warned or blocked until the seat has received locked contract context. It is still not a complete engineering operating system; per-workgroup worktrees, merge orchestration, strict dependency acknowledgement enforcement beyond context reads, and true live multi-agent streaming remain next-stage work.
+The current layer has moved from recording into first-stage collaborative governance: automatic Commons publication, supervisor intervention, dependency gates, interactive inbox messages, per-seat docs, policy-loop records, prompt injection, workgroup contracts, and weak-model context gates are live. The weak-model lesson from Ling and Hy3 testing is now encoded as product behavior: critical constraints use extractable labels, and mutating tools can be warned, blocked, or rolled back until the seat has received locked contract context. It is still not a complete engineering operating system; per-workgroup worktrees, merge orchestration, strict dependency acknowledgement enforcement beyond context reads, and true live multi-agent streaming remain next-stage work.

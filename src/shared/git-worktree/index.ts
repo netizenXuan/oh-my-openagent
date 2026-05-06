@@ -11,14 +11,18 @@ export {
   getNativeGitChangeSummary,
   getNativeGitRepository,
   getNativeGitStatus,
+  getNativeGitStatusEntries,
   parseNativeGitStatusPorcelainZ,
+  parseNativeGitStatusEntriesPorcelainZ,
   readNativeGitAuditRecords,
+  restoreNativeGitFiles,
   summarizeNativeGitAudit,
   summarizeNativeGitAuditRecords,
   type NativeGitAuditRecord,
   type NativeGitAuditSummary,
   type NativeGitRepository,
   type NativeGitStatus,
+  type NativeGitStatusEntry,
 } from "./native-git"
 export {
   appendRepublicCommonsMessage,

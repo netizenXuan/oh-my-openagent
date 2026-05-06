@@ -807,6 +807,134 @@ describe("native git hook", () => {
     expect(output.message).toBeUndefined()
   })
 
+  test("weak model guardrail rolls back post-change edits when before hook was missed", async () => {
+    const hook = createNativeGitHook(
+      { directory } as never,
+      { mode: "tracked", audit_log: true },
+      {
+        enabled: true,
+        mode: "governed",
+        ledger: true,
+        commons: { auto_publish: true },
+        weak_model_guardrails: {
+          enabled: true,
+          labeled_context: true,
+          require_context_before_edit: true,
+          require_explicit_context_read: true,
+          pre_edit_context_gate: "block",
+        },
+      } as never,
+    )
+    const repository = getNativeGitRepository(directory)!
+    initializeRepublicTeam(repository, {
+      manifest: {
+        teamModel: "parliament_squad",
+        seatAllocation: "auto",
+        maxParallelSeats: 4,
+        defaultRuntimeAgent: "general",
+        seats: [
+          {
+            seatID: "api-executor",
+            role: "executor",
+            phase: "execution",
+            workgroupID: "wg-src-api",
+            module: "src/api",
+            runtimeAgent: "sisyphus",
+          },
+        ],
+      },
+      phase: {
+        phase: "execution",
+        status: "in-progress",
+        deliberationID: "order-post-change",
+        lockedContracts: ["wg-src-api"],
+      },
+    })
+
+    mkdirSync(join(directory, "src", "api"), { recursive: true })
+    writeFileSync(join(directory, "src", "api", "orders.ts"), "export const order = true\n", "utf-8")
+    const output = { output: "write complete", metadata: { agent: "sisyphus" } }
+
+    await hook["tool.execute.after"]?.(
+      { tool: "write", sessionID: "ses_post_guard", callID: "call_post_guard" },
+      output,
+    )
+
+    const commons = readRepublicCommonsMessages(repository, "order-post-change")
+    const ledger = readRepublicLedgerRecords(repository, "order-post-change")
+    expect(existsSync(join(directory, "src", "api", "orders.ts"))).toBe(false)
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+    expect(output.output).toContain("Republic weak-model guardrail blocked")
+    expect(output.output).toContain("restored_files: src/api/orders.ts")
+    expect(existsSync(getNativeGitAuditPath(repository))).toBe(false)
+    expect(commons[0]?.phase).toBe("post-change")
+    expect(commons[0]?.status).toBe("blocked")
+    expect(commons[0]?.files).toEqual(["src/api/orders.ts"])
+    expect(ledger[0]?.phase).toBe("post-change")
+    expect(ledger[0]?.status).toBe("blocked")
+  })
+
+  test("weak model guardrail records post-change violation without rollback when baseline is dirty", async () => {
+    writeFileSync(join(directory, "README.md"), "dirty before hook\n", "utf-8")
+    const hook = createNativeGitHook(
+      { directory } as never,
+      { mode: "tracked", audit_log: true },
+      {
+        enabled: true,
+        mode: "governed",
+        ledger: true,
+        commons: { auto_publish: true },
+        weak_model_guardrails: {
+          enabled: true,
+          labeled_context: true,
+          require_context_before_edit: true,
+          require_explicit_context_read: true,
+          pre_edit_context_gate: "block",
+        },
+      } as never,
+    )
+    const repository = getNativeGitRepository(directory)!
+    initializeRepublicTeam(repository, {
+      manifest: {
+        teamModel: "parliament_squad",
+        seatAllocation: "auto",
+        maxParallelSeats: 4,
+        defaultRuntimeAgent: "general",
+        seats: [
+          {
+            seatID: "api-executor",
+            role: "executor",
+            phase: "execution",
+            workgroupID: "wg-src-api",
+            module: "src/api",
+            runtimeAgent: "sisyphus",
+          },
+        ],
+      },
+      phase: {
+        phase: "execution",
+        status: "in-progress",
+        deliberationID: "order-post-dirty",
+        lockedContracts: ["wg-src-api"],
+      },
+    })
+
+    mkdirSync(join(directory, "src", "api"), { recursive: true })
+    writeFileSync(join(directory, "src", "api", "orders.ts"), "export const order = true\n", "utf-8")
+    const output = { output: "write complete", metadata: { agent: "sisyphus" } }
+
+    await hook["tool.execute.after"]?.(
+      { tool: "write", sessionID: "ses_post_dirty", callID: "call_post_dirty" },
+      output,
+    )
+
+    const commons = readRepublicCommonsMessages(repository, "order-post-dirty")
+    expect(existsSync(join(directory, "src", "api", "orders.ts"))).toBe(true)
+    expect(output.output).toContain("rollback_skipped: repository was already dirty before this tool call")
+    expect(commons[0]?.phase).toBe("post-change")
+    expect(commons[0]?.status).toBe("blocked")
+  })
+
   test("dependency gate blocks in governed block mode", async () => {
     const hook = createNativeGitHook(
       { directory } as never,

@@ -10,8 +10,10 @@ import {
   getNativeGitAuditPath,
   getNativeGitRepository,
   getNativeGitStatus,
+  parseNativeGitStatusEntriesPorcelainZ,
   parseNativeGitStatusPorcelainZ,
   readNativeGitAuditRecords,
+  restoreNativeGitFiles,
   summarizeNativeGitAudit,
 } from "./native-git"
 
@@ -102,6 +104,15 @@ describe("native git service", () => {
     expect(files).toEqual(["new-name.ts", "added.ts"])
   })
 
+  test("parses porcelain z entries with status metadata", () => {
+    const entries = parseNativeGitStatusEntriesPorcelainZ("R100 new-name.ts\0old-name.ts\0?? added.ts\0")
+
+    expect(entries).toEqual([
+      { status: "R100", file: "new-name.ts", originalFile: "old-name.ts" },
+      { status: "??", file: "added.ts" },
+    ])
+  })
+
   test("parses porcelain z rename entries that include similarity scores", () => {
     const files = parseNativeGitStatusPorcelainZ("R100 new-name.ts\0old-name.ts\0C075 copied.ts\0source.ts\0")
 
@@ -121,6 +132,39 @@ describe("native git service", () => {
     expect(firstStatus?.files).toEqual(["README.md"])
     expect(secondStatus?.files).toEqual(["README.md"])
     expect(firstStatus?.statusKey).not.toBe(secondStatus?.statusKey)
+  })
+
+  test("restores tracked and untracked files from a clean baseline", () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")
+    commitAll(directory, "init")
+
+    mkdirSync(join(directory, "src", "api"), { recursive: true })
+    writeFileSync(join(directory, "README.md"), "changed\n", "utf-8")
+    writeFileSync(join(directory, "src", "api", "orders.ts"), "export const order = true\n", "utf-8")
+    const repository = getNativeGitRepository(directory)!
+
+    const result = restoreNativeGitFiles(repository, ["README.md", "src/api/orders.ts"])
+
+    expect(result).toEqual({ restored: ["README.md", "src/api/orders.ts"], failed: [] })
+    expect(readFileSync(join(directory, "README.md"), "utf-8").replace(/\r\n/g, "\n")).toBe("hello\n")
+    expect(existsSync(join(directory, "src", "api", "orders.ts"))).toBe(false)
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
+  test("restores renamed files from a clean baseline", () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "old-name.ts"), "export const oldName = true\n", "utf-8")
+    commitAll(directory, "init")
+    git(directory, ["mv", "old-name.ts", "new-name.ts"])
+    const repository = getNativeGitRepository(directory)!
+
+    const result = restoreNativeGitFiles(repository, ["new-name.ts"])
+
+    expect(result).toEqual({ restored: ["new-name.ts"], failed: [] })
+    expect(existsSync(join(directory, "old-name.ts"))).toBe(true)
+    expect(existsSync(join(directory, "new-name.ts"))).toBe(false)
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
   })
 
   test("writes audit under git common dir without dirtying the worktree", () => {
