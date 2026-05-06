@@ -265,6 +265,7 @@ describe("republic ledger", () => {
     expect(repository).not.toBeNull()
 
     const queuePath = appendRepublicSchedulerQueueRecord(repository!, {
+      dispatchID: "docs-seat-dispatch-1",
       queueType: "seat-response",
       status: "queued",
       reason: "manager_unavailable",
@@ -278,6 +279,7 @@ describe("republic ledger", () => {
       summary: "Queue docs-seat for a response.",
     })
     appendRepublicSchedulerQueueRecord(repository!, {
+      dispatchID: "docs-seat-dispatch-1",
       timestamp: "2000-01-01T00:00:00.000Z",
       queueType: "seat-response",
       status: "dispatched",
@@ -302,6 +304,7 @@ describe("republic ledger", () => {
     expect(records[1]?.taskID).toBe("bg_1")
     expect(records[1]?.timestamp).not.toBe("2000-01-01T00:00:00.000Z")
     expect(summary.recordCount).toBe(2)
+    expect(summary.pending).toBe(0)
     expect(summary.queued).toBe(1)
     expect(summary.dispatched).toBe(1)
     expect(summary.targetSeats["docs-seat"]).toBe(2)

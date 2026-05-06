@@ -109,6 +109,7 @@ function emptyNativeGitSummary(): NativeGitAuditSummary {
 function emptySchedulerQueueSummary(): RepublicSchedulerQueueSummary {
   return {
     recordCount: 0,
+    pending: 0,
     queued: 0,
     dispatched: 0,
     skipped: 0,
@@ -158,7 +159,7 @@ export function formatRepublicStatusReport(report: RepublicStatusReport): string
       ? "Revise the plan before execution; at least one reject/blocker was recorded."
       : decision.status === "needs-quorum"
         ? "Continue deliberation until quorum is met."
-      : schedulerQueue.queued > 0
+      : schedulerQueue.pending > 0
         ? "Keep the Republic scheduler active or consume queued dispatches before treating collaboration as complete."
         : nativeGit.recordCount > 0
           ? "Review native-git changes and commit with git-master when the work is ready."
@@ -217,6 +218,7 @@ export function formatRepublicStatusReport(report: RepublicStatusReport): string
     "",
     "Republic Scheduler Queue",
     `Records: ${schedulerQueue.recordCount}`,
+    `Pending: ${schedulerQueue.pending}`,
     `Queued: ${schedulerQueue.queued}`,
     `Dispatched: ${schedulerQueue.dispatched}`,
     `Failed: ${schedulerQueue.failed}`,

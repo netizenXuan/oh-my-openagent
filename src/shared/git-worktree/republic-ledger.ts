@@ -171,6 +171,7 @@ export interface RepublicSchedulerQueueRecord {
 
 export interface RepublicSchedulerQueueSummary {
   recordCount: number
+  pending: number
   queued: number
   dispatched: number
   skipped: number
@@ -418,6 +419,7 @@ export function summarizeRepublicSchedulerQueueRecords(
   const targetSeats: Record<string, number> = {}
   const requestedAgents: Record<string, number> = {}
   const runtimeAgents: Record<string, number> = {}
+  const latestByDispatchID = new Map<string, RepublicSchedulerQueueRecord>()
   let latestTimestamp: string | undefined
   let latestSummary: string | undefined
 
@@ -427,6 +429,12 @@ export function summarizeRepublicSchedulerQueueRecords(
     incrementCounter(targetSeats, record.targetSeatID)
     incrementCounter(requestedAgents, record.requestedAgent)
     incrementCounter(runtimeAgents, record.runtimeAgent)
+    if (record.dispatchID) {
+      const current = latestByDispatchID.get(record.dispatchID)
+      if (!current || String(record.timestamp ?? "") >= String(current.timestamp ?? "")) {
+        latestByDispatchID.set(record.dispatchID, record)
+      }
+    }
     if (record.timestamp && (!latestTimestamp || record.timestamp >= latestTimestamp)) {
       latestTimestamp = record.timestamp
       latestSummary = record.summary
@@ -435,6 +443,7 @@ export function summarizeRepublicSchedulerQueueRecords(
 
   return {
     recordCount: records.length,
+    pending: Array.from(latestByDispatchID.values()).filter((record) => record.status === "queued").length,
     queued: statuses.queued ?? 0,
     dispatched: statuses.dispatched ?? 0,
     skipped: statuses.skipped ?? 0,

@@ -189,7 +189,7 @@ bunx oh-my-opencode republic scheduler --directory /path/to/repo --write-prompts
 Launch queued work with an external command template:
 
 ```bash
-bunx oh-my-opencode republic scheduler --directory /path/to/repo --command-template "opencode run --agent {agent} --prompt-file {prompt}"
+bunx oh-my-opencode republic scheduler --directory /path/to/repo --command-template "opencode run --dir {repo} --agent {agent} --file {prompt} -- Respond_to_attached_OMO_Republic_scheduler_wake_prompt"
 ```
 
 The command template supports `{repo}`, `{prompt}`, `{agent}`, `{target_seat}`, `{dispatch_id}`, and `{deliberation_id}`. Values are shell-quoted before substitution. A successful command appends a `status: "dispatched"` record to `.git/omo/republic/scheduler/queue.jsonl`; a failed command appends `status: "failed"`.
@@ -197,7 +197,7 @@ The command template supports `{repo}`, `{prompt}`, `{agent}`, `{target_seat}`, 
 Run it as a lightweight daemon:
 
 ```bash
-bunx oh-my-opencode republic scheduler --directory /path/to/repo --watch --poll-interval-ms 5000 --command-template "opencode run --agent {agent} --prompt-file {prompt}"
+bunx oh-my-opencode republic scheduler --directory /path/to/repo --watch --poll-interval-ms 5000 --command-template "opencode run --dir {repo} --agent {agent} --file {prompt} -- Respond_to_attached_OMO_Republic_scheduler_wake_prompt"
 ```
 
 This is still a host-level scheduler, not a mid-token live chat bus. It continuously consumes Git-recorded dispatches and wakes new seat sessions when the host command is available.
@@ -254,7 +254,7 @@ By default the static HTML is written under:
 
 The dashboard intentionally avoids drawing every message edge by default. Dense runs can produce hundreds of relationships, so the UI keeps the top-level board stable and moves detailed communication state into the Seat Inspector. The underlying data still preserves workgroups, dependencies, targets, references, files, and supervisor records for a future draggable editor where users can define custom agent teams, module workgroups, supervisors, and communication lanes visually.
 
-The left summary rail shows queued and dispatched scheduler work. The Seat Inspector also has a Scheduler Queue section, so a user can click a seat and see whether it has outstanding queued questions, completed background responses, or supervisor review dispatches.
+The left summary rail shows pending dispatches separately from historical queued/dispatched records. The Seat Inspector also has a Scheduler Queue section, so a user can click a seat and see whether it has outstanding queued questions, completed background responses, or supervisor review dispatches.
 
 ## OpenCode Smoke Verification
 

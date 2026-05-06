@@ -300,7 +300,9 @@ This does not yet prove autonomous "always correct" collaboration. It does show 
 
 ## Scheduler Queue Smoke
 
-A focused CLI smoke verified the new external scheduler path without spending model quota:
+Two focused scheduler smokes verified the new external scheduler path.
+
+The first smoke verified the queue consumer without spending model quota:
 
 ```text
 D:\OMO\republic-scheduler-smoke
@@ -319,6 +321,44 @@ Observed result:
 - A second record with the same `dispatchID` and `status: "dispatched"` was appended.
 - The dispatched record had a fresh timestamp, `runtimeAgent: "sisyphus"`, and `taskID: "external:smoke-docs-seat-1"`.
 - `git status --short` remained clean because all scheduler records and prompts live under `.git/omo/republic`.
+
+The second smoke used the real OpenCode CLI, local plugin path, and `kimi-for-coding/k2p6`:
+
+```text
+D:\OMO\republic-scheduler-kimi-smoke-20260506
+```
+
+Setup:
+
+1. Initialized a clean Git repository with `.opencode/opencode.json` pointing at `D:\OMO\oh-my-openagent`.
+2. Published a Commons `question` from `api-seat` to `docs-seat`.
+3. Appended a queued scheduler dispatch for `docs-seat`.
+4. Ran:
+
+```powershell
+bun src\cli\index.ts republic scheduler --directory D:\OMO\republic-scheduler-kimi-smoke-20260506 --deliberation-id scheduler-kimi-smoke --command-template 'opencode run --dir {repo} --agent {agent} --model kimi-for-coding/k2p6 --dangerously-skip-permissions --file {prompt} -- Respond_to_attached_OMO_Republic_scheduler_wake_prompt'
+```
+
+Observed result:
+
+- Kimi launched through OpenCode and loaded the local plugin.
+- OpenCode warned that the literal `sisyphus` runtime agent name was unavailable and fell back to the default agent, while still showing `Sisyphus - Ultraworker`.
+- The model called `republic_inbox` for `docs-seat`.
+- The model called `republic_publish` with `message_type: "answer"`, `author_seat_id: "docs-seat"`, `target_seat_id: "api-seat"`, and `references: ["scheduler-kimi-question-1"]`.
+- Commons ended with one `question` and one referenced `answer` containing the exact enum values `pending, confirmed, shipped, delivered, cancelled`.
+- The scheduler queue recorded the successful Kimi launch as `status: "dispatched"`.
+- `git status --short` remained clean.
+- The status report now distinguishes pending dispatches from historical queue records:
+
+```text
+Republic Scheduler Queue
+Pending: 0
+Queued: 4
+Dispatched: 2
+Failed: 2
+```
+
+The two failed historical records in this smoke came from discovering the correct OpenCode CLI invocation. `opencode run` requires `--file {prompt} -- <message>`; passing a bare positional message after `--file` was interpreted as another file path.
 
 ## Next Steps
 

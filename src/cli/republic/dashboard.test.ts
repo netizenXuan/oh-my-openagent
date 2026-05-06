@@ -183,6 +183,7 @@ describe("republic dashboard", () => {
     expect(data.seatStates.some((state) => state.seatID === "api-planner-seat")).toBe(true)
     expect(data.report.commons.messageCount).toBe(2)
     expect(data.schedulerQueueRecords).toHaveLength(1)
+    expect(data.report.schedulerQueue.pending).toBe(1)
     expect(data.report.schedulerQueue.queued).toBe(1)
     expect(data.report.contractTraceability.contractCount).toBe(1)
     expect(data.report.contractTraceability.warningCount).toBe(0)
