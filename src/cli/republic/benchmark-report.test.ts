@@ -16,6 +16,7 @@ import {
 import {
   buildRepublicBenchmarkReport,
   formatRepublicBenchmarkReport,
+  parseRepublicBenchmarkAcceptance,
   parseRepublicBenchmarkRun,
   republicBenchmarkReport,
 } from "./benchmark-report"
@@ -74,6 +75,12 @@ describe("republic benchmark report", () => {
       directory: control,
     })
     expect(parseRepublicBenchmarkRun(treatment).label).toBe("treatment")
+    expect(parseRepublicBenchmarkAcceptance("treatment:hidden-edge=fail:expected x got y")).toEqual({
+      runLabel: "treatment",
+      name: "hidden-edge",
+      status: "fail",
+      detail: "expected x got y",
+    })
   })
 
   test("summarizes control and treatment repositories in markdown", () => {
@@ -155,6 +162,20 @@ describe("republic benchmark report", () => {
         { label: "control", directory: control },
         { label: "treatment", directory: treatment, deliberationId: "order cancellation" },
       ],
+      acceptance: [
+        {
+          runLabel: "control",
+          name: "missing-delivery-timestamp",
+          status: "pass",
+          detail: "got order_not_delivered",
+        },
+        {
+          runLabel: "treatment",
+          name: "missing-delivery-timestamp",
+          status: "fail",
+          detail: "got shipment_not_found",
+        },
+      ],
     })
     const markdown = formatRepublicBenchmarkReport(report)
 
@@ -170,8 +191,11 @@ describe("republic benchmark report", () => {
     expect(report.runs[1]?.workgroups).toBe(2)
     expect(report.runs[1]?.targetedMessages).toBe(1)
     expect(report.runs[1]?.referencedMessages).toBe(1)
+    expect(report.runs[1]?.acceptance[0]?.status).toBe("fail")
     expect(markdown).toContain("| control |")
     expect(markdown).toContain("| treatment |")
+    expect(markdown).toContain("## Acceptance Checks")
+    expect(markdown).toContain("got shipment_not_found")
     expect(markdown).toContain("Use this report as an evidence index")
   })
 

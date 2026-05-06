@@ -232,7 +232,7 @@ The same repositories can now be summarized with a deterministic benchmark repor
 bun src\cli\index.ts republic benchmark-report --run control=D:\OMO\republic-ab-control-kimi-20260506 --run treatment=D:\OMO\republic-ab-treatment-kimi-20260506 --output D:\OMO\experiment-logs\republic-kimi-ab-benchmark.md
 ```
 
-This report is intentionally read-only. It converts Git status, native-git audit, Republic ledger, Commons, contracts, targeted messages, referenced messages, seats, workgroups, and contract traceability into a stable Markdown or JSON evidence table. It is the preferred record format for future weak-model, hard-task, large-task, and innovation-task comparisons.
+This report is intentionally read-only. It converts Git status, native-git audit, Republic ledger, Commons, contracts, targeted messages, referenced messages, seats, workgroups, contract traceability, and optional hidden-QA acceptance checks into a stable Markdown or JSON evidence table. It is the preferred record format for future weak-model, hard-task, large-task, and innovation-task comparisons.
 
 ## Hard Kimi A/B: Fulfillment Returns
 
@@ -257,6 +257,12 @@ Benchmark report:
 
 ```text
 D:\OMO\experiment-logs\republic-kimi-hard-benchmark.md
+```
+
+The hard-task benchmark also records the hidden QA edge:
+
+```powershell
+bun src\cli\index.ts republic benchmark-report --run control=D:\OMO\republic-hard-control-kimi-20260506 --run treatment=D:\OMO\republic-hard-treatment-kimi-20260506 --acceptance control:missing-delivery-timestamp=pass:got_order_not_delivered --acceptance treatment:missing-delivery-timestamp=fail:expected_order_not_delivered_got_shipment_not_found --output D:\OMO\experiment-logs\republic-kimi-hard-benchmark.md
 ```
 
 Dashboard screenshot:

@@ -11,9 +11,19 @@ export interface RepublicBenchmarkRunInput {
 
 export interface RepublicBenchmarkOptions {
   runs: RepublicBenchmarkRunInput[]
+  acceptance?: RepublicBenchmarkAcceptanceInput[]
   output?: string
   json?: boolean
 }
+
+export interface RepublicBenchmarkAcceptanceInput {
+  runLabel: string
+  name: string
+  status: "pass" | "fail" | "warn"
+  detail?: string
+}
+
+export interface RepublicBenchmarkAcceptanceReport extends RepublicBenchmarkAcceptanceInput {}
 
 export interface RepublicBenchmarkRunReport {
   label: string
@@ -35,6 +45,7 @@ export interface RepublicBenchmarkRunReport {
   referencedMessages: number
   tools: Record<string, number>
   agents: Record<string, number>
+  acceptance: RepublicBenchmarkAcceptanceReport[]
   latestNativeGitSummary?: string
   latestCommonsMessage?: string
 }
@@ -61,7 +72,11 @@ function formatList(values: string[], limit = 8): string {
   return values.length > limit ? `${shown}, ... (+${values.length - limit} more)` : shown
 }
 
-function summarizeRun(input: RepublicBenchmarkRunInput, status: RepublicStatusReport): RepublicBenchmarkRunReport {
+function summarizeRun(
+  input: RepublicBenchmarkRunInput,
+  status: RepublicStatusReport,
+  acceptance: RepublicBenchmarkAcceptanceInput[],
+): RepublicBenchmarkRunReport {
   const gitStatus = getNativeGitStatus(input.directory)
   const dirtyFiles = gitStatus?.files ?? []
   const teamManifest = status.repository ? readRepublicTeamManifest(status.repository) : null
@@ -87,16 +102,18 @@ function summarizeRun(input: RepublicBenchmarkRunInput, status: RepublicStatusRe
     referencedMessages: status.commons.referencedMessages,
     tools: status.nativeGit.tools,
     agents: status.republic.agents,
+    acceptance: acceptance.filter((item) => item.runLabel === input.label),
     latestNativeGitSummary: status.nativeGit.latestSummary,
     latestCommonsMessage: status.commons.latestContent,
   }
 }
 
 export function buildRepublicBenchmarkReport(options: RepublicBenchmarkOptions): RepublicBenchmarkReport {
+  const acceptance = options.acceptance ?? []
   const runs = options.runs.map((run) => summarizeRun(run, buildRepublicStatusReport({
     directory: run.directory,
     deliberationId: run.deliberationId,
-  })))
+  }), acceptance))
 
   return {
     generatedAt: new Date().toISOString(),
@@ -133,6 +150,18 @@ export function formatRepublicBenchmarkReport(report: RepublicBenchmarkReport): 
     ].join(" | "))
   }
 
+  const acceptanceItems = report.runs.flatMap((run) => run.acceptance)
+  if (acceptanceItems.length > 0) {
+    lines.push("")
+    lines.push("## Acceptance Checks")
+    lines.push("")
+    lines.push("| Run | Check | Status | Detail |")
+    lines.push("| --- | --- | --- | --- |")
+    for (const check of acceptanceItems) {
+      lines.push(`| ${check.runLabel} | ${check.name} | ${check.status} | ${check.detail ?? ""} |`)
+    }
+  }
+
   lines.push("")
   lines.push("## Run Details")
 
@@ -149,6 +178,7 @@ export function formatRepublicBenchmarkReport(report: RepublicBenchmarkReport): 
     lines.push(`Dirty files: ${formatList(run.dirtyFiles)}`)
     lines.push(`Native Git tools: ${formatCounter(run.tools)}`)
     lines.push(`Republic agents: ${formatCounter(run.agents)}`)
+    lines.push(`Acceptance: ${run.acceptance.length === 0 ? "none" : run.acceptance.map((check) => `${check.name}=${check.status}`).join(", ")}`)
     lines.push(`Latest native-git summary: ${run.latestNativeGitSummary ?? "none"}`)
     lines.push(`Latest commons message: ${run.latestCommonsMessage ?? "none"}`)
   }
@@ -178,12 +208,49 @@ export function parseRepublicBenchmarkRun(value: string): RepublicBenchmarkRunIn
   }
 }
 
+export function parseRepublicBenchmarkAcceptance(value: string): RepublicBenchmarkAcceptanceInput {
+  const assignment = value.indexOf("=")
+  if (assignment === -1) {
+    throw new Error("Acceptance must use label:check=pass|fail|warn[:detail]")
+  }
+
+  const left = value.slice(0, assignment)
+  const right = value.slice(assignment + 1)
+  const labelSeparator = left.indexOf(":")
+  if (labelSeparator === -1) {
+    throw new Error("Acceptance must include a run label before ':'")
+  }
+
+  const runLabel = left.slice(0, labelSeparator).trim()
+  const name = left.slice(labelSeparator + 1).trim()
+  const detailSeparator = right.indexOf(":")
+  const status = (detailSeparator === -1 ? right : right.slice(0, detailSeparator)).trim()
+  if (status !== "pass" && status !== "fail" && status !== "warn") {
+    throw new Error("Acceptance status must be pass, fail, or warn")
+  }
+
+  return {
+    runLabel,
+    name,
+    status,
+    detail: detailSeparator === -1 ? undefined : right.slice(detailSeparator + 1).trim(),
+  }
+}
+
+function collectAcceptance(
+  value: string,
+  previous: RepublicBenchmarkAcceptanceInput[],
+): RepublicBenchmarkAcceptanceInput[] {
+  return [...previous, parseRepublicBenchmarkAcceptance(value)]
+}
+
 function collectRun(value: string, previous: RepublicBenchmarkRunInput[]): RepublicBenchmarkRunInput[] {
   return [...previous, parseRepublicBenchmarkRun(value)]
 }
 
 export async function republicBenchmarkReport(options: {
   run?: RepublicBenchmarkRunInput[]
+  acceptance?: RepublicBenchmarkAcceptanceInput[]
   output?: string
   json?: boolean
 }): Promise<number> {
@@ -193,7 +260,7 @@ export async function republicBenchmarkReport(options: {
     return 1
   }
 
-  const report = buildRepublicBenchmarkReport({ runs })
+  const report = buildRepublicBenchmarkReport({ runs, acceptance: options.acceptance })
   const content = options.json ? JSON.stringify(report, null, 2) : formatRepublicBenchmarkReport(report)
 
   if (options.output) {
@@ -211,3 +278,4 @@ export async function republicBenchmarkReport(options: {
 }
 
 export const republicBenchmarkRunCollector = collectRun
+export const republicBenchmarkAcceptanceCollector = collectAcceptance

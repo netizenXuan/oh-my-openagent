@@ -1,5 +1,9 @@
 import { Command } from "commander"
-import { republicBenchmarkReport, republicBenchmarkRunCollector } from "./benchmark-report"
+import {
+  republicBenchmarkAcceptanceCollector,
+  republicBenchmarkReport,
+  republicBenchmarkRunCollector,
+} from "./benchmark-report"
 import { republicDashboard } from "./dashboard"
 import { republicStatus } from "./status"
 
@@ -16,11 +20,18 @@ export function createRepublicCommand(): Command {
       republicBenchmarkRunCollector,
       [],
     )
+    .option(
+      "--acceptance <label:check=pass|fail|warn[:detail]>",
+      "Acceptance or hidden-QA result to include; repeatable",
+      republicBenchmarkAcceptanceCollector,
+      [],
+    )
     .option("-o, --output <path>", "Write the report to a file instead of stdout")
     .option("--json", "Output structured JSON")
     .action(async (options) => {
       const exitCode = await republicBenchmarkReport({
         run: options.run,
+        acceptance: options.acceptance,
         output: options.output,
         json: options.json ?? false,
       })

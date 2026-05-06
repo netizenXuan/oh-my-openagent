@@ -173,10 +173,11 @@ Generate a reproducible benchmark report from one or more experiment repositorie
 
 ```bash
 bunx oh-my-opencode republic benchmark-report --run control=/path/to/control --run treatment=/path/to/treatment --output ./republic-benchmark.md
+bunx oh-my-opencode republic benchmark-report --run control=/path/to/control --acceptance control:hidden-edge=pass:"got expected error"
 bunx oh-my-opencode republic benchmark-report --run treatment=/path/to/treatment --json
 ```
 
-The benchmark report does not run models or mutate inspected repositories. It reads native-git audit records, Republic ledger records, Commons messages, dirty files, contract traceability, targeted messages, referenced messages, seats, workgroups, tools, and agents. Use it after a control/treatment smoke run so experiment evidence stays comparable across Kimi, Ling, Hy3, or other cheaper-model trials.
+The benchmark report does not run models or mutate inspected repositories. It reads native-git audit records, Republic ledger records, Commons messages, dirty files, contract traceability, targeted messages, referenced messages, seats, workgroups, tools, agents, and optional acceptance or hidden-QA checks. Use it after a control/treatment smoke run so experiment evidence stays comparable across Kimi, Ling, Hy3, or other cheaper-model trials.
 
 Open the dashboard from OpenCode:
 
