@@ -226,6 +226,14 @@ Observed behavior:
 - The treatment dashboard rendered from `.git/omo/republic/dashboard.html` with the simplified workgroup board and Seat Inspector view. Contract traceability reported `Contracts: 1`, `Warnings: 0`, and `api-workgroup: pass`.
 - This run was not a full parallel `republic_round_start` execution. It was a Republic-guided single session that proved the governance artifacts can be produced without breaking the product task. Full parallel-seat proof still requires a persistent scheduler benchmark.
 
+The same repositories can now be summarized with a deterministic benchmark report:
+
+```powershell
+bun src\cli\index.ts republic benchmark-report --run control=D:\OMO\republic-ab-control-kimi-20260506 --run treatment=D:\OMO\republic-ab-treatment-kimi-20260506 --output D:\OMO\experiment-logs\republic-kimi-ab-benchmark.md
+```
+
+This report is intentionally read-only. It converts Git status, native-git audit, Republic ledger, Commons, contracts, targeted messages, referenced messages, seats, workgroups, and contract traceability into a stable Markdown or JSON evidence table. It is the preferred record format for future weak-model, hard-task, large-task, and innovation-task comparisons.
+
 ## Interpretation
 
 The current Republic design is already distinct from ordinary multi-agent delegation because the collaboration record, contracts, audit log, and seat state all live under the Git common dir. The more important finding is that this approach is especially suited to weaker models. Instead of trusting a weak model to remember everything, the system repeatedly exposes the same hard boundaries through contracts, inboxes, and supervisor checks.
@@ -238,4 +246,4 @@ This does not yet prove autonomous "always correct" collaboration. It does show 
 2. Add a model capability gate that tests tool-call compliance before assigning a model to Republic work.
 3. Add a contract-diff QA pass that checks public docs, tests, and implementation against locked contract terms.
 4. Add per-workgroup worktrees so each execution seat can commit, test, and merge through an isolated Git lane.
-5. Add a benchmark harness that runs single-agent, advisory Republic, and governed Republic variants against the same project tasks.
+5. Extend the benchmark report into a full benchmark harness that runs single-agent, advisory Republic, and governed Republic variants against the same project tasks.

@@ -1,10 +1,31 @@
 import { Command } from "commander"
+import { republicBenchmarkReport, republicBenchmarkRunCollector } from "./benchmark-report"
 import { republicDashboard } from "./dashboard"
 import { republicStatus } from "./status"
 
 export function createRepublicCommand(): Command {
   const command = new Command("republic")
     .description("Inspect OMO Republic deliberation and native Git audit state")
+
+  command
+    .command("benchmark-report")
+    .description("Summarize one or more Republic experiment repositories")
+    .option(
+      "--run <label=path>",
+      "Experiment repository to include; repeat for control/treatment runs",
+      republicBenchmarkRunCollector,
+      [],
+    )
+    .option("-o, --output <path>", "Write the report to a file instead of stdout")
+    .option("--json", "Output structured JSON")
+    .action(async (options) => {
+      const exitCode = await republicBenchmarkReport({
+        run: options.run,
+        output: options.output,
+        json: options.json ?? false,
+      })
+      process.exit(exitCode)
+    })
 
   command
     .command("status")

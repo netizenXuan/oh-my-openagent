@@ -169,6 +169,15 @@ Serve a live dashboard that polls the Git common-dir records:
 bunx oh-my-opencode republic dashboard --directory /path/to/repo --serve --port 4097
 ```
 
+Generate a reproducible benchmark report from one or more experiment repositories:
+
+```bash
+bunx oh-my-opencode republic benchmark-report --run control=/path/to/control --run treatment=/path/to/treatment --output ./republic-benchmark.md
+bunx oh-my-opencode republic benchmark-report --run treatment=/path/to/treatment --json
+```
+
+The benchmark report does not run models or mutate inspected repositories. It reads native-git audit records, Republic ledger records, Commons messages, dirty files, contract traceability, targeted messages, referenced messages, seats, workgroups, tools, and agents. Use it after a control/treatment smoke run so experiment evidence stays comparable across Kimi, Ling, Hy3, or other cheaper-model trials.
+
 Open the dashboard from OpenCode:
 
 ```text
