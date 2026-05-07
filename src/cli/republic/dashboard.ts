@@ -708,8 +708,8 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
   const initialData = escapeJsonForScript(data)
   const refreshMs = options.refreshMs ?? 2000
   const liveLoader = options.live
-    ? `async function loadData(){ const response = await fetch("/data.json", { cache: "no-store" }); return await response.json(); }`
-    : `async function loadData(){ return JSON.parse(document.getElementById("republic-data").textContent); }`
+    ? `async function loadData(){ try { const response = await fetch("/data.json", { cache: "no-store", headers: { "cache-control": "no-cache" } }); const next = await response.json(); if (!next.repository && currentData?.repository) return currentData; if (!next.repository && initialDashboardData?.repository) return initialDashboardData; return next; } catch { return currentData ?? initialDashboardData; } }`
+    : `async function loadData(){ return initialDashboardData; }`
 
   return `<!doctype html>
 <html lang="en">
@@ -738,7 +738,10 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
     .workspace-header h2 { color:var(--text); font-size:16px; text-transform:none; }
     .workspace-header p { color:var(--muted); margin-top:4px; }
     .header-pills, #board-pills { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
+    .language-select { height:28px; border:1px solid var(--line); border-radius:999px; padding:0 10px; color:var(--text); background:#0d1117; }
     .metric { display:flex; justify-content:space-between; gap:16px; padding:8px 0; border-bottom:1px solid rgba(48,56,66,.72); }
+    .metric-button { width:100%; color:inherit; background:transparent; border:0; cursor:pointer; font:inherit; }
+    .metric-button:hover { color:var(--text); }
     .metric span:first-child { color:var(--muted); }
     .metric strong { text-align:right; overflow-wrap:anywhere; }
     .metric-group { border:1px solid var(--soft-line); border-radius:8px; padding:12px; background:var(--panel2); margin-bottom:12px; }
@@ -752,9 +755,10 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
     .pill.warn { color:var(--yellow); border-color:rgba(225,184,77,.45); }
     .pill.bad { color:var(--red); border-color:rgba(255,104,104,.45); }
     .board { min-width:0; display:flex; flex-direction:column; gap:16px; }
-    .phase-strip { display:grid; grid-template-columns:repeat(4, minmax(130px, 1fr)); gap:10px; }
-    .phase-card { border:1px solid var(--line); border-radius:8px; padding:11px; background:var(--panel2); min-height:86px; }
-    .phase-card.active { border-color:var(--accent); box-shadow:0 0 0 1px rgba(79,140,255,.22) inset; }
+    .phase-strip { display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; }
+    .phase-card { border:1px solid var(--line); border-radius:8px; padding:11px; background:var(--panel2); min-height:86px; color:var(--text); text-align:left; cursor:pointer; font:inherit; }
+    .phase-card.active, .phase-card.selected { border-color:var(--accent); box-shadow:0 0 0 1px rgba(79,140,255,.22) inset; }
+    .phase-card:hover { background:#131a24; }
     .phase-title { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:9px; }
     .phase-title strong { font-size:13px; text-transform:uppercase; }
     .phase-title span { color:var(--muted); font-size:12px; }
@@ -764,7 +768,7 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
     .board-section-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; border-bottom:1px solid var(--soft-line); background:#151b24; }
     .board-section-head strong { font-size:14px; }
     .supervisor-zone { border-color:rgba(176,140,255,.42); }
-    .workgroup-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px; padding:12px; }
+    .workgroup-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; padding:12px; }
     .workgroup-card { border:1px solid var(--line); border-radius:8px; background:#10151d; overflow:hidden; }
     .workgroup-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:12px; border-bottom:1px solid var(--soft-line); background:#121923; }
     .workgroup-head strong { display:block; font-size:14px; overflow-wrap:anywhere; }
@@ -773,8 +777,9 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
     .stat-chip { border:1px solid var(--soft-line); border-radius:8px; padding:7px; background:#0c1016; }
     .stat-chip span { display:block; color:var(--muted); font-size:11px; }
     .stat-chip strong { font-size:15px; }
-    .seat-list { display:flex; flex-direction:column; gap:8px; padding:12px; }
-    .seat-card { width:100%; text-align:left; border:1px solid var(--line); border-radius:8px; padding:10px; background:#0d1117; color:var(--text); cursor:pointer; transition:border-color .12s ease, background .12s ease; }
+    .seat-orbit { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px; padding:12px; }
+    .seat-list { display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:10px; padding:12px; }
+    .seat-card { width:100%; text-align:left; border:1px solid var(--line); border-radius:8px; padding:10px; background:#0d1117; color:var(--text); cursor:pointer; transition:border-color .12s ease, background .12s ease; min-height:112px; display:flex; flex-direction:column; justify-content:space-between; }
     .seat-card:hover, .seat-card.selected { border-color:var(--accent); background:#111a27; }
     .seat-top { display:flex; justify-content:space-between; gap:10px; align-items:center; margin-bottom:5px; }
     .seat-name { font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -790,6 +795,11 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
     .timeline, .inspector-list { display:flex; flex-direction:column; gap:10px; }
     .timeline { max-height:520px; overflow:auto; padding-right:4px; }
     .item { border:1px solid var(--soft-line); border-radius:8px; padding:10px; background:#0d1117; }
+    .timeline-event { border-left:3px solid var(--accent); }
+    .timeline-event.question { border-left-color:var(--yellow); }
+    .timeline-event.answer, .timeline-event.consensus, .timeline-event.contract { border-left-color:var(--green); }
+    .timeline-event.intervention, .timeline-event.supervisor-policy { border-left-color:var(--purple); }
+    .timeline-event.dependency-blocked { border-left-color:var(--red); }
     .item strong { display:block; margin-bottom:4px; overflow-wrap:anywhere; }
     .item p { margin:0; color:var(--muted); overflow-wrap:anywhere; }
     .item small { color:var(--muted); overflow-wrap:anywhere; }
@@ -799,9 +809,10 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
     .progress { height:8px; border-radius:999px; overflow:hidden; background:#232b36; }
     .progress div { height:100%; background:var(--green); width:0; }
     .detail-block { border:1px solid var(--soft-line); border-radius:8px; background:#0d1117; overflow:hidden; }
-    details.detail-block summary { cursor:pointer; list-style:none; padding:10px 12px; color:var(--text); font-weight:700; border-bottom:1px solid var(--soft-line); }
+    details.detail-block summary { cursor:pointer; list-style:none; padding:10px 12px; color:var(--text); font-weight:700; border-bottom:1px solid var(--soft-line); display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    details.detail-block summary .summary-text { min-width:0; overflow-wrap:anywhere; }
     details.detail-block summary::-webkit-details-marker { display:none; }
-    details.detail-block summary::after { content:"expand"; float:right; color:var(--muted); font-weight:400; font-size:11px; text-transform:uppercase; }
+    details.detail-block summary::after { content:"expand"; color:var(--muted); font-weight:400; font-size:11px; text-transform:uppercase; flex:0 0 auto; }
     details.detail-block[open] summary::after { content:"collapse"; }
     .detail-body { padding:10px 12px; color:var(--muted); overflow-wrap:anywhere; }
     .detail-body p { margin-bottom:8px; }
@@ -809,6 +820,7 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
     .item-meta { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
     .summary-line { display:flex; justify-content:space-between; gap:10px; align-items:center; }
     .empty { border:1px dashed var(--line); border-radius:8px; padding:14px; color:var(--muted); background:#0d1117; }
+    .phase-hidden { display:none; }
     .muted { color:var(--muted); }
     .status-approved { color:var(--green); }
     .status-blocked { color:var(--red); }
@@ -819,25 +831,25 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
 <body>
   <script type="application/json" id="republic-data">${initialData}</script>
   <header>
-    <h1>OMO Republic Dashboard</h1>
-    <div class="header-pills"><span id="repo-pill" class="pill"></span><span id="refresh-pill" class="pill"></span></div>
+    <h1 data-i18n="title">OMO Republic Dashboard</h1>
+    <div class="header-pills"><select id="lang-select" class="language-select" aria-label="Language"><option value="en">English</option><option value="zh">中文</option><option value="ja">日本語</option><option value="ko">한국어</option></select><span id="repo-pill" class="pill"></span><span id="refresh-pill" class="pill"></span></div>
   </header>
   <main class="dashboard-shell">
     <aside class="summary-panel pad">
-      <div class="section-heading"><h2>Governance Snapshot</h2><p>Decision, dispatch pressure, and traceability health.</p></div>
+      <div class="section-heading"><h2 data-i18n="governance">Governance Snapshot</h2><p data-i18n="governanceDesc">Decision, dispatch pressure, and traceability health.</p></div>
       <div id="metrics"></div>
     </aside>
     <section class="workspace">
       <div class="workspace-header">
         <div>
-          <h2>Command Board</h2>
+          <h2 data-i18n="commandBoard">Command Board</h2>
           <p id="board-subtitle"></p>
         </div>
         <div id="board-pills"></div>
       </div>
       <div id="team-board" class="board" aria-label="OMO Republic team board"></div>
       <section class="timeline-panel" aria-label="Commons timeline">
-        <div class="section-heading"><h2>Commons Timeline</h2><p>Recent proposals, questions, answers, objections, contracts, and supervisor notes.</p></div>
+        <div class="section-heading"><h2 data-i18n="commonsTimeline">Commons Timeline</h2><p data-i18n="commonsDesc">Recent proposals, questions, answers, objections, contracts, and supervisor notes.</p></div>
         <div id="timeline" class="timeline"></div>
       </section>
     </section>
@@ -847,12 +859,44 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
   </main>
   <script>
     const colors = { approved:"status-approved", blocked:"status-blocked", "needs-quorum":"status-needs-quorum", revise:"status-revise" };
+    const initialDashboardData = JSON.parse(document.getElementById("republic-data").textContent);
     let currentData = null;
     let selectedSeatID = null;
+    let selectedPhase = "all";
+    let selectedMetric = null;
+    const openDetails = new Set();
+    const i18n = {
+      en: {
+        title:"OMO Republic Dashboard", governance:"Governance Snapshot", governanceDesc:"Decision, dispatch pressure, and traceability health.", commandBoard:"Command Board", commonsTimeline:"Commons Timeline", commonsDesc:"Recent proposals, questions, answers, objections, contracts, and supervisor notes.", decision:"Decision", team:"Team", runtime:"Runtime Mapping", seatState:"Seat State", records:"Records", governanceGroup:"Governance", model:"Model", allocation:"Allocation", phase:"Phase", workgroups:"Workgroups", seats:"Seats", all:"All", defaultRuntime:"Default runtime agent", maxParallel:"Max parallel seats", planningSeats:"Planning seats", executionSeats:"Execution seats", reviewSeats:"Review seats", running:"Running", waiting:"Waiting", blocked:"Blocked", done:"Done", standby:"Standby", commons:"Commons", targeted:"Targeted", referenced:"Referenced", nativeGit:"Native git", pendingDispatches:"Pending dispatches", queuedRecords:"Queued records", dispatchedTasks:"Dispatched tasks", contracts:"Contracts", contractWarnings:"Contract warnings", supervisorLane:"Supervisor Lane", teamLoad:"Team Load", workgroupLabel:"Workgroups", noTeam:"No persistent Republic team has been initialized yet.", noTimeline:"No commons messages yet.", awaitingClosure:"No seat or scheduler work is active. The team phase is still open, so publish a final review/phase update or inspect warnings before treating this run as complete.", idleClosure:"idle, awaiting closure", seatInspector:"Seat Inspector", clickSeat:"Click a seat to inspect status, inbox, and interaction completion.", seatDefinition:"Seat Definition", currentState:"Current State", interactionCompletion:"Interaction Completion", schedulerQueue:"Scheduler Queue", contractTraceability:"Contract Traceability", recentInteractions:"Recent Seat Interactions", noQueue:"No queued or dispatched scheduler work for this seat.", noContract:"No contract linked to this seat yet.", noInteractions:"No direct interactions for this seat yet.", waitingOn:"Waiting on", task:"Task", runtimeAgent:"Runtime agent", conceptualAgent:"Conceptual agent", module:"Module", noMetric:"Click a left metric group to inspect raw supporting data."
+      },
+      zh: {
+        title:"OMO Republic 指挥面板", governance:"治理快照", governanceDesc:"决策、调度压力与可追踪健康度。", commandBoard:"指挥台", commonsTimeline:"Commons 时间线", commonsDesc:"最近的提案、问题、回答、异议、契约和监督记录。", decision:"决策", team:"团队", runtime:"运行映射", seatState:"席位状态", records:"记录", governanceGroup:"治理", model:"模式", allocation:"分配", phase:"阶段", workgroups:"工作组", seats:"席位", all:"全部", defaultRuntime:"默认运行代理", maxParallel:"最大并行席位", planningSeats:"规划席位", executionSeats:"执行席位", reviewSeats:"审查席位", running:"运行中", waiting:"等待中", blocked:"阻塞", done:"完成", standby:"待命", commons:"Commons", targeted:"定向消息", referenced:"引用消息", nativeGit:"原生 Git", pendingDispatches:"待派发", queuedRecords:"队列记录", dispatchedTasks:"已派发任务", contracts:"契约", contractWarnings:"契约警告", supervisorLane:"监督席位", teamLoad:"团队负载", workgroupLabel:"工作组", noTeam:"还没有初始化持久 Republic 团队。", noTimeline:"还没有 Commons 消息。", awaitingClosure:"当前没有 seat 或 scheduler 在运行。团队阶段仍处于打开状态，需要发布最终审查/阶段更新，或先检查警告再判定完成。", idleClosure:"空闲，等待收口", seatInspector:"席位检查器", clickSeat:"点击一个席位查看状态、收件箱和交互完成情况。", seatDefinition:"席位定义", currentState:"当前状态", interactionCompletion:"交互完成度", schedulerQueue:"调度队列", contractTraceability:"契约追踪", recentInteractions:"最近席位交互", noQueue:"这个席位没有排队或已派发的调度工作。", noContract:"这个席位还没有关联契约。", noInteractions:"这个席位还没有直接交互。", waitingOn:"等待对象", task:"任务", runtimeAgent:"运行代理", conceptualAgent:"概念代理", module:"模块", noMetric:"点击左侧指标组查看原始支撑数据。"
+      },
+      ja: {
+        title:"OMO Republic ダッシュボード", governance:"ガバナンス概要", governanceDesc:"意思決定、ディスパッチ負荷、追跡性の健全性。", commandBoard:"コマンドボード", commonsTimeline:"Commons タイムライン", commonsDesc:"最近の提案、質問、回答、異議、契約、監督メモ。", decision:"判断", team:"チーム", runtime:"ランタイム対応", seatState:"シート状態", records:"記録", governanceGroup:"ガバナンス", model:"モデル", allocation:"割当", phase:"フェーズ", workgroups:"作業グループ", seats:"シート", all:"すべて", defaultRuntime:"既定ランタイム代理", maxParallel:"最大並列シート", planningSeats:"計画シート", executionSeats:"実行シート", reviewSeats:"レビューシート", running:"実行中", waiting:"待機中", blocked:"ブロック", done:"完了", standby:"待機", commons:"Commons", targeted:"宛先付き", referenced:"参照済み", nativeGit:"Native Git", pendingDispatches:"未処理ディスパッチ", queuedRecords:"キュー記録", dispatchedTasks:"派遣済みタスク", contracts:"契約", contractWarnings:"契約警告", supervisorLane:"監督レーン", teamLoad:"チーム負荷", workgroupLabel:"作業グループ", noTeam:"永続 Republic チームはまだ初期化されていません。", noTimeline:"Commons メッセージはまだありません。", awaitingClosure:"実行中の seat / scheduler はありません。フェーズはまだ開いているため、完了扱いの前に最終レビュー/フェーズ更新または警告確認が必要です。", idleClosure:"アイドル、終了待ち", seatInspector:"シート検査", clickSeat:"シートをクリックして状態、受信箱、対話完了度を確認します。", seatDefinition:"シート定義", currentState:"現在状態", interactionCompletion:"対話完了度", schedulerQueue:"スケジューラキュー", contractTraceability:"契約追跡", recentInteractions:"最近のシート対話", noQueue:"このシートにキューまたは派遣済み作業はありません。", noContract:"このシートに紐づく契約はまだありません。", noInteractions:"このシートに直接対話はまだありません。", waitingOn:"待機対象", task:"タスク", runtimeAgent:"ランタイム代理", conceptualAgent:"概念代理", module:"モジュール", noMetric:"左側の指標グループをクリックすると根拠データを確認できます。"
+      },
+      ko: {
+        title:"OMO Republic 대시보드", governance:"거버넌스 스냅샷", governanceDesc:"의사결정, 디스패치 압력, 추적성 상태.", commandBoard:"커맨드 보드", commonsTimeline:"Commons 타임라인", commonsDesc:"최근 제안, 질문, 답변, 이의, 계약, 감독 기록.", decision:"결정", team:"팀", runtime:"런타임 매핑", seatState:"시트 상태", records:"기록", governanceGroup:"거버넌스", model:"모델", allocation:"할당", phase:"단계", workgroups:"작업그룹", seats:"시트", all:"전체", defaultRuntime:"기본 런타임 에이전트", maxParallel:"최대 병렬 시트", planningSeats:"계획 시트", executionSeats:"실행 시트", reviewSeats:"리뷰 시트", running:"실행 중", waiting:"대기 중", blocked:"차단", done:"완료", standby:"대기", commons:"Commons", targeted:"지정 메시지", referenced:"참조 메시지", nativeGit:"Native Git", pendingDispatches:"대기 디스패치", queuedRecords:"큐 기록", dispatchedTasks:"디스패치된 작업", contracts:"계약", contractWarnings:"계약 경고", supervisorLane:"감독 레인", teamLoad:"팀 부하", workgroupLabel:"작업그룹", noTeam:"지속 Republic 팀이 아직 초기화되지 않았습니다.", noTimeline:"Commons 메시지가 아직 없습니다.", awaitingClosure:"활성 seat 또는 scheduler 작업이 없습니다. 팀 단계가 아직 열려 있으므로 완료 처리 전에 최종 리뷰/단계 업데이트 또는 경고 확인이 필요합니다.", idleClosure:"유휴, 종료 대기", seatInspector:"시트 검사기", clickSeat:"시트를 클릭해 상태, 받은 메시지, 상호작용 완료도를 확인하세요.", seatDefinition:"시트 정의", currentState:"현재 상태", interactionCompletion:"상호작용 완료도", schedulerQueue:"스케줄러 큐", contractTraceability:"계약 추적", recentInteractions:"최근 시트 상호작용", noQueue:"이 시트에는 큐 또는 디스패치된 작업이 없습니다.", noContract:"이 시트와 연결된 계약이 아직 없습니다.", noInteractions:"이 시트에는 직접 상호작용이 아직 없습니다.", waitingOn:"대기 대상", task:"작업", runtimeAgent:"런타임 에이전트", conceptualAgent:"개념 에이전트", module:"모듈", noMetric:"왼쪽 지표 그룹을 클릭하면 근거 데이터를 볼 수 있습니다."
+      },
+    };
+    let lang = localStorage.getItem("omo-republic-lang") || "en";
+    function t(key) { return (i18n[lang] && i18n[lang][key]) || i18n.en[key] || key; }
+    function applyI18n() {
+      document.documentElement.lang = lang;
+      const selector = document.getElementById("lang-select");
+      if (selector) selector.value = lang;
+      for (const node of document.querySelectorAll("[data-i18n]")) {
+        node.textContent = t(node.getAttribute("data-i18n"));
+      }
+    }
     ${liveLoader}
 
     function metric(label, value) {
-      return '<div class="metric"><span>' + label + '</span><strong>' + value + '</strong></div>';
+      return '<div class="metric"><span>' + safe(label) + '</span><strong>' + value + '</strong></div>';
+    }
+
+    function metricGroup(dataKey, title, rows) {
+      return '<button class="metric-group metric-button" data-metric-group="' + safe(dataKey) + '"><h3>' + safe(title) + '</h3>' + rows.join("") + '</button>';
     }
 
     function safe(value) {
@@ -863,8 +907,36 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       return safe(JSON.stringify(value ?? null, null, 2));
     }
 
-    function detailBlock(title, body, raw) {
-      return '<details class="detail-block"><summary>' + safe(title) + '</summary><div class="detail-body">' + body + (raw === undefined ? '' : '<pre class="raw-json">' + safeJson(raw) + '</pre>') + '</div></details>';
+    function truncate(value, limit = 260) {
+      const text = String(value ?? "");
+      return text.length > limit ? text.slice(0, limit - 1) + "..." : text;
+    }
+
+    function detailBlock(title, body, raw, detailKey) {
+      const key = detailKey ? String(detailKey) : "";
+      const keyAttr = key ? ' data-detail-key="' + safe(key) + '"' : "";
+      const openAttr = key && openDetails.has(key) ? " open" : "";
+      return '<details class="detail-block"' + keyAttr + openAttr + '><summary><span class="summary-text">' + safe(title) + '</span></summary><div class="detail-body">' + body + (raw === undefined ? '' : '<pre class="raw-json">' + safeJson(raw) + '</pre>') + '</div></details>';
+    }
+
+    function captureOpenDetails() {
+      for (const detail of document.querySelectorAll("details[data-detail-key]")) {
+        const key = detail.getAttribute("data-detail-key");
+        if (!key) continue;
+        if (detail.open) openDetails.add(key);
+        else openDetails.delete(key);
+      }
+    }
+
+    function bindDetailState(root = document) {
+      for (const detail of root.querySelectorAll("details[data-detail-key]")) {
+        detail.addEventListener("toggle", () => {
+          const key = detail.getAttribute("data-detail-key");
+          if (!key) return;
+          if (detail.open) openDetails.add(key);
+          else openDetails.delete(key);
+        });
+      }
     }
 
     function fieldPill(label, value) {
@@ -886,11 +958,13 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
         fieldPill("refs", refs),
         fieldPill("files", files),
       ].filter(Boolean).join("");
-      return detailBlock(
+      const detailKey = "message:" + (message.id ?? [message.timestamp, message.authorSeatID, message.targetSeatID, message.messageType].filter(Boolean).join(":"));
+      return '<div class="timeline-event ' + safe(message.messageType ?? "status") + '">' + detailBlock(
         message.authorSeatID + target + ' / ' + message.messageType,
-        '<p>' + safe(message.content) + '</p><div class="item-meta">' + meta + '</div>',
+        '<p>' + safe(truncate(message.content, 420)) + '</p><div class="item-meta">' + meta + '</div>',
         message,
-      );
+        detailKey,
+      ) + '</div>';
     }
 
     function renderQueueDetails(record) {
@@ -906,6 +980,7 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
         (record.status ?? "queue") + ' / ' + (record.queueType ?? "dispatch"),
         '<p>' + safe(record.summary ?? record.reason ?? "") + '</p><div class="item-meta">' + meta + '</div>',
         record,
+        "queue:" + (record.id ?? [record.timestamp, record.targetSeatID, record.taskID, record.status].filter(Boolean).join(":")),
       );
     }
 
@@ -921,6 +996,7 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
         contract.contractID + ' / ' + contract.status,
         '<p>' + safe(terms) + '</p><div class="item-meta">' + meta + '</div>',
         contract,
+        "contract:" + contract.contractID + ":" + contract.status,
       );
     }
 
@@ -1030,22 +1106,29 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       const activePhase = data.teamPhase?.phase ?? "idle";
       const counts = statusCounts(data, seatDefs(data));
       const awaitingClosure = idleAwaitingClosure(data, counts);
-      const phases = ["planning", "execution", "review", "idle"];
-      const phaseCounts = phases.map((phase) => seatDefs(data).filter((seat) => seat.phase === phase || (phase === "idle" && seat.role === "supervisor")).length);
+      const phases = ["all", "planning", "execution", "review", "idle"];
+      const phaseSeats = (phase) => phase === "all"
+        ? seatDefs(data)
+        : seatDefs(data).filter((seat) => seat.phase === phase || (phase === "idle" && seat.role === "supervisor"));
+      const phaseCounts = phases.map((phase) => phaseSeats(phase).length);
       const maxCount = Math.max(1, ...phaseCounts);
       return '<div class="phase-strip">' + phases.map((phase) => {
-        const count = seatDefs(data).filter((seat) => seat.phase === phase || (phase === "idle" && seat.role === "supervisor")).length;
-        const active = phase === activePhase ? " active" : "";
+        const count = phaseSeats(phase).length;
+        const active = phase !== "all" && phase === activePhase ? " active" : "";
+        const selected = selectedPhase === phase ? " selected" : "";
         const width = Math.max(6, Math.round((count / maxCount) * 100));
-        const label = phase === activePhase ? (awaitingClosure ? "idle, awaiting closure" : (data.teamPhase?.status ?? "active")) : "standby";
-        return '<div class="phase-card' + active + '"><div class="phase-title"><strong>' + safe(phase) + '</strong><span>' + count + ' seats</span></div><div class="muted">' + safe(label) + '</div><div class="phase-meter"><div style="width:' + width + '%"></div></div></div>';
+        const label = phase === "all" ? t("workgroupLabel") : (phase === activePhase ? (awaitingClosure ? t("idleClosure") : (data.teamPhase?.status ?? "active")) : t("standby"));
+        const title = phase === "all" ? t("all") : phase;
+        return '<button class="phase-card' + active + selected + '" data-phase-filter="' + safe(phase) + '"><div class="phase-title"><strong>' + safe(title) + '</strong><span>' + count + ' ' + t("seats").toLowerCase() + '</span></div><div class="muted">' + safe(label) + '</div><div class="phase-meter"><div style="width:' + width + '%"></div></div></button>';
       }).join("") + '</div>';
     }
 
     function renderTeamBoard(data) {
       const seats = seatDefs(data);
-      const supervisors = seats.filter((seat) => seat.role === "supervisor");
-      const workerSeats = seats.filter((seat) => seat.role !== "supervisor");
+      const phaseMatches = (seat) => selectedPhase === "all" || seat.phase === selectedPhase || (selectedPhase === "idle" && seat.role === "supervisor");
+      const visibleSeats = seats.filter(phaseMatches);
+      const supervisors = visibleSeats.filter((seat) => seat.role === "supervisor");
+      const workerSeats = visibleSeats.filter((seat) => seat.role !== "supervisor");
       const counts = statusCounts(data, seats);
       const workgroups = new Map();
       for (const seat of workerSeats) {
@@ -1060,31 +1143,41 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
         : "No active Republic team phase.";
       document.getElementById("board-pills").innerHTML = [
         '<span class="pill">' + safe(data.teamManifest?.teamModel ?? "no team") + '</span>',
-        '<span class="pill">allocation ' + safe(data.teamManifest?.seatAllocation ?? "none") + '</span>',
-        '<span class="pill">max parallel ' + safe(data.teamManifest?.maxParallelSeats ?? "n/a") + '</span>',
-        '<span class="pill">seats ' + seats.length + '</span>',
+        '<span class="pill">' + t("allocation").toLowerCase() + ' ' + safe(data.teamManifest?.seatAllocation ?? "none") + '</span>',
+        '<span class="pill">' + t("maxParallel").toLowerCase() + ' ' + safe(data.teamManifest?.maxParallelSeats ?? "n/a") + '</span>',
+        '<span class="pill">' + t("seats").toLowerCase() + ' ' + seats.length + '</span>',
         '<span class="' + pillClass(data.report.schedulerQueue?.pending ?? 0, true) + '">pending ' + safe(data.report.schedulerQueue?.pending ?? 0) + '</span>',
-        '<span class="' + pillClass(data.report.contractTraceability?.warningCount ?? 0, true) + '">contract warnings ' + safe(data.report.contractTraceability?.warningCount ?? 0) + '</span>',
+        '<span class="' + pillClass(data.report.contractTraceability?.warningCount ?? 0, true) + '">' + t("contractWarnings").toLowerCase() + ' ' + safe(data.report.contractTraceability?.warningCount ?? 0) + '</span>',
       ].join("");
       if (seats.length === 0) {
-        board.innerHTML = '<div class="empty">No persistent Republic team has been initialized yet.</div>';
+        board.innerHTML = '<div class="empty">' + t("noTeam") + '</div>';
         return;
       }
       const supervisorHtml = supervisors.length
-        ? '<section class="board-section supervisor-zone"><div class="board-section-head"><strong>Supervisor Lane</strong><span class="pill">' + supervisors.length + ' seats</span></div><div class="seat-list">' + supervisors.map((seat) => renderSeatCard(data, seat)).join("") + '</div></section>'
+        ? '<section class="board-section supervisor-zone"><div class="board-section-head"><strong>' + t("supervisorLane") + '</strong><span class="pill">' + supervisors.length + ' ' + t("seats").toLowerCase() + '</span></div><div class="seat-orbit">' + supervisors.map((seat) => renderSeatCard(data, seat)).join("") + '</div></section>'
         : "";
       const workgroupHtml = '<div class="workgroup-grid">' + Array.from(workgroups.entries()).map(([workgroupID, group]) => {
         const groupCounts = statusCounts(data, group);
         const pending = group.reduce((total, seat) => total + pendingSchedulerRecordsForSeat(data, seat.seatID).length, 0);
-        return '<div class="workgroup-card"><div class="workgroup-head"><div><strong>' + safe(workgroupID) + '</strong><small>' + group.length + ' seats assigned</small></div><span class="' + pillClass(pending, true) + '">queue ' + pending + '</span></div><div class="workgroup-stats"><div class="stat-chip"><span>Running</span><strong>' + groupCounts.running + '</strong></div><div class="stat-chip"><span>Waiting</span><strong>' + groupCounts.waiting + '</strong></div><div class="stat-chip"><span>Blocked</span><strong>' + groupCounts.blocked + '</strong></div></div><div class="seat-list">' + group.map((seat) => renderSeatCard(data, seat)).join("") + '</div></div>';
+        return '<div class="workgroup-card"><div class="workgroup-head"><div><strong>' + safe(workgroupID) + '</strong><small>' + group.length + ' ' + t("seats").toLowerCase() + ' assigned</small></div><span class="' + pillClass(pending, true) + '">queue ' + pending + '</span></div><div class="workgroup-stats"><div class="stat-chip"><span>' + t("running") + '</span><strong>' + groupCounts.running + '</strong></div><div class="stat-chip"><span>' + t("waiting") + '</span><strong>' + groupCounts.waiting + '</strong></div><div class="stat-chip"><span>' + t("blocked") + '</span><strong>' + groupCounts.blocked + '</strong></div></div><div class="seat-list">' + group.map((seat) => renderSeatCard(data, seat)).join("") + '</div></div>';
       }).join("") + '</div>';
       board.innerHTML = renderPhaseStrip(data)
-        + '<section class="board-section"><div class="board-section-head"><strong>Team Load</strong><span class="pill">' + counts.running + ' running / ' + counts.waiting + ' waiting / ' + counts.blocked + ' blocked</span></div>' + (awaitingClosure ? '<div class="empty">No seat or scheduler work is active. The team phase is still open, so publish a final review/phase update or inspect warnings before treating this run as complete.</div>' : '') + '</section>'
+        + '<section class="board-section"><div class="board-section-head"><strong>' + t("teamLoad") + '</strong><span class="pill">' + counts.running + ' running / ' + counts.waiting + ' waiting / ' + counts.blocked + ' blocked</span></div>' + (awaitingClosure ? '<div class="empty">' + t("awaitingClosure") + '</div>' : '') + '</section>'
         + supervisorHtml
-        + '<section class="board-section"><div class="board-section-head"><strong>Workgroups</strong><span class="pill">' + workgroups.size + ' groups</span></div>' + workgroupHtml + '</section>';
+        + '<section class="board-section"><div class="board-section-head"><strong>' + t("workgroupLabel") + '</strong><span class="pill">' + workgroups.size + ' groups</span></div>' + workgroupHtml + '</section>';
+      for (const button of board.querySelectorAll("[data-phase-filter]")) {
+        button.addEventListener("click", () => {
+          selectedPhase = button.getAttribute("data-phase-filter") || "all";
+          selectedSeatID = null;
+          selectedMetric = null;
+          renderTeamBoard(currentData);
+          renderInspector(currentData);
+        });
+      }
       for (const button of board.querySelectorAll("[data-seat-id]")) {
         button.addEventListener("click", () => {
           selectedSeatID = button.getAttribute("data-seat-id");
+          selectedMetric = null;
           renderTeamBoard(currentData);
           renderInspector(currentData);
         });
@@ -1099,45 +1192,74 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       const counts = statusCounts(data, seats);
       const workgroupCount = new Set(seats.map((seat) => seat.workgroupID).filter(Boolean)).size;
       document.getElementById("metrics").innerHTML =
-        '<div class="decision-card"><span class="muted">Decision</span><strong class="' + (colors[decision.status] ?? "") + '">' + safe(decision.status) + '</strong><p>' + safe(decision.reason) + '</p></div>'
-        + '<div class="metric-group"><h3>Team</h3>' + [
-          metric("Model", safe(data.teamManifest?.teamModel ?? "none")),
-          metric("Allocation", safe(data.teamManifest?.seatAllocation ?? "none")),
-          metric("Phase", safe(data.teamPhase ? data.teamPhase.phase + "/" + data.teamPhase.status : "none")),
-          metric("Workgroups", workgroupCount),
-          metric("Seats", seats.length),
-        ].join("") + '</div>'
-        + '<div class="metric-group"><h3>Runtime Mapping</h3>' + [
-          metric("Default runtime agent", safe(data.teamManifest?.defaultRuntimeAgent ?? "none")),
-          metric("Max parallel seats", safe(data.teamManifest?.maxParallelSeats ?? "n/a")),
-          metric("Planning seats", seats.filter((seat) => seat.phase === "planning").length),
-          metric("Execution seats", seats.filter((seat) => seat.phase === "execution").length),
-          metric("Review seats", seats.filter((seat) => seat.phase === "review").length),
-        ].join("") + '</div>'
-        + '<div class="metric-group"><h3>Seat State</h3>' + [
-          metric("Running", counts.running),
-          metric("Waiting", counts.waiting),
-          metric("Blocked", counts.blocked),
-          metric("Done", counts.done),
-          metric("Standby", counts.standby),
-        ].join("") + '</div>'
-        + '<div class="metric-group"><h3>Records</h3>' + [
-          metric("Commons", data.report.commons.messageCount),
-          metric("Targeted", data.report.commons.targetedMessages),
-          metric("Referenced", data.report.commons.referencedMessages),
-          metric("Native git", data.report.nativeGit.recordCount),
-        ].join("") + '</div>'
-        + '<div class="metric-group"><h3>Governance</h3>' + [
-          metric("Pending dispatches", data.report.schedulerQueue?.pending ?? 0),
-          metric("Queued records", data.report.schedulerQueue?.queued ?? 0),
-          metric("Dispatched tasks", data.report.schedulerQueue?.dispatched ?? 0),
-          metric("Contracts", data.report.contractTraceability?.contractCount ?? 0),
-          metric("Contract warnings", data.report.contractTraceability?.warningCount ?? 0),
-        ].join("") + '</div>';
+        '<button class="decision-card metric-button" data-metric-group="decision"><span class="muted">' + t("decision") + '</span><strong class="' + (colors[decision.status] ?? "") + '">' + safe(decision.status) + '</strong><p>' + safe(decision.reason) + '</p></button>'
+        + metricGroup("team", t("team"), [
+          metric(t("model"), safe(data.teamManifest?.teamModel ?? "none")),
+          metric(t("allocation"), safe(data.teamManifest?.seatAllocation ?? "none")),
+          metric(t("phase"), safe(data.teamPhase ? data.teamPhase.phase + "/" + data.teamPhase.status : "none")),
+          metric(t("workgroups"), workgroupCount),
+          metric(t("seats"), seats.length),
+        ])
+        + metricGroup("runtime", t("runtime"), [
+          metric(t("defaultRuntime"), safe(data.teamManifest?.defaultRuntimeAgent ?? "none")),
+          metric(t("maxParallel"), safe(data.teamManifest?.maxParallelSeats ?? "n/a")),
+          metric(t("planningSeats"), seats.filter((seat) => seat.phase === "planning").length),
+          metric(t("executionSeats"), seats.filter((seat) => seat.phase === "execution").length),
+          metric(t("reviewSeats"), seats.filter((seat) => seat.phase === "review").length),
+        ])
+        + metricGroup("seatState", t("seatState"), [
+          metric(t("running"), counts.running),
+          metric(t("waiting"), counts.waiting),
+          metric(t("blocked"), counts.blocked),
+          metric(t("done"), counts.done),
+          metric(t("standby"), counts.standby),
+        ])
+        + metricGroup("records", t("records"), [
+          metric(t("commons"), data.report.commons.messageCount),
+          metric(t("targeted"), data.report.commons.targetedMessages),
+          metric(t("referenced"), data.report.commons.referencedMessages),
+          metric(t("nativeGit"), data.report.nativeGit.recordCount),
+        ])
+        + metricGroup("governance", t("governanceGroup"), [
+          metric(t("pendingDispatches"), data.report.schedulerQueue?.pending ?? 0),
+          metric(t("queuedRecords"), data.report.schedulerQueue?.queued ?? 0),
+          metric(t("dispatchedTasks"), data.report.schedulerQueue?.dispatched ?? 0),
+          metric(t("contracts"), data.report.contractTraceability?.contractCount ?? 0),
+          metric(t("contractWarnings"), data.report.contractTraceability?.warningCount ?? 0),
+        ]);
+      for (const button of document.querySelectorAll("[data-metric-group]")) {
+        button.addEventListener("click", () => {
+          selectedMetric = button.getAttribute("data-metric-group");
+          selectedSeatID = null;
+          renderInspector(currentData);
+        });
+      }
     }
 
     function renderInspector(data) {
       const inspector = document.getElementById("seat-inspector");
+      if (selectedMetric) {
+        const rawByMetric = {
+          decision: data.report.decision,
+          team: { manifest: data.teamManifest, phase: data.teamPhase },
+          runtime: data.teamManifest,
+          seatState: data.seatStates,
+          records: {
+            commons: data.report.commons,
+            nativeGit: data.report.nativeGit,
+            ledger: data.report.republic,
+          },
+          governance: {
+            schedulerQueue: data.report.schedulerQueue,
+            contractTraceability: data.report.contractTraceability,
+          },
+        };
+        inspector.innerHTML = '<h2>' + t("seatInspector") + '</h2>'
+          + '<div class="inspector-title"><strong>' + safe(selectedMetric) + '</strong><p class="muted">' + t("noMetric") + '</p></div>'
+          + detailBlock("Raw Data", "", rawByMetric[selectedMetric] ?? null, "metric:" + selectedMetric);
+        bindDetailState(inspector);
+        return;
+      }
       const seats = seatDefs(data);
       if (!selectedSeatID && seats.length > 0) {
         const activeSeat = seats.find((seat) => ["blocked","waiting","running"].includes(seatStatus(data, seat))) ?? seats[0];
@@ -1145,7 +1267,7 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       }
       const seat = seats.find((candidate) => candidate.seatID === selectedSeatID);
       if (!seat) {
-        inspector.innerHTML = '<h2>Seat Inspector</h2><div class="empty">Click a seat to inspect status, inbox, and interaction completion.</div>';
+        inspector.innerHTML = '<h2>' + t("seatInspector") + '</h2><div class="empty">' + t("clickSeat") + '</div>';
         return;
       }
       const state = seatStateByID(data).get(seat.seatID);
@@ -1154,23 +1276,24 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       const contracts = contractsForSeat(data, seat);
       const queueRecords = schedulerRecordsForSeat(data, seat.seatID).sort((left, right) => String(right.timestamp ?? "").localeCompare(String(left.timestamp ?? "")));
       const waitingOn = (state?.status === "waiting" || state?.status === "blocked") ? (state?.waitingOn ?? []) : [];
-      inspector.innerHTML = '<h2>Seat Inspector</h2>'
+      inspector.innerHTML = '<h2>' + t("seatInspector") + '</h2>'
         + '<div class="inspector-title"><strong>' + safe(seat.seatID) + '</strong><span class="' + statusClass(state?.status ?? "standby") + '">' + safe(state?.status ?? "standby") + '</span><p class="muted">' + safe(seat.role) + '</p></div>'
-        + detailBlock("Seat Definition", '<p>' + safe(seat.reason ?? "No allocation reason recorded.") + '</p>', seat)
-        + detailBlock("Current State", '<p>' + safe(state?.memory ?? "No live state memory recorded.") + '</p>', state ?? null)
+        + detailBlock(t("seatDefinition"), '<p>' + safe(seat.reason ?? "No allocation reason recorded.") + '</p>', seat, "seat-definition:" + seat.seatID)
+        + detailBlock(t("currentState"), '<p>' + safe(state?.memory ?? "No live state memory recorded.") + '</p>', state ?? null, "seat-state:" + seat.seatID)
         + '<div>' + [
-          metric("Phase", safe(state?.phase ?? seat.phase ?? "none")),
-          metric("Workgroup", safe(state?.workgroupID ?? seat.workgroupID ?? "none")),
-          metric("Module", safe(state?.module ?? seat.module ?? "none")),
-          metric("Runtime agent", safe(state?.runtimeAgent ?? seat.runtimeAgent ?? "none")),
-          metric("Conceptual agent", safe(state?.conceptualAgent ?? seat.conceptualAgent ?? "none")),
-          metric("Waiting on", safe(waitingOn.join(", ") || "none")),
-          metric("Task", safe(state?.taskID ?? seat.taskID ?? "none")),
+          metric(t("phase"), safe(state?.phase ?? seat.phase ?? "none")),
+          metric(t("workgroups"), safe(state?.workgroupID ?? seat.workgroupID ?? "none")),
+          metric(t("module"), safe(state?.module ?? seat.module ?? "none")),
+          metric(t("runtimeAgent"), safe(state?.runtimeAgent ?? seat.runtimeAgent ?? "none")),
+          metric(t("conceptualAgent"), safe(state?.conceptualAgent ?? seat.conceptualAgent ?? "none")),
+          metric(t("waitingOn"), safe(waitingOn.join(", ") || "none")),
+          metric(t("task"), safe(state?.taskID ?? seat.taskID ?? "none")),
         ].join("") + '</div>'
-        + '<div><h3>Interaction Completion</h3><div class="progress"><div style="width:' + completion.percent + '%"></div></div><p class="muted">' + completion.done + ' / ' + completion.total + ' question threads completed. Authored questions: ' + completion.authoredQuestions + '. Inbound questions: ' + completion.inboundQuestions + '.</p></div>'
-        + '<div><h3>Scheduler Queue</h3><div class="inspector-list">' + (queueRecords.length ? queueRecords.slice(0, 8).map(renderQueueDetails).join("") : '<div class="empty">No queued or dispatched scheduler work for this seat.</div>') + '</div></div>'
-        + '<div><h3>Contract Traceability</h3><div class="inspector-list">' + (contracts.length ? contracts.map(renderContractDetails).join("") : '<div class="empty">No contract linked to this seat yet.</div>') + '</div></div>'
-        + '<div><h3>Recent Seat Interactions</h3><div class="inspector-list">' + (related.length ? related.slice(0, 10).map(renderMessageDetails).join("") : '<div class="empty">No direct interactions for this seat yet.</div>') + '</div></div>';
+        + '<div><h3>' + t("interactionCompletion") + '</h3><div class="progress"><div style="width:' + completion.percent + '%"></div></div><p class="muted">' + completion.done + ' / ' + completion.total + ' question threads completed. Authored questions: ' + completion.authoredQuestions + '. Inbound questions: ' + completion.inboundQuestions + '.</p></div>'
+        + '<div><h3>' + t("schedulerQueue") + '</h3><div class="inspector-list">' + (queueRecords.length ? queueRecords.slice(0, 8).map(renderQueueDetails).join("") : '<div class="empty">' + t("noQueue") + '</div>') + '</div></div>'
+        + '<div><h3>' + t("contractTraceability") + '</h3><div class="inspector-list">' + (contracts.length ? contracts.map(renderContractDetails).join("") : '<div class="empty">' + t("noContract") + '</div>') + '</div></div>'
+        + '<div><h3>' + t("recentInteractions") + '</h3><div class="inspector-list">' + (related.length ? related.slice(0, 10).map(renderMessageDetails).join("") : '<div class="empty">' + t("noInteractions") + '</div>') + '</div></div>';
+      bindDetailState(inspector);
     }
 
     function renderTimeline(data) {
@@ -1179,18 +1302,28 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       const messages = [...(data.commonsMessages ?? [])].sort((left, right) => String(left.timestamp ?? "").localeCompare(String(right.timestamp ?? ""))).slice(-30).reverse();
       timeline.innerHTML = messages.length
         ? messages.map(renderMessageDetails).join("")
-        : '<div class="empty">No commons messages yet.</div>';
+        : '<div class="empty">' + t("noTimeline") + '</div>';
+      bindDetailState(timeline);
     }
 
     async function render() {
+      captureOpenDetails();
       const data = await loadData();
       currentData = data;
+      applyI18n();
       renderMetrics(data);
       renderTeamBoard(data);
       renderInspector(data);
       renderTimeline(data);
     }
 
+    document.getElementById("lang-select").addEventListener("change", (event) => {
+      lang = event.target.value;
+      localStorage.setItem("omo-republic-lang", lang);
+      applyI18n();
+      if (currentData) render();
+    });
+    applyI18n();
     render();
     ${options.live ? `setInterval(render, ${refreshMs});` : ""}
   </script>
@@ -1220,16 +1353,24 @@ export function startRepublicDashboardServer(options: RepublicDashboardOptions):
   if (!initialData.repository) {
     return null
   }
+  const resolvedOptions: RepublicDashboardOptions = {
+    ...options,
+    directory: initialData.repository.repoRoot,
+  }
 
   const server = Bun.serve({
     port,
     fetch(request) {
       const url = new URL(request.url)
       if (url.pathname === "/data.json") {
-        return Response.json(buildRepublicDashboardData(options))
+        return Response.json(buildRepublicDashboardData(resolvedOptions), {
+          headers: {
+            "cache-control": "no-store",
+          },
+        })
       }
       return new Response(
-        renderRepublicDashboardHtml(buildRepublicDashboardData(options), {
+        renderRepublicDashboardHtml(buildRepublicDashboardData(resolvedOptions), {
           live: true,
           refreshMs: options.refreshMs,
         }),
