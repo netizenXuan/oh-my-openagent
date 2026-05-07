@@ -221,10 +221,11 @@ Verify one model/seat run against machine-checkable collaboration evidence:
 
 ```bash
 bunx oh-my-opencode republic capability-check --directory /path/to/repo --deliberation-id scheduler-kimi-smoke --dispatch-id scheduler-kimi-docs-seat-4 --source-message-id scheduler-kimi-question-1 --expected-author-seat docs-seat --expected-target-seat api-seat --expected-message-type answer --require-content OrderStatus --require-content delivered --expect-clean-worktree --require-dispatched-queue
+bunx oh-my-opencode republic capability-check --directory /path/to/repo --deliberation-id scheduler-kimi-smoke --source-message-id scheduler-kimi-question-1 --expected-author-seat docs-seat --expected-target-seat api-seat --allow-indirect
 bunx oh-my-opencode republic capability-check --directory /path/to/repo --deliberation-id scheduler-kimi-smoke --json
 ```
 
-The capability check is a weak-model productization gate. It does not trust a model's final prose. It verifies hard fields in Git-recorded evidence: the response must be in Commons, it must reference the source message, it must come from the expected seat, it must target the expected requester, required content terms must appear in a matching response, an exact `--dispatch-id` can be required to show `dispatched`, and the worktree can be required to stay clean. This is the recommended way to compare Kimi, Ling, Hy3, or another cheap model before assigning it real Republic seat work.
+The capability check is a weak-model productization gate. It does not trust a model's final prose. It verifies hard fields in Git-recorded evidence: the response must be in Commons, it must reference the source message, it must come from the expected seat, it must target the expected requester, required content terms must appear in a matching response, an exact `--dispatch-id` can be required to show `dispatched`, and the worktree can be required to stay clean. `--allow-indirect` upgrades the source check from a single direct reference to a Commons reference graph, so a seat can ask another seat for help and still pass if the final answer is traceably linked back to the original question. This is the recommended way to compare Kimi, Ling, Hy3, or another cheap model before assigning it real Republic seat work.
 
 Check locked contracts against governed files:
 

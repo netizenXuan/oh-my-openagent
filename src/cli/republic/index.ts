@@ -91,6 +91,7 @@ export function createRepublicCommand(): Command {
     .option("--require-content <term>", "Required substring in a matching Commons response", collectCapabilityContentTerm, [])
     .option("--expect-clean-worktree", "Fail if the git worktree is dirty")
     .option("--require-dispatched-queue", "Fail unless a matching scheduler queue record reached dispatched status")
+    .option("--allow-indirect", "Allow a response to reference the source through the Commons message graph")
     .option("-o, --output <path>", "Write the report to a file instead of stdout")
     .option("--json", "Output structured JSON")
     .action(async (options) => {
@@ -105,6 +106,7 @@ export function createRepublicCommand(): Command {
         requireContent: options.requireContent,
         expectCleanWorktree: options.expectCleanWorktree ?? false,
         requireDispatchedQueue: options.requireDispatchedQueue ?? false,
+        allowIndirect: options.allowIndirect ?? false,
         output: options.output,
         json: options.json ?? false,
       })

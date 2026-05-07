@@ -150,6 +150,69 @@ describe("republic capability check", () => {
     expect(report.checks.find((check) => check.name === "commons-response")?.status).toBe("fail")
   })
 
+  test("can validate an indirect Commons reference graph", () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")
+    commitAll(directory, "init")
+
+    const repository = getNativeGitRepository(directory)
+    expect(repository).not.toBeNull()
+    appendRepublicCommonsMessage(repository!, {
+      messageID: "question-1",
+      deliberationID: "orders",
+      channel: "commons",
+      phase: "planning",
+      authorSeatID: "api-seat",
+      targetSeatID: "docs-seat",
+      messageType: "question",
+      content: "What enum values should OrderStatus use?",
+    })
+    appendRepublicCommonsMessage(repository!, {
+      messageID: "helper-answer-1",
+      deliberationID: "orders",
+      channel: "commons",
+      phase: "planning",
+      authorSeatID: "test-seat",
+      targetSeatID: "docs-seat",
+      messageType: "answer",
+      references: ["question-1"],
+      content: "The test matrix uses pending and delivered.",
+    })
+    appendRepublicCommonsMessage(repository!, {
+      messageID: "answer-1",
+      deliberationID: "orders",
+      channel: "commons",
+      phase: "planning",
+      authorSeatID: "docs-seat",
+      targetSeatID: "api-seat",
+      messageType: "answer",
+      references: ["helper-answer-1"],
+      content: "Final OrderStatus values include pending, confirmed, shipped, delivered, cancelled.",
+    })
+
+    const strictReport = buildRepublicCapabilityReport({
+      directory,
+      deliberationId: "orders",
+      sourceMessageId: "question-1",
+      expectedAuthorSeat: "docs-seat",
+      expectedTargetSeat: "api-seat",
+      requireContent: ["delivered"],
+    })
+    const graphReport = buildRepublicCapabilityReport({
+      directory,
+      deliberationId: "orders",
+      sourceMessageId: "question-1",
+      expectedAuthorSeat: "docs-seat",
+      expectedTargetSeat: "api-seat",
+      requireContent: ["delivered"],
+      allowIndirect: true,
+    })
+
+    expect(strictReport.passed).toBe(false)
+    expect(graphReport.passed).toBe(true)
+    expect(graphReport.matchingResponses[0]?.messageID).toBe("answer-1")
+  })
+
   test("fails clean-worktree check when the model dirties the repository", async () => {
     git(directory, ["init"])
     writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")

@@ -28,6 +28,7 @@ export interface RepublicCapabilityExpected {
   contentTerms: string[]
   cleanWorktree: boolean
   dispatchedQueue: boolean
+  allowIndirect: boolean
 }
 
 export interface RepublicCapabilityReport {
@@ -55,6 +56,7 @@ export interface RepublicCapabilityOptions {
   requireContent?: string[]
   expectCleanWorktree?: boolean
   requireDispatchedQueue?: boolean
+  allowIndirect?: boolean
   output?: string
   json?: boolean
 }
@@ -83,12 +85,44 @@ function latestQueueRecords(records: RepublicSchedulerQueueRecord[]): RepublicSc
 function matchesExpectedResponse(
   message: RepublicCommonsMessage,
   expected: RepublicCapabilityExpected,
+  messages: RepublicCommonsMessage[],
 ): boolean {
-  if (expected.sourceMessageID && !message.references?.includes(expected.sourceMessageID)) return false
+  if (
+    expected.sourceMessageID &&
+    !messageReferencesSource(message, expected.sourceMessageID, messages, expected.allowIndirect)
+  ) {
+    return false
+  }
   if (expected.authorSeatID && message.authorSeatID !== expected.authorSeatID) return false
   if (expected.targetSeatID && message.targetSeatID !== expected.targetSeatID) return false
   if (expected.messageType && message.messageType !== expected.messageType) return false
   return true
+}
+
+function messageReferencesSource(
+  message: RepublicCommonsMessage,
+  sourceMessageID: string,
+  messages: RepublicCommonsMessage[],
+  allowIndirect: boolean,
+): boolean {
+  const directReferences = message.references ?? []
+  if (directReferences.includes(sourceMessageID)) return true
+  if (!allowIndirect) return false
+
+  const byID = new Map(messages.map((candidate) => [candidate.messageID, candidate]))
+  const seen = new Set<string>()
+  const queue = [...directReferences]
+  while (queue.length > 0) {
+    const currentID = queue.shift()
+    if (!currentID || seen.has(currentID)) continue
+    if (currentID === sourceMessageID) return true
+    seen.add(currentID)
+    const current = byID.get(currentID)
+    if (current?.references?.length) {
+      queue.push(...current.references)
+    }
+  }
+  return false
 }
 
 function matchingQueueRecords(
@@ -151,6 +185,7 @@ export function buildRepublicCapabilityReport(options: RepublicCapabilityOptions
     contentTerms: options.requireContent ?? [],
     cleanWorktree: options.expectCleanWorktree ?? false,
     dispatchedQueue: options.requireDispatchedQueue ?? false,
+    allowIndirect: options.allowIndirect ?? false,
   }
   const checks: RepublicCapabilityCheck[] = []
 
@@ -197,13 +232,13 @@ export function buildRepublicCapabilityReport(options: RepublicCapabilityOptions
     ? sanitizeRepublicDeliberationID(options.deliberationId)
     : undefined
   const messages = readRepublicCommonsMessages(repository, deliberationID)
-  const matchingResponses = messages.filter((message) => matchesExpectedResponse(message, expected))
+  const matchingResponses = messages.filter((message) => matchesExpectedResponse(message, expected, messages))
   addCheck(checks, {
     name: "commons-response",
     status: matchingResponses.length > 0 ? "pass" : "fail",
     detail: matchingResponses.length > 0
       ? `Found ${matchingResponses.length} matching Commons response(s).`
-      : "No Commons response matched the expected source, seat, target, and type fields.",
+      : `No Commons response matched the expected source${expected.allowIndirect ? " graph" : ""}, seat, target, and type fields.`,
   })
 
   for (const term of expected.contentTerms) {
@@ -272,6 +307,7 @@ export function formatRepublicCapabilityReport(report: RepublicCapabilityReport)
     `Required content: ${report.expected.contentTerms.length > 0 ? report.expected.contentTerms.join(", ") : "none"}`,
     `Require clean worktree: ${report.expected.cleanWorktree ? "yes" : "no"}`,
     `Require dispatched queue: ${report.expected.dispatchedQueue ? "yes" : "no"}`,
+    `Allow indirect reference graph: ${report.expected.allowIndirect ? "yes" : "no"}`,
     "",
     "## Checks",
     "",
