@@ -1106,7 +1106,7 @@ describe("RepublicConfigSchema", () => {
       expect(result.data.team.default_runtime_agent).toBe("general")
       expect(result.data.team.exclusive_seat_orchestration).toBe(true)
       expect(result.data.seats.supervisors).toEqual(["republic-supervisor"])
-      expect(result.data.dashboard.auto_open).toBe(false)
+      expect(result.data.dashboard.auto_open).toBe(true)
       expect(result.data.dashboard.auto_open_events).toEqual(["team_init"])
       expect(result.data.dashboard.port).toBe(4097)
       expect(result.data.dashboard.refresh_ms).toBe(2000)
@@ -1260,7 +1260,7 @@ describe("OhMyOpenCodeConfigSchema - republic defaults", () => {
       expect(result.data.republic.scheduler.enabled).toBe(true)
       expect(result.data.republic.team.seat_allocation).toBe("auto")
       expect(result.data.republic.team.exclusive_seat_orchestration).toBe(true)
-      expect(result.data.republic.dashboard.auto_open).toBe(false)
+      expect(result.data.republic.dashboard.auto_open).toBe(true)
     }
   })
 })

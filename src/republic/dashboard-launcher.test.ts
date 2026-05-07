@@ -64,9 +64,31 @@ describe("republic dashboard launcher", () => {
     rmSync(directory, { recursive: true, force: true })
   })
 
-  test("does not open dashboard when auto open is disabled", () => {
+  test("starts dashboard by default", async () => {
     const repository = getNativeGitRepository(directory)!
+    const port = await getFreePort()
     const config = RepublicConfigSchema.parse({})
+    config.dashboard.port = port
+
+    const result = maybeOpenRepublicDashboard({
+      repository,
+      config,
+      event: "team_init",
+      deliberationID: "team",
+      opener: () => true,
+    })
+
+    expect(result.opened).toBe(true)
+    expect(result.reason).toBe("started")
+  })
+
+  test("does not open dashboard when auto open is explicitly disabled", () => {
+    const repository = getNativeGitRepository(directory)!
+    const config = RepublicConfigSchema.parse({
+      dashboard: {
+        auto_open: false,
+      },
+    })
 
     const result = maybeOpenRepublicDashboard({
       repository,

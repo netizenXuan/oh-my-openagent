@@ -148,7 +148,7 @@ export const OhMyOpenCodeConfigSchema = z.object({
       prompt_max_messages: 8,
     },
     dashboard: {
-      auto_open: false,
+      auto_open: true,
       auto_open_events: ["team_init"],
       port: 4097,
       refresh_ms: 2000,

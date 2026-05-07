@@ -152,12 +152,12 @@ export const RepublicConfigSchema = z.object({
   }),
   /** Optional local dashboard that can pop open when a Republic team starts. */
   dashboard: z.object({
-    auto_open: z.boolean().default(false),
+    auto_open: z.boolean().default(true),
     auto_open_events: z.array(RepublicDashboardAutoOpenEventSchema).default(["team_init"]),
     port: z.number().int().min(1).max(65535).default(4097),
     refresh_ms: z.number().int().min(500).max(60000).default(2000),
   }).default({
-    auto_open: false,
+    auto_open: true,
     auto_open_events: ["team_init"],
     port: 4097,
     refresh_ms: 2000,

@@ -155,7 +155,8 @@ describe("republic tools", () => {
 
     expect(parsed.ok).toBe(true)
     expect(parsed.team_model).toBe("parliament_squad")
-    expect(parsed.dashboard).toEqual({ opened: false, reason: "disabled" })
+    expect(parsed.dashboard.opened).toBe(true)
+    expect(parsed.dashboard.reason).toBe("started")
     expect(parsed.seats.length).toBeGreaterThan(3)
     expect(manifest.seats.map((seat) => seat.seatID)).toContain("api-planner-seat")
     expect(phase.phase).toBe("planning")

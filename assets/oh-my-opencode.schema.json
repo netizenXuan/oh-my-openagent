@@ -6400,7 +6400,7 @@
           "prompt_max_messages": 8
         },
         "dashboard": {
-          "auto_open": false,
+          "auto_open": true,
           "auto_open_events": [
             "team_init"
           ],
@@ -6898,7 +6898,7 @@
         },
         "dashboard": {
           "default": {
-            "auto_open": false,
+            "auto_open": true,
             "auto_open_events": [
               "team_init"
             ],
@@ -6908,7 +6908,7 @@
           "type": "object",
           "properties": {
             "auto_open": {
-              "default": false,
+              "default": true,
               "type": "boolean"
             },
             "auto_open_events": {
