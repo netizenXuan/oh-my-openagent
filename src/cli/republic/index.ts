@@ -10,6 +10,7 @@ import { republicContractCheck } from "./contract-check"
 import { republicDashboard } from "./dashboard"
 import { republicDoctor } from "./doctor"
 import { republicEvaluate } from "./evaluate"
+import { republicGC } from "./gc"
 import { republicIntent } from "./intent"
 import { republicIntegrate } from "./integrate"
 import { republicScheduler } from "./scheduler"
@@ -72,6 +73,35 @@ export function createRepublicCommand(): Command {
         workgroupId: options.workgroupId,
         module: options.module,
         message: options.message,
+        output: options.output,
+        json: options.json ?? false,
+      })
+      process.exit(exitCode)
+    })
+
+  command
+    .command("gc")
+    .description("Archive and compact noisy Republic active records")
+    .option("-d, --directory <path>", "Working directory to inspect")
+    .option("--deliberation-id <id>", "Only compact records for this deliberation")
+    .option("--seat-id <seat>", "Only compact records involving this seat; repeatable", (value, previous: string[]) => previous.concat(value), [])
+    .option("--message-type <type>", "Only compact Commons message type or scheduler status; repeatable", (value, previous: string[]) => previous.concat(value), [])
+    .option("--before <iso>", "Only compact records older than this ISO timestamp")
+    .option("--keep-last <n>", "Keep the last N matching records per file", (value) => Number.parseInt(value, 10))
+    .option("--apply", "Rewrite active Republic JSONL files after archiving originals")
+    .option("--reason <text>", "Reason recorded in the GC report and supervisor intervention")
+    .option("-o, --output <path>", "Write the report to a file instead of stdout")
+    .option("--json", "Output structured JSON")
+    .action(async (options) => {
+      const exitCode = await republicGC({
+        directory: options.directory,
+        deliberationId: options.deliberationId,
+        seatId: options.seatId,
+        messageType: options.messageType,
+        before: options.before,
+        keepLast: options.keepLast,
+        apply: options.apply ?? false,
+        reason: options.reason,
         output: options.output,
         json: options.json ?? false,
       })
