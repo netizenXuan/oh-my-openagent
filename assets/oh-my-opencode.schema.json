@@ -5987,6 +5987,7 @@
           "seat_allocation": "auto",
           "seat_memory": true,
           "persistent_sessions": true,
+          "exclusive_seat_orchestration": true,
           "planner_seat_count": "auto",
           "executor_seat_count": "auto",
           "reviewer_seat_count": 2,
@@ -6047,6 +6048,14 @@
           "supervisor_agent": "hephaestus",
           "seat_agents": {},
           "prompt_max_messages": 8
+        },
+        "dashboard": {
+          "auto_open": false,
+          "auto_open_events": [
+            "team_init"
+          ],
+          "port": 4097,
+          "refresh_ms": 2000
         }
       },
       "type": "object",
@@ -6122,6 +6131,7 @@
             "seat_allocation": "auto",
             "seat_memory": true,
             "persistent_sessions": true,
+            "exclusive_seat_orchestration": true,
             "planner_seat_count": "auto",
             "executor_seat_count": "auto",
             "reviewer_seat_count": 2,
@@ -6144,6 +6154,10 @@
               "type": "boolean"
             },
             "persistent_sessions": {
+              "default": true,
+              "type": "boolean"
+            },
+            "exclusive_seat_orchestration": {
               "default": true,
               "type": "boolean"
             },
@@ -6205,6 +6219,7 @@
             "seat_allocation",
             "seat_memory",
             "persistent_sessions",
+            "exclusive_seat_orchestration",
             "planner_seat_count",
             "executor_seat_count",
             "reviewer_seat_count",
@@ -6530,6 +6545,55 @@
             "prompt_max_messages"
           ],
           "additionalProperties": false
+        },
+        "dashboard": {
+          "default": {
+            "auto_open": false,
+            "auto_open_events": [
+              "team_init"
+            ],
+            "port": 4097,
+            "refresh_ms": 2000
+          },
+          "type": "object",
+          "properties": {
+            "auto_open": {
+              "default": false,
+              "type": "boolean"
+            },
+            "auto_open_events": {
+              "default": [
+                "team_init"
+              ],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "team_init",
+                  "round_start"
+                ]
+              }
+            },
+            "port": {
+              "default": 4097,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "refresh_ms": {
+              "default": 2000,
+              "type": "integer",
+              "minimum": 500,
+              "maximum": 60000
+            }
+          },
+          "required": [
+            "auto_open",
+            "auto_open_events",
+            "port",
+            "refresh_ms"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -6551,7 +6615,8 @@
         "dependency_gate",
         "contracts",
         "weak_model_guardrails",
-        "scheduler"
+        "scheduler",
+        "dashboard"
       ],
       "additionalProperties": false
     },
