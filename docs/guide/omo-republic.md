@@ -330,9 +330,10 @@ Warnings: 0
 
 The Republic dashboard converts Git-native records into a readable team board:
 
-- a left summary rail with execution state, decision, record counts, targeted messages, and native-git totals
-- a central workgroup board that groups seats by planning, execution, review, and supervisor responsibility
-- a Seat Inspector that opens when a seat is selected and shows status, workgroup, module, task, memory, messages, contracts, file activity, interventions, and dependencies
+- a left governance snapshot with the current decision, team health, seat state counts, dispatch pressure, and contract warnings
+- a central command board that groups seats into supervisor and workgroup lanes without drawing every message edge
+- compact seat cards that show current status, question-thread completion, pending queue pressure, and message activity
+- a Seat Inspector that opens when a seat is selected and shows status, workgroup, module, task, messages, contracts, scheduler queue, and interaction completion
 - a Commons timeline showing recent proposals, questions, objections, revisions, contracts, supervisor notes, and native-git records
 
 By default the static HTML is written under:
@@ -341,7 +342,7 @@ By default the static HTML is written under:
 .git/omo/republic/dashboard.html
 ```
 
-The dashboard intentionally avoids drawing every message edge by default. Dense runs can produce hundreds of relationships, so the UI keeps the top-level board stable and moves detailed communication state into the Seat Inspector. The underlying data still preserves workgroups, dependencies, targets, references, files, and supervisor records for a future draggable editor where users can define custom agent teams, module workgroups, supervisors, and communication lanes visually.
+The dashboard intentionally avoids drawing every message edge by default. Dense runs can produce hundreds of relationships, so the UI keeps the top-level board stable and moves detailed communication state into the Seat Inspector and Commons Timeline. The underlying JSON still preserves workgroups, dependencies, targets, references, files, and supervisor records for a future draggable editor where users can define custom agent teams, module workgroups, supervisors, and communication lanes visually.
 
 The left summary rail shows pending dispatches separately from historical queued/dispatched records. The Seat Inspector also has a Scheduler Queue section, so a user can click a seat and see whether it has outstanding queued questions, completed background responses, or supervisor review dispatches.
 

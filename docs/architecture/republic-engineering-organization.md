@@ -132,12 +132,13 @@ This is intentionally different from unbounded live chat. Records stay inspectab
 
 ## Dashboard Model
 
-The dashboard converts records into a graph:
+The dashboard keeps a graph-shaped data model but renders it as a command board by default:
 
-- nodes: repository, deliberation, chamber, workgroup, seat, agent, task, message, module, file, tool, decision
-- edges: deliberates, contains, coordinates, assigns, supervises, owns, depends-on, runs, published, targets, references, discusses, reviews, changed
+- data nodes: repository, deliberation, chamber, workgroup, seat, agent, task, message, module, file, tool, decision
+- data edges: deliberates, contains, coordinates, assigns, supervises, owns, depends-on, runs, published, targets, references, discusses, reviews, changed
+- default UI: governance snapshot, phase strip, supervisor lane, workgroup lanes, clickable seat inspector, and Commons timeline
 
-This graph is intentionally close to a future visual editor. A later UI can let users drag nodes, create custom workgroups, define supervisor seats, and connect task dependencies before execution.
+This separation is deliberate. Dense all-edge graphs become unreadable once a real run has dozens of messages, so users first see a stable team layout and inspect relationships by clicking a seat. The retained graph JSON is still close to a future visual editor where users can drag nodes, create custom workgroups, define supervisor seats, and connect task dependencies before execution.
 
 ## Implementation Roadmap
 
