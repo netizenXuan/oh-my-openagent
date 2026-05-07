@@ -248,6 +248,15 @@ bunx oh-my-opencode republic worktrees --directory /path/to/repo --deliberation-
 
 The worktree command reads the Republic team manifest and creates one branch/worktree lane per distinct `workgroupID`, for example `republic/order-system/api-workgroup`. It defaults to a plan-only mode. `--create` calls `git worktree add`, but only when the root worktree is clean unless `--allow-dirty` is explicitly set. This is the Git-native execution bridge for future parallel executor seats: each workgroup can run tests and commits in an isolated branch before supervisor merge or review.
 
+Publish staged changes as reviewable intent without committing:
+
+```bash
+git add src/api/orders.ts tests/orders.test.ts
+bunx oh-my-opencode republic intent --directory /path/to/repo --deliberation-id order-system --seat-id api-seat --target-seat-id review-seat --workgroup-id api-workgroup --message "Please review the staged API implementation before commit."
+```
+
+`republic intent` is the staged-intent escape hatch for clean Git history. It does not commit and does not require the worktree to be clean. It reads `git diff --cached --numstat`, publishes a Commons `proposal` under `channel: "intent"` with staged files and insertion/deletion counts, and leaves the actual semantic commit to a reviewer, supervisor, or later Git policy step.
+
 Open the dashboard from OpenCode:
 
 ```text

@@ -9,6 +9,7 @@ import { collectCapabilityContentTerm, republicCapabilityCheck } from "./capabil
 import { republicContractCheck } from "./contract-check"
 import { republicDashboard } from "./dashboard"
 import { republicDoctor } from "./doctor"
+import { republicIntent } from "./intent"
 import { republicScheduler } from "./scheduler"
 import { republicStatus } from "./status"
 import { republicWorktrees } from "./worktrees"
@@ -16,6 +17,33 @@ import { republicWorktrees } from "./worktrees"
 export function createRepublicCommand(): Command {
   const command = new Command("republic")
     .description("Inspect OMO Republic deliberation and native Git audit state")
+
+  command
+    .command("intent")
+    .description("Publish staged Git changes as a Republic proposal without committing")
+    .option("-d, --directory <path>", "Working directory to inspect")
+    .option("--deliberation-id <id>", "Deliberation id for the proposal")
+    .option("--seat-id <seat>", "Authoring seat id")
+    .option("--target-seat-id <seat>", "Optional target reviewer or supervisor seat id")
+    .option("--workgroup-id <id>", "Optional workgroup id")
+    .option("--module <name>", "Optional module name")
+    .option("--message <text>", "Proposal message to include before the staged diff summary")
+    .option("-o, --output <path>", "Write the report to a file instead of stdout")
+    .option("--json", "Output structured JSON")
+    .action(async (options) => {
+      const exitCode = await republicIntent({
+        directory: options.directory,
+        deliberationId: options.deliberationId,
+        seatId: options.seatId,
+        targetSeatId: options.targetSeatId,
+        workgroupId: options.workgroupId,
+        module: options.module,
+        message: options.message,
+        output: options.output,
+        json: options.json ?? false,
+      })
+      process.exit(exitCode)
+    })
 
   command
     .command("worktrees")
