@@ -998,6 +998,15 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       };
     }
 
+    function idleAwaitingClosure(data, counts) {
+      return Boolean(data.teamPhase)
+        && data.teamPhase.status === "in-progress"
+        && counts.running === 0
+        && counts.waiting === 0
+        && counts.blocked === 0
+        && (data.report.schedulerQueue?.pending ?? 0) === 0;
+    }
+
     function pillClass(value, warnAtOne) {
       if (value === 0) return "pill good";
       return warnAtOne ? "pill warn" : "pill";
@@ -1019,14 +1028,17 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
 
     function renderPhaseStrip(data) {
       const activePhase = data.teamPhase?.phase ?? "idle";
+      const counts = statusCounts(data, seatDefs(data));
+      const awaitingClosure = idleAwaitingClosure(data, counts);
       const phases = ["planning", "execution", "review", "idle"];
-      const counts = phases.map((phase) => seatDefs(data).filter((seat) => seat.phase === phase || (phase === "idle" && seat.role === "supervisor")).length);
-      const maxCount = Math.max(1, ...counts);
+      const phaseCounts = phases.map((phase) => seatDefs(data).filter((seat) => seat.phase === phase || (phase === "idle" && seat.role === "supervisor")).length);
+      const maxCount = Math.max(1, ...phaseCounts);
       return '<div class="phase-strip">' + phases.map((phase) => {
         const count = seatDefs(data).filter((seat) => seat.phase === phase || (phase === "idle" && seat.role === "supervisor")).length;
         const active = phase === activePhase ? " active" : "";
         const width = Math.max(6, Math.round((count / maxCount) * 100));
-        return '<div class="phase-card' + active + '"><div class="phase-title"><strong>' + safe(phase) + '</strong><span>' + count + ' seats</span></div><div class="muted">' + safe(phase === activePhase ? (data.teamPhase?.status ?? "active") : "standby") + '</div><div class="phase-meter"><div style="width:' + width + '%"></div></div></div>';
+        const label = phase === activePhase ? (awaitingClosure ? "idle, awaiting closure" : (data.teamPhase?.status ?? "active")) : "standby";
+        return '<div class="phase-card' + active + '"><div class="phase-title"><strong>' + safe(phase) + '</strong><span>' + count + ' seats</span></div><div class="muted">' + safe(label) + '</div><div class="phase-meter"><div style="width:' + width + '%"></div></div></div>';
       }).join("") + '</div>';
     }
 
@@ -1042,8 +1054,9 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
         workgroups.get(key).push(seat);
       }
       const board = document.getElementById("team-board");
+      const awaitingClosure = idleAwaitingClosure(data, counts);
       document.getElementById("board-subtitle").textContent = data.teamPhase
-        ? data.teamPhase.phase + " / " + data.teamPhase.status + " / round " + (data.teamPhase.activeRound ?? "n/a")
+        ? data.teamPhase.phase + " / " + data.teamPhase.status + " / round " + (data.teamPhase.activeRound ?? "n/a") + (awaitingClosure ? " / agents idle, awaiting closure" : "")
         : "No active Republic team phase.";
       document.getElementById("board-pills").innerHTML = [
         '<span class="pill">' + safe(data.teamManifest?.teamModel ?? "no team") + '</span>',
@@ -1066,7 +1079,7 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
         return '<div class="workgroup-card"><div class="workgroup-head"><div><strong>' + safe(workgroupID) + '</strong><small>' + group.length + ' seats assigned</small></div><span class="' + pillClass(pending, true) + '">queue ' + pending + '</span></div><div class="workgroup-stats"><div class="stat-chip"><span>Running</span><strong>' + groupCounts.running + '</strong></div><div class="stat-chip"><span>Waiting</span><strong>' + groupCounts.waiting + '</strong></div><div class="stat-chip"><span>Blocked</span><strong>' + groupCounts.blocked + '</strong></div></div><div class="seat-list">' + group.map((seat) => renderSeatCard(data, seat)).join("") + '</div></div>';
       }).join("") + '</div>';
       board.innerHTML = renderPhaseStrip(data)
-        + '<section class="board-section"><div class="board-section-head"><strong>Team Load</strong><span class="pill">' + counts.running + ' running / ' + counts.waiting + ' waiting / ' + counts.blocked + ' blocked</span></div></section>'
+        + '<section class="board-section"><div class="board-section-head"><strong>Team Load</strong><span class="pill">' + counts.running + ' running / ' + counts.waiting + ' waiting / ' + counts.blocked + ' blocked</span></div>' + (awaitingClosure ? '<div class="empty">No seat or scheduler work is active. The team phase is still open, so publish a final review/phase update or inspect warnings before treating this run as complete.</div>' : '') + '</section>'
         + supervisorHtml
         + '<section class="board-section"><div class="board-section-head"><strong>Workgroups</strong><span class="pill">' + workgroups.size + ' groups</span></div>' + workgroupHtml + '</section>';
       for (const button of board.querySelectorAll("[data-seat-id]")) {

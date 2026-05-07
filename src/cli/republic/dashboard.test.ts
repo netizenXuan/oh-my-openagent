@@ -251,6 +251,41 @@ describe("republic dashboard", () => {
     expect(html).toContain("setInterval(render, 500)")
   })
 
+  test("shows awaiting closure when phase is open but seats and queue are idle", () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")
+    commitAll(directory, "init")
+    const repository = getNativeGitRepository(directory)!
+    initializeRepublicTeam(repository, {
+      manifest: {
+        teamModel: "parliament_squad",
+        seatAllocation: "auto",
+        maxParallelSeats: 4,
+        defaultRuntimeAgent: "general",
+        seats: [
+          {
+            seatID: "ui-review-seat",
+            role: "reviewer",
+            phase: "review",
+            workgroupID: "ui-workgroup",
+            module: "src/ui",
+          },
+        ],
+      },
+      phase: {
+        phase: "review",
+        status: "in-progress",
+        deliberationID: "snake-review",
+        activeRound: 1,
+      },
+    })
+
+    const html = renderRepublicDashboardHtml(buildRepublicDashboardData({ directory }))
+
+    expect(html).toContain("idle, awaiting closure")
+    expect(html).toContain("No seat or scheduler work is active")
+  })
+
   test("starts a live dashboard server for an existing git repository", async () => {
     git(directory, ["init"])
     writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")

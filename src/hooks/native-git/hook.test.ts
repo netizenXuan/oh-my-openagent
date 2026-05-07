@@ -1206,6 +1206,75 @@ describe("native git hook", () => {
     expect(output.output).toContain("Republic workgroup dependency gate blocked")
   })
 
+  test("generated artifact gate records generated output changes", async () => {
+    const hook = createNativeGitHook(
+      { directory } as never,
+      { mode: "tracked", audit_log: true },
+      {
+        enabled: true,
+        mode: "advisory",
+        ledger: true,
+        commons: { auto_publish: true },
+      } as never,
+    )
+    await captureToolBaseline(hook, { tool: "bash", sessionID: "ses_generated", callID: "call_generated" })
+    mkdirSync(join(directory, "dist", "game"), { recursive: true })
+    writeFileSync(join(directory, "dist", "game", "Snake.js.map"), "{}", "utf-8")
+    const output = { output: "built", metadata: { agent: "sisyphus" } }
+
+    await hook["tool.execute.after"]?.(
+      { tool: "bash", sessionID: "ses_generated", callID: "call_generated" },
+      output,
+    )
+
+    const repository = getNativeGitRepository(directory)
+    const commons = readRepublicCommonsMessages(repository!, "session-ses_generated")
+    const generatedGate = commons.find((message) => message.authorSeatID === "generated-artifact-gate")
+
+    expect(generatedGate?.status).toBe("review-required")
+    expect(generatedGate?.files).toEqual([
+      "dist/game/Snake.js.map",
+    ])
+    expect(output.output).toContain("Republic generated-artifact gate recorded")
+  })
+
+  test("generated artifact gate rolls back generated files in governed mode", async () => {
+    const hook = createNativeGitHook(
+      { directory } as never,
+      { mode: "tracked", audit_log: true },
+      {
+        enabled: true,
+        mode: "governed",
+        ledger: true,
+        commons: { auto_publish: true },
+        weak_model_guardrails: {
+          enabled: true,
+          generated_artifact_gate: "block",
+          generated_artifact_paths: ["dist/", "node_modules/"],
+        },
+      } as never,
+    )
+    await captureToolBaseline(hook, { tool: "bash", sessionID: "ses_generated_block", callID: "call_generated_block" })
+    mkdirSync(join(directory, "dist"), { recursive: true })
+    writeFileSync(join(directory, "dist", "main.js"), "console.log('built')\n", "utf-8")
+    const output = { output: "built", metadata: { agent: "sisyphus" } }
+
+    await hook["tool.execute.after"]?.(
+      { tool: "bash", sessionID: "ses_generated_block", callID: "call_generated_block" },
+      output,
+    )
+
+    const repository = getNativeGitRepository(directory)
+    const commons = readRepublicCommonsMessages(repository!, "session-ses_generated_block")
+    const generatedGate = commons.find((message) => message.authorSeatID === "generated-artifact-gate")
+
+    expect(existsSync(join(directory, "dist", "main.js"))).toBe(false)
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+    expect(generatedGate?.status).toBe("blocked")
+    expect(output.output).toContain("Republic generated-artifact gate blocked")
+    expect(output.output).toContain("restored_files: dist/main.js")
+  })
+
   test("dependency gate ignores read-only bash commands", async () => {
     const hook = createNativeGitHook(
       { directory } as never,

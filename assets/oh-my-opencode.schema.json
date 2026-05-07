@@ -6364,7 +6364,17 @@
           "file_threshold": 5,
           "high_risk_paths": [
             "package.json",
+            "package-lock.json",
+            "pnpm-lock.yaml",
+            "yarn.lock",
             "bun.lock",
+            "bun.lockb",
+            "node_modules/",
+            "dist/",
+            "build/",
+            "coverage/",
+            ".next/",
+            "out/",
             "src/config/",
             "src/plugin/",
             "src/shared/git-worktree/",
@@ -6384,7 +6394,16 @@
           "labeled_context": true,
           "require_context_before_edit": true,
           "require_explicit_context_read": false,
-          "pre_edit_context_gate": "advisory"
+          "pre_edit_context_gate": "advisory",
+          "generated_artifact_gate": "block",
+          "generated_artifact_paths": [
+            "node_modules/",
+            "dist/",
+            "build/",
+            "coverage/",
+            ".next/",
+            "out/"
+          ]
         },
         "scheduler": {
           "enabled": true,
@@ -6675,7 +6694,17 @@
             "file_threshold": 5,
             "high_risk_paths": [
               "package.json",
+              "package-lock.json",
+              "pnpm-lock.yaml",
+              "yarn.lock",
               "bun.lock",
+              "bun.lockb",
+              "node_modules/",
+              "dist/",
+              "build/",
+              "coverage/",
+              ".next/",
+              "out/",
               "src/config/",
               "src/plugin/",
               "src/shared/git-worktree/",
@@ -6701,7 +6730,17 @@
             "high_risk_paths": {
               "default": [
                 "package.json",
+                "package-lock.json",
+                "pnpm-lock.yaml",
+                "yarn.lock",
                 "bun.lock",
+                "bun.lockb",
+                "node_modules/",
+                "dist/",
+                "build/",
+                "coverage/",
+                ".next/",
+                "out/",
                 "src/config/",
                 "src/plugin/",
                 "src/shared/git-worktree/",
@@ -6778,7 +6817,16 @@
             "labeled_context": true,
             "require_context_before_edit": true,
             "require_explicit_context_read": false,
-            "pre_edit_context_gate": "advisory"
+            "pre_edit_context_gate": "advisory",
+            "generated_artifact_gate": "block",
+            "generated_artifact_paths": [
+              "node_modules/",
+              "dist/",
+              "build/",
+              "coverage/",
+              ".next/",
+              "out/"
+            ]
           },
           "type": "object",
           "properties": {
@@ -6805,6 +6853,29 @@
                 "advisory",
                 "block"
               ]
+            },
+            "generated_artifact_gate": {
+              "default": "block",
+              "type": "string",
+              "enum": [
+                "advisory",
+                "block"
+              ]
+            },
+            "generated_artifact_paths": {
+              "default": [
+                "node_modules/",
+                "dist/",
+                "build/",
+                "coverage/",
+                ".next/",
+                "out/"
+              ],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
             }
           },
           "required": [
@@ -6812,7 +6883,9 @@
             "labeled_context",
             "require_context_before_edit",
             "require_explicit_context_read",
-            "pre_edit_context_gate"
+            "pre_edit_context_gate",
+            "generated_artifact_gate",
+            "generated_artifact_paths"
           ],
           "additionalProperties": false
         },

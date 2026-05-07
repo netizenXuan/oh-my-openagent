@@ -104,6 +104,8 @@ const pluginConfig = {
       require_context_before_edit: true,
       require_explicit_context_read: false,
       pre_edit_context_gate: "advisory",
+      generated_artifact_gate: "block",
+      generated_artifact_paths: ["node_modules/", "dist/", "build/", "coverage/", ".next/", "out/"],
     },
     scheduler: {
       enabled: true,

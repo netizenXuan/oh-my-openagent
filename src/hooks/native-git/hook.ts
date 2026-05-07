@@ -86,6 +86,7 @@ type NativeGitTrackResult = {
   supervisorMessage?: string
   dependencyGateMessage?: string
   guardrailMessage?: string
+  generatedArtifactMessage?: string
 }
 
 type NativeGitDirtyState = {
@@ -271,6 +272,16 @@ ${message.trim()}
 </system-reminder>`
 }
 
+function buildGeneratedArtifactGateMessage(message: string): string {
+  const status = message.includes("blocked") ? "blocked" : "recorded"
+  return `
+<system-reminder>
+Republic generated-artifact gate ${status}.
+
+${message.trim()}
+</system-reminder>`
+}
+
 function buildDependencyGateMessage(modules: string[], files: string[]): string {
   return `
 <system-reminder>
@@ -446,6 +457,27 @@ function matchesPathPattern(filePath: string, pattern: string): boolean {
     return normalizedFile.startsWith(normalizedPattern)
   }
   return normalizedFile === normalizedPattern || normalizedFile.startsWith(`${normalizedPattern}/`)
+}
+
+function getGeneratedArtifactMatches(republicConfig: RepublicConfig | undefined, files: string[]): string[] {
+  const guardrails = republicConfig?.weak_model_guardrails
+  if (guardrails?.enabled === false) {
+    return []
+  }
+
+  const patterns = guardrails?.generated_artifact_paths ?? []
+  const matches = new Set<string>()
+  for (const file of files) {
+    const normalized = normalizePath(file)
+    if (
+      patterns.some((pattern) => matchesPathPattern(normalized, pattern)) ||
+      normalized.endsWith(".js.map") ||
+      normalized.endsWith(".d.ts.map")
+    ) {
+      matches.add(normalized)
+    }
+  }
+  return Array.from(matches).sort()
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -1510,6 +1542,105 @@ export function createNativeGitHook(
     return recordDependencyGate(input, files, modules, blocked, "post-change")
   }
 
+  function recordGeneratedArtifactGate(
+    repository: NativeGitRepository,
+    input: NativeGitToolInput,
+    files: string[],
+    blocked: boolean,
+    options: {
+      restored?: string[]
+      restoreFailed?: string[]
+      rollbackSkipped?: boolean
+    } = {},
+  ): string | undefined {
+    if (!isRepublicLedgerEnabled(republicConfig)) {
+      return undefined
+    }
+
+    const callKey = getCallKey(input)
+    const publishKey = callKey ? `${callKey}:generated-artifact` : null
+    if (publishKey && dependencyGatePublishedCallKeys.has(publishKey)) {
+      return undefined
+    }
+
+    const moduleName = getPrimaryModule(files)
+    const workgroupID = getWorkgroupID(moduleName)
+    const deliberationID = getDeliberationID(input)
+    const targetSeatID = getSeatID(input, repository, input.sessionID ? sessionContextBySession.get(input.sessionID)?.seatID : undefined)
+    const taskID = getTaskID(input, moduleName)
+    const summary = [
+      `Generated-artifact gate ${blocked ? "blocked" : "recorded"} ${input.tool} because generated or vendored paths changed: ${files.slice(0, 12).join(", ")}${files.length > 12 ? ", ..." : ""}.`,
+      `hard_dependency_rule: ${REPUBLIC_HARD_DEPENDENCY_RULE}`,
+      "expected_action: keep source changes reviewable; do not treat dependency installs, compiled outputs, source maps, or declaration emit as deliverables unless explicitly requested.",
+      options.restored?.length ? `restored_files: ${options.restored.join(", ")}` : undefined,
+      options.rollbackSkipped ? "rollback_skipped: repository was already dirty before this tool call" : undefined,
+      options.restoreFailed?.length ? `restore_failed: ${options.restoreFailed.join(", ")}` : undefined,
+    ].filter((line): line is string => typeof line === "string").join("\n")
+
+    appendRepublicCommonsMessage(repository, {
+      deliberationID,
+      channel: "guardrail",
+      phase: "post-change",
+      authorSeatID: "generated-artifact-gate",
+      authorAgent: "republic-supervisor",
+      authorRole: "supervisor",
+      targetSeatID,
+      workgroupID,
+      module: moduleName,
+      taskID,
+      supervisorSeatID: "republic-supervisor",
+      status: blocked ? "blocked" : "review-required",
+      messageType: "supervisor-policy",
+      files,
+      content: summary,
+    })
+
+    appendRepublicLedgerRecord(repository, {
+      deliberationID,
+      phase: "post-change",
+      chamber: "supervisor",
+      seatID: "generated-artifact-gate",
+      role: "supervisor",
+      agent: "republic-supervisor",
+      sessionID: input.sessionID,
+      callID: input.callID,
+      workgroupID,
+      module: moduleName,
+      taskID,
+      supervisorSeatID: "republic-supervisor",
+      status: blocked ? "blocked" : "review-required",
+      files,
+      summary,
+    })
+
+    if (publishKey) {
+      dependencyGatePublishedCallKeys.add(publishKey)
+    }
+
+    return summary
+  }
+
+  function publishGeneratedArtifactGate(
+    repository: NativeGitRepository,
+    input: NativeGitToolInput,
+    files: string[],
+    baselineWasClean: boolean,
+  ): string | undefined {
+    const matches = getGeneratedArtifactMatches(republicConfig, files)
+    if (matches.length === 0) {
+      return undefined
+    }
+
+    const blocked = (republicConfig?.mode ?? "advisory") === "governed"
+      && (republicConfig?.weak_model_guardrails?.generated_artifact_gate ?? "block") === "block"
+    const restored = blocked && baselineWasClean ? restoreNativeGitFiles(repository, matches) : { restored: [], failed: [] }
+    return recordGeneratedArtifactGate(repository, input, matches, blocked, {
+      restored: restored.restored,
+      restoreFailed: restored.failed,
+      rollbackSkipped: blocked && !baselineWasClean,
+    })
+  }
+
   function getSupervisorReasons(input: NativeGitToolInput, files: string[]): string[] {
     if (!isRepublicLedgerEnabled(republicConfig) || !(republicConfig?.supervisor?.intervention ?? true)) {
       return []
@@ -1669,6 +1800,7 @@ export function createNativeGitHook(
     let supervisorMessage: string | undefined
     let dependencyGateMessage: string | undefined
     let guardrailMessage: string | undefined
+    let generatedArtifactMessage: string | undefined
     if (changedSinceLastCheck) {
       guardrailMessage = publishPostChangeRepublicContextGate(status.repository, input, status.files, previousStatusKey === "")
       if (guardrailMessage) {
@@ -1684,15 +1816,32 @@ export function createNativeGitHook(
         }
       }
 
+      generatedArtifactMessage = publishGeneratedArtifactGate(status.repository, input, status.files, previousStatusKey === "")
+      if (generatedArtifactMessage) {
+        const postGeneratedStatus = getNativeGitStatus(ctx.directory)
+        if (postGeneratedStatus && !postGeneratedStatus.dirty) {
+          lastStatusBySessionRepo.set(stateKey, "")
+          dirtyStateBySession.delete(sessionID)
+          const result = { dirty: false, changedSinceLastCheck, summary, generatedArtifactMessage }
+          if (callKey) {
+            changedResultByCall.set(callKey, result)
+          }
+          return result
+        }
+      }
+
+      const postGateStatus = getNativeGitStatus(ctx.directory) ?? status
+      const filesAfterGeneratedGate = postGateStatus.files
+
       if (auditLog && (!callKey || !auditedCallKeys.has(callKey))) {
-        appendNativeGitAuditRecord(status.repository, {
+        appendNativeGitAuditRecord(postGateStatus.repository, {
           tool,
           sessionID: input.sessionID,
           callID: input.callID,
           agent: input.agent,
           model: input.model,
           category: input.category,
-          files: status.files,
+          files: filesAfterGeneratedGate,
           summary,
         })
 
@@ -1701,18 +1850,18 @@ export function createNativeGitHook(
         }
       }
 
-      publishRepublicChange(status.repository, input, status.files, summary)
-      dependencyGateMessage = publishPostChangeDependencyGate(input, status.files)
-      supervisorMessage = publishSupervisorIntervention(status.repository, input, status.files, summary)
+      publishRepublicChange(postGateStatus.repository, input, filesAfterGeneratedGate, summary)
+      dependencyGateMessage = publishPostChangeDependencyGate(input, filesAfterGeneratedGate)
+      supervisorMessage = publishSupervisorIntervention(postGateStatus.repository, input, filesAfterGeneratedGate, summary)
 
       log("[native-git] tracked uncommitted changes", {
         tool,
         sessionID: input.sessionID,
-        fileCount: status.files.length,
+        fileCount: filesAfterGeneratedGate.length,
       })
     }
 
-    const result = { dirty: true, changedSinceLastCheck, summary, supervisorMessage, dependencyGateMessage, guardrailMessage }
+    const result = { dirty: true, changedSinceLastCheck, summary, supervisorMessage, dependencyGateMessage, guardrailMessage, generatedArtifactMessage }
     if (callKey && changedSinceLastCheck) {
       changedResultByCall.set(callKey, result)
     }
@@ -1824,6 +1973,13 @@ export function createNativeGitHook(
         appendOutput(output, buildPostChangeRepublicGuardrailMessage(result.guardrailMessage))
         if (callKey) {
           republicGuardrailReminderCallKeys.add(callKey)
+        }
+      }
+
+      if (result.generatedArtifactMessage && (!callKey || !republicGuardrailReminderCallKeys.has(`${callKey}:generated-artifact`))) {
+        appendOutput(output, buildGeneratedArtifactGateMessage(result.generatedArtifactMessage))
+        if (callKey) {
+          republicGuardrailReminderCallKeys.add(`${callKey}:generated-artifact`)
         }
       }
 

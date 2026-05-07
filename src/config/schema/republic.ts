@@ -14,11 +14,30 @@ export const RepublicSeatCountSchema = z.union([
 
 const DEFAULT_HIGH_RISK_PATHS = [
   "package.json",
+  "package-lock.json",
+  "pnpm-lock.yaml",
+  "yarn.lock",
   "bun.lock",
+  "bun.lockb",
+  "node_modules/",
+  "dist/",
+  "build/",
+  "coverage/",
+  ".next/",
+  "out/",
   "src/config/",
   "src/plugin/",
   "src/shared/git-worktree/",
   ".github/workflows/",
+]
+
+const DEFAULT_GENERATED_ARTIFACT_PATHS = [
+  "node_modules/",
+  "dist/",
+  "build/",
+  "coverage/",
+  ".next/",
+  "out/",
 ]
 
 export const RepublicConfigSchema = z.object({
@@ -125,12 +144,16 @@ export const RepublicConfigSchema = z.object({
     require_context_before_edit: z.boolean().default(true),
     require_explicit_context_read: z.boolean().default(false),
     pre_edit_context_gate: RepublicGuardrailGateModeSchema.default("advisory"),
+    generated_artifact_gate: RepublicGuardrailGateModeSchema.default("block"),
+    generated_artifact_paths: z.array(z.string().min(1)).default(DEFAULT_GENERATED_ARTIFACT_PATHS),
   }).default({
     enabled: true,
     labeled_context: true,
     require_context_before_edit: true,
     require_explicit_context_read: false,
     pre_edit_context_gate: "advisory",
+    generated_artifact_gate: "block",
+    generated_artifact_paths: DEFAULT_GENERATED_ARTIFACT_PATHS,
   }),
   /** Actively dispatch targeted Commons messages to background seat sessions. */
   scheduler: z.object({
