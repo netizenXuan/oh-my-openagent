@@ -234,6 +234,51 @@ bun src\cli\index.ts republic benchmark-report --run control=D:\OMO\republic-ab-
 
 This report is intentionally read-only. It converts Git status, native-git audit, Republic ledger, Commons, contracts, targeted messages, referenced messages, seats, workgroups, contract traceability, and optional hidden-QA acceptance checks into a stable Markdown or JSON evidence table. It is the preferred record format for future weak-model, hard-task, large-task, and innovation-task comparisons.
 
+## Real OpenCode Hy3 High Reproduction
+
+A later real OpenCode CLI smoke retested the original user-reported failure mode with the local plugin path and `opencode/hy3-preview-free` using `--variant high`.
+
+Repository:
+
+```text
+D:\OMO\republic-seat-abort-smoke-20260507
+```
+
+Task:
+
+```text
+Add order cancellation support to a tiny order module. Initialize a Republic `parliament_squad` team with `seat_allocation="auto"`, make api/docs/test seats discuss whether `OrderStatus` needs `cancelled`, write a workgroup contract, implement `cancelOrder(order)`, add tests, update README, run `bun test`, and keep the changes uncommitted.
+```
+
+The first reproduction attempt found a CLI usage issue rather than a Republic bug: passing a multiline prompt as a PowerShell variable sent only the first line to `opencode run`, so the model only initialized the Republic team. The successful run attached the task with `--file` and used a short positional instruction:
+
+```powershell
+opencode run --model opencode/hy3-preview-free --variant high --agent "Sisyphus - Ultraworker" --dangerously-skip-permissions --file D:\OMO\republic-order-cancellation-task.md --title "Republic Hy3 order cancellation full" "Execute the attached task exactly. Use bun test for verification."
+```
+
+Result:
+
+| Check | Result |
+| --- | --- |
+| Republic team init | pass |
+| Planning question/answer records | pass |
+| Workgroup contract | pass |
+| Product implementation | pass |
+| `bun test` | 6 pass, 0 fail |
+| Native-git audit | 3 edit records, model `opencode/hy3-preview-free` |
+| Abort regression | no `operation was aborted` records |
+| Seat identity regression | no `sisyphus-executor` or `not in current team manifest` records |
+
+The run produced the expected reviewable worktree changes:
+
+```text
+README.md
+src/orders.js
+test/orders.test.js
+```
+
+This is the strongest Hy3 signal so far because it used the real OpenCode CLI host, the local plugin build, high reasoning, and the same failure class reported from the app. It also refined the weak-model lesson: Hy3 can follow Republic tools when the task is attached as a file and the workflow exposes hard fields (`author_seat_id`, `target_seat_id`, contract status, test command). The framework should keep treating cheap-model success as something to verify through Git-recorded facts, not through final prose.
+
 ## Hard Kimi A/B: Fulfillment Returns
 
 A harder Kimi run used a fulfillment workflow project with separate order, inventory, shipment, API, test, and docs modules. The task was to implement delivered-order returns and refunds with 30-day return-window validation, quantity validation, optional restocking, restocking fees, tests, and docs.

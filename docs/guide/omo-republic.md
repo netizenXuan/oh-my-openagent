@@ -114,6 +114,14 @@ When OpenCode exposes a background manager and the parent session is available, 
 
 For real app usage, OpenCode is a long-lived host, so background response seats can finish after the original message is published. For short `opencode run` smoke tests, keep the parent process alive long enough for the background seat to answer before expecting an `answer`, `revision`, or `objection` record to appear in Commons. A direct way to do that is to call `republic_wait` with the published `message_id`.
 
+For CLI smoke tests with long or multiline tasks, attach the task as a file instead of relying on shell multiline argument handling:
+
+```powershell
+opencode run --model opencode/hy3-preview-free --variant high --agent "Sisyphus - Ultraworker" --file D:\path\to\task.md -- "Execute the attached task exactly."
+```
+
+This avoids shell-specific truncation where only the first line of a multiline prompt reaches `opencode run`. It also gives weaker models a stable task document they can reread while Republic records the hard-field evidence in Commons, ledger, contracts, and native-git audit.
+
 ## Workgroup Contracts
 
 Adjacent module agents should declare a contract before implementation when their work touches shared API shape, data schema, test boundary, error semantics, or handoff responsibility.
