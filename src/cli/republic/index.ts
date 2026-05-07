@@ -10,6 +10,7 @@ import { republicContractCheck } from "./contract-check"
 import { republicDashboard } from "./dashboard"
 import { republicDoctor } from "./doctor"
 import { republicIntent } from "./intent"
+import { republicIntegrate } from "./integrate"
 import { republicScheduler } from "./scheduler"
 import { republicStatus } from "./status"
 import { republicWorktrees } from "./worktrees"
@@ -39,6 +40,35 @@ export function createRepublicCommand(): Command {
         workgroupId: options.workgroupId,
         module: options.module,
         message: options.message,
+        output: options.output,
+        json: options.json ?? false,
+      })
+      process.exit(exitCode)
+    })
+
+  command
+    .command("integrate")
+    .description("Plan or apply a Republic integration branch merge from workgroup branches")
+    .option("-d, --directory <path>", "Working directory to inspect")
+    .option("--deliberation-id <id>", "Deliberation id for generated integration branch")
+    .option("--integration-branch <branch>", "Integration branch to create or update")
+    .option("--base-ref <ref>", "Base ref for a new integration branch", "HEAD")
+    .option("--source-branch <branch>", "Source branch to merge; repeatable", (value, previous: string[]) => previous.concat(value), [])
+    .option("--check-command <command>", "Command to run on the integration branch; repeatable", (value, previous: string[]) => previous.concat(value), [])
+    .option("--apply", "Create/update the integration branch and merge selected sources")
+    .option("--allow-dirty", "Allow apply mode even when the root worktree is dirty")
+    .option("-o, --output <path>", "Write the report to a file instead of stdout")
+    .option("--json", "Output structured JSON")
+    .action(async (options) => {
+      const exitCode = await republicIntegrate({
+        directory: options.directory,
+        deliberationId: options.deliberationId,
+        integrationBranch: options.integrationBranch,
+        baseRef: options.baseRef,
+        sourceBranch: options.sourceBranch,
+        checkCommand: options.checkCommand,
+        apply: options.apply ?? false,
+        allowDirty: options.allowDirty ?? false,
         output: options.output,
         json: options.json ?? false,
       })
