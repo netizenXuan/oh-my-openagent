@@ -202,10 +202,14 @@ export async function applyAgentConfig(params: {
         getAgentDisplayName("sisyphus");
     }
 
-    // Assembly order: Sisyphus -> Hephaestus -> Prometheus -> Atlas
+    // Assembly order: Sisyphus -> Republic -> Hephaestus -> Prometheus -> Atlas
     const agentConfig: Record<string, unknown> = {
       sisyphus: builtinAgents.sisyphus,
     };
+
+    if (builtinAgents.republic) {
+      agentConfig["republic"] = builtinAgents.republic;
+    }
 
     if (builtinAgents.hephaestus) {
       agentConfig["hephaestus"] = builtinAgents.hephaestus;
@@ -315,7 +319,7 @@ export async function applyAgentConfig(params: {
       ...agentConfig,
       ...Object.fromEntries(
         Object.entries(builtinAgents).filter(
-          ([key]) => key !== "sisyphus" && key !== "hephaestus" && key !== "atlas",
+          ([key]) => key !== "sisyphus" && key !== "republic" && key !== "hephaestus" && key !== "atlas",
         ),
       ),
       // Precedence: later entries override earlier (project > global > user > plugin)

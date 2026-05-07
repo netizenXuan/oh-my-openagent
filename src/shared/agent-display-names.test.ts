@@ -176,6 +176,7 @@ describe("getAgentConfigKey", () => {
     // given all core display names
     // when/then each resolves to its config key
     expect(getAgentConfigKey("Hephaestus - Deep Agent")).toBe("hephaestus")
+    expect(getAgentConfigKey("Republic - Team Orchestrator")).toBe("republic")
     expect(getAgentConfigKey("Prometheus - Plan Builder")).toBe("prometheus")
     expect(getAgentConfigKey("Atlas - Plan Executor")).toBe("atlas")
     expect(getAgentConfigKey("Metis - Plan Consultant")).toBe("metis")
@@ -196,6 +197,7 @@ describe("getAgentConfigKey", () => {
 describe("getAgentListDisplayName", () => {
   it("returns the canonical display name for the core agent list", () => {
     expect(getAgentListDisplayName("sisyphus")).toBe("Sisyphus - Ultraworker")
+    expect(getAgentListDisplayName("republic")).toBe("Republic - Team Orchestrator")
     expect(getAgentListDisplayName("hephaestus")).toBe("Hephaestus - Deep Agent")
     expect(getAgentListDisplayName("prometheus")).toBe("Prometheus - Plan Builder")
     expect(getAgentListDisplayName("atlas")).toBe("Atlas - Plan Executor")
@@ -219,6 +221,7 @@ describe("stripAgentListSortPrefix", () => {
 describe("normalizeAgentForPrompt", () => {
   it("strips core UI ordering prefixes back to canonical display names", () => {
     expect(normalizeAgentForPrompt(getAgentListDisplayName("sisyphus"))).toBe("Sisyphus - Ultraworker")
+    expect(normalizeAgentForPrompt(getAgentListDisplayName("republic"))).toBe("Republic - Team Orchestrator")
     expect(normalizeAgentForPrompt(getAgentListDisplayName("hephaestus"))).toBe("Hephaestus - Deep Agent")
     expect(normalizeAgentForPrompt(getAgentListDisplayName("prometheus"))).toBe("Prometheus - Plan Builder")
     expect(normalizeAgentForPrompt(getAgentListDisplayName("atlas"))).toBe("Atlas - Plan Executor")
@@ -252,6 +255,7 @@ describe("AGENT_DISPLAY_NAMES", () => {
     // given expected mappings
     const expectedMappings = {
       sisyphus: "Sisyphus - Ultraworker",
+      republic: "Republic - Team Orchestrator",
       hephaestus: "Hephaestus - Deep Agent",
       prometheus: "Prometheus - Plan Builder",
       atlas: "Atlas - Plan Executor",

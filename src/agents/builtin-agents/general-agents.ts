@@ -52,6 +52,7 @@ export function collectPendingBuiltinAgents(input: {
     const agentName = name as BuiltinAgentName
 
     if (agentName === "sisyphus") continue
+    if (agentName === "republic") continue
     if (agentName === "hephaestus") continue
     if (agentName === "atlas") continue
     if (agentName === "sisyphus-junior") continue

@@ -145,6 +145,7 @@ export function isGeminiModel(model: string): boolean {
 
 export type BuiltinAgentName =
   | "sisyphus"
+  | "republic"
   | "hephaestus"
   | "oracle"
   | "librarian"

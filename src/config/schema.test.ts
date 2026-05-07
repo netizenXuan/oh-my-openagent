@@ -1277,6 +1277,7 @@ describe("OhMyOpenCodeConfigSchema - disabled commands", () => {
         "refactor",
         "deliberate",
         "republic-status",
+        "republic-dashboard",
         "start-work",
         "stop-continuation",
         "handoff",

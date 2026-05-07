@@ -94,6 +94,7 @@ export function createKeywordDetectorHook(
       }
 
       const hasUltrawork = detectedKeywords.some((k) => k.type === "ultrawork")
+      const hasRepublic = detectedKeywords.some((k) => k.type === "republic")
       if (hasUltrawork) {
         const runtimeVariant = getRuntimeVariant(input, output.message)
         const isRuntimeMax = runtimeVariant === "max"
@@ -121,6 +122,28 @@ export function createKeywordDetectorHook(
             })
           )
 
+      }
+
+      if (hasRepublic) {
+        log(`[keyword-detector] Republic work mode activated`, {
+          sessionID: input.sessionID,
+        })
+
+        ctx.client.tui
+          .showToast({
+            body: {
+              title: "Republic Work Mode Activated",
+              message: "Persistent seats, Commons, contracts, supervisor governance, and native-git tracking engaged.",
+              variant: "success" as const,
+              duration: 3000,
+            },
+          })
+          .catch((err) =>
+            log(`[keyword-detector] Failed to show Republic toast`, {
+              error: err,
+              sessionID: input.sessionID,
+            })
+          )
       }
 
       const textPartIndex = output.parts.findIndex((p) => p.type === "text" && p.text !== undefined)

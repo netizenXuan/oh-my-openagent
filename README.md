@@ -323,7 +323,7 @@ See full [Features Documentation](docs/reference/features.md).
 - **Productivity Features**: Ralph Loop, Todo Enforcer, Comment Checker, Think Mode, and more
 - **Doctor Command**: Built-in diagnostics (`bunx oh-my-opencode doctor`) verify plugin registration, config, models, and environment
 - **Native Git Tracking**: Tracks agent-caused dirty Git changes in `.git/omo/native-git/audit.jsonl` and reminds you to use `git-master` for atomic commits
-- **OMO Republic**: Deliberative same-role multi-agent workflow with `/deliberate`, `/republic-status`, `.git/omo/republic/ledger.jsonl`, a Commons log for agent-to-agent questions, objections, revisions, and consensus, plus a graph dashboard for the collaboration network
+- **OMO Republic**: Deliberative same-role multi-agent workflow with the `Republic - Team Orchestrator` primary agent, the `repwork`/`republicwork` trigger, `/deliberate`, `/republic-status`, `.git/omo/republic/ledger.jsonl`, a Commons log for agent-to-agent questions, objections, revisions, and consensus, plus a graph dashboard for the collaboration network
 - **Model Fallbacks**: `fallback_models` can mix plain model strings with per-fallback object settings in the same array
 - **File Prompts**: Load prompts from files with `file://` support in agent configurations
 - **Session Recovery**: Automatic recovery from session errors, context window limits, and API failures

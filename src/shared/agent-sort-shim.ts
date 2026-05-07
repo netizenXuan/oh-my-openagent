@@ -3,9 +3,9 @@
  *
  * OpenCode 1.4.x ignores the agent `order` field (sst/opencode#19127) and
  * sorts the agent list by `agent.name` via Remeda `sortBy(x => x.name, "asc")`
- * at packages/opencode/src/agent/agent.ts. Without intervention, the four
- * core agents collapse into Atlas -> Hephaestus -> Prometheus -> Sisyphus,
- * which inverts the canonical sisyphus -> hephaestus -> prometheus -> atlas
+ * at packages/opencode/src/agent/agent.ts. Without intervention, the core
+ * agents collapse into alphabetical order, which inverts the canonical
+ * sisyphus -> republic -> hephaestus -> prometheus -> atlas
  * order this project ships.
  *
  * Earlier attempts to bias the sort key with invisible characters (ZWSP,
@@ -18,7 +18,7 @@
  *      lacks a string `name`, eliminating the throw-on-mixed-array failure
  *      mode that closed the original PR.
  *   2. The activation predicate requires >= 2 elements whose `.name` is one
- *      of the four canonical core display names, so unrelated `.sort()` and
+ *      of the canonical core display names, so unrelated `.sort()` and
  *      `.toSorted()` calls (string arrays, number arrays, generic objects)
  *      execute native behavior unchanged.
  *

@@ -2,6 +2,10 @@
 
 OMO Republic is a deliberative workflow layer for complex agent work. It is designed for projects where a single main agent feels too thin and where every meaningful change should have a durable Git-centered audit trail.
 
+## App Entry
+
+OpenCode App users can start Republic directly from the primary agent selector by choosing `Republic - Team Orchestrator`. For temporary activation from another OMO primary agent, include `repwork` or `republicwork` in the prompt. Both routes use the same existing Republic tools, ledger, Commons, contracts, scheduler, and dashboard.
+
 ## Design
 
 OMO Republic borrows from United States institutional design as an engineering pattern:

@@ -121,7 +121,7 @@ Tools
   ✓ LSP servers configured
 
 Models
-  ✓ 11 agents, 8 categories, 0 overrides
+  ✓ 12 agents, 8 categories, 0 overrides
   ⚠ Some configured models rely on compatibility fallback
 
 Summary: 10 passed, 1 warning, 0 failed

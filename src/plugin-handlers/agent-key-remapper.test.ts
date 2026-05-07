@@ -36,6 +36,7 @@ describe("remapAgentKeysToDisplayNames", () => {
     // given all core agents
     const agents = {
       sisyphus: {},
+      republic: {},
       hephaestus: {},
       prometheus: {},
       atlas: {},
@@ -51,6 +52,8 @@ describe("remapAgentKeysToDisplayNames", () => {
     // then all get display name keys
     expect(result[getAgentListDisplayName("sisyphus")]).toBeDefined()
     expect(result["sisyphus"]).toBeUndefined()
+    expect(result[getAgentListDisplayName("republic")]).toBeDefined()
+    expect(result["republic"]).toBeUndefined()
     expect(result[getAgentListDisplayName("hephaestus")]).toBeDefined()
     expect(result["hephaestus"]).toBeUndefined()
     expect(result[getAgentListDisplayName("prometheus")]).toBeDefined()
@@ -107,6 +110,7 @@ describe("remapAgentKeysToDisplayNames", () => {
     // given agents with raw config-key names
     const agents = {
       sisyphus: { name: "sisyphus", prompt: "test", mode: "primary" },
+      republic: { name: "republic", prompt: "test", mode: "primary" },
       hephaestus: { name: "hephaestus", prompt: "test", mode: "primary" },
       prometheus: { name: "prometheus", prompt: "test", mode: "primary" },
       atlas: { name: "atlas", prompt: "test", mode: "primary" },
@@ -117,14 +121,20 @@ describe("remapAgentKeysToDisplayNames", () => {
     const result = remapAgentKeysToDisplayNames(agents)
 
     // then keys and names both use the same runtime-facing list names
-    expect(Object.keys(result).slice(0, 4)).toEqual([
+    expect(Object.keys(result).slice(0, 5)).toEqual([
       getAgentListDisplayName("sisyphus"),
+      getAgentListDisplayName("republic"),
       getAgentListDisplayName("hephaestus"),
       getAgentListDisplayName("prometheus"),
       getAgentListDisplayName("atlas"),
     ])
     expect(result[getAgentListDisplayName("sisyphus")]).toEqual({
       name: getAgentListDisplayName("sisyphus"),
+      prompt: "test",
+      mode: "primary",
+    })
+    expect(result[getAgentListDisplayName("republic")]).toEqual({
+      name: getAgentListDisplayName("republic"),
       prompt: "test",
       mode: "primary",
     })
@@ -150,6 +160,7 @@ describe("remapAgentKeysToDisplayNames", () => {
     // given builtin-style configs without name fields
     const agents = {
       sisyphus: { prompt: "test", mode: "primary" },
+      republic: { prompt: "test", mode: "primary" },
       hephaestus: { prompt: "test", mode: "primary" },
       prometheus: { prompt: "test", mode: "primary" },
       atlas: { prompt: "test", mode: "primary" },
@@ -161,6 +172,11 @@ describe("remapAgentKeysToDisplayNames", () => {
     // then runtime-facing names stay aligned even when builtin configs omit name
     expect(result[getAgentListDisplayName("sisyphus")]).toEqual({
       name: getAgentListDisplayName("sisyphus"),
+      prompt: "test",
+      mode: "primary",
+    })
+    expect(result[getAgentListDisplayName("republic")]).toEqual({
+      name: getAgentListDisplayName("republic"),
       prompt: "test",
       mode: "primary",
     })
