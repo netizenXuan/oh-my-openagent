@@ -70,6 +70,7 @@ type ToolContextLike = {
 type RepublicToolOptions = {
   manager?: Pick<BackgroundManager, "launch">
   config?: RepublicConfig
+  dashboardOpener?: (target: string) => boolean
 }
 
 type AgentInfo = {
@@ -966,6 +967,7 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
         config,
         event: "team_init",
         deliberationID,
+        opener: options.dashboardOpener,
       })
 
       return JSON.stringify({
@@ -1098,7 +1100,8 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
       const workgroupID = typeof args.workgroup_id === "string" ? args.workgroup_id : existing?.workgroupID ?? definition?.workgroupID
       const module = typeof args.module === "string" ? args.module : existing?.module ?? definition?.module
       const taskID = typeof args.task_id === "string" ? args.task_id : existing?.taskID ?? definition?.taskID
-      const waitingOn = safeStringArray(args.waiting_on) ?? existing?.waitingOn
+      const explicitWaitingOn = safeStringArray(args.waiting_on)
+      const waitingOn = explicitWaitingOn ?? (status === "waiting" || status === "blocked" ? existing?.waitingOn : [])
       const lastMessageID = typeof args.last_message_id === "string" ? args.last_message_id : existing?.lastMessageID
 
       writeRepublicSeatState(repository, {
@@ -1435,6 +1438,7 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
         config: options.config,
         event: "round_start",
         deliberationID,
+        opener: options.dashboardOpener,
       })
 
       return JSON.stringify({

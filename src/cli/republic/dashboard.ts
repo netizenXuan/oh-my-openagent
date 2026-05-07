@@ -1153,6 +1153,7 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       const completion = completionForSeat(data, seat.seatID);
       const contracts = contractsForSeat(data, seat);
       const queueRecords = schedulerRecordsForSeat(data, seat.seatID).sort((left, right) => String(right.timestamp ?? "").localeCompare(String(left.timestamp ?? "")));
+      const waitingOn = (state?.status === "waiting" || state?.status === "blocked") ? (state?.waitingOn ?? []) : [];
       inspector.innerHTML = '<h2>Seat Inspector</h2>'
         + '<div class="inspector-title"><strong>' + safe(seat.seatID) + '</strong><span class="' + statusClass(state?.status ?? "standby") + '">' + safe(state?.status ?? "standby") + '</span><p class="muted">' + safe(seat.role) + '</p></div>'
         + detailBlock("Seat Definition", '<p>' + safe(seat.reason ?? "No allocation reason recorded.") + '</p>', seat)
@@ -1163,7 +1164,7 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
           metric("Module", safe(state?.module ?? seat.module ?? "none")),
           metric("Runtime agent", safe(state?.runtimeAgent ?? seat.runtimeAgent ?? "none")),
           metric("Conceptual agent", safe(state?.conceptualAgent ?? seat.conceptualAgent ?? "none")),
-          metric("Waiting on", safe((state?.waitingOn ?? []).join(", ") || "none")),
+          metric("Waiting on", safe(waitingOn.join(", ") || "none")),
           metric("Task", safe(state?.taskID ?? seat.taskID ?? "none")),
         ].join("") + '</div>'
         + '<div><h3>Interaction Completion</h3><div class="progress"><div style="width:' + completion.percent + '%"></div></div><p class="muted">' + completion.done + ' / ' + completion.total + ' question threads completed. Authored questions: ' + completion.authoredQuestions + '. Inbound questions: ' + completion.inboundQuestions + '.</p></div>'

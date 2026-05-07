@@ -3,11 +3,14 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { execFileSync } from "node:child_process"
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { createServer } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { PluginInput } from "@opencode-ai/plugin"
 import type { ToolContext } from "@opencode-ai/plugin/tool"
+import { RepublicConfigSchema } from "../../config/schema"
 import type { BackgroundTask } from "../../features/background-agent"
+import { stopRepublicDashboardServers } from "../../republic/dashboard-launcher"
 import {
   appendRepublicCommonsMessage,
   getNativeGitRepository,
@@ -44,6 +47,23 @@ function initRepo(cwd: string): void {
     "-m",
     "init",
   ])
+}
+
+async function getFreePort(): Promise<number> {
+  return await new Promise((resolve, reject) => {
+    const server = createServer()
+    server.listen(0, () => {
+      const address = server.address()
+      server.close(() => {
+        if (typeof address === "object" && address?.port) {
+          resolve(address.port)
+          return
+        }
+        reject(new Error("Could not allocate a test port"))
+      })
+    })
+    server.on("error", reject)
+  })
 }
 
 function createToolContext(directory: string): ToolContext {
@@ -100,6 +120,7 @@ describe("republic tools", () => {
   })
 
   afterEach(() => {
+    stopRepublicDashboardServers()
     rmSync(directory, { recursive: true, force: true })
   })
 
@@ -134,7 +155,16 @@ describe("republic tools", () => {
   })
 
   test("initializes a dynamic republic team under the git common dir", async () => {
-    const tools = createRepublicTools({ directory } as PluginInput)
+    const tools = createRepublicTools({ directory } as PluginInput, {
+      config: {
+        ...RepublicConfigSchema.parse({}),
+        dashboard: {
+          ...RepublicConfigSchema.parse({}).dashboard,
+          port: await getFreePort(),
+        },
+      },
+      dashboardOpener: () => true,
+    })
     const context = createToolContext(directory)
 
     const result = await tools.republic_team_init.execute({
@@ -213,6 +243,19 @@ describe("republic tools", () => {
     expect(parsedStatus.seats).toHaveLength(1)
     expect(parsedStatus.seats[0].state.status).toBe("waiting")
     expect(parsedStatus.seats[0].memory).toContain("Waiting for data-seat")
+
+    const doneResult = await tools.republic_seat_update.execute({
+      seat_id: "api-planner-seat",
+      status: "done",
+      phase: "planning",
+      deliberation_id: "order-system-team",
+    }, context)
+    const parsedDone = JSON.parse(String(doneResult))
+    const doneState = readRepublicSeatState(repository, "api-planner-seat")!
+
+    expect(parsedDone.waiting_on).toEqual([])
+    expect(doneState.status).toBe("done")
+    expect(doneState.waitingOn).toEqual([])
     expect(messages.map((message) => message.phase)).toContain("seat-update")
     expect(ledger.map((record) => record.phase)).toContain("seat-update")
     expect(git(directory, ["status", "--porcelain"])).toBe("")
