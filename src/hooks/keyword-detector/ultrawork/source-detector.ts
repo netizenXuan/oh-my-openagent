@@ -33,6 +33,17 @@ export function isNonOmoAgent(agentName?: string): boolean {
   return lowerName.includes("builder") || lowerName === "plan"
 }
 
+/**
+ * Checks if the selected OpenCode App agent is OMO Republic.
+ * Republic is an exclusive orchestration path, so legacy OMO keyword modes
+ * such as analyze/search/ultrawork must not be layered on top of it.
+ */
+export function isRepublicAgent(agentName?: string): boolean {
+  if (!agentName) return false
+  const lowerName = agentName.toLowerCase()
+  return lowerName === "republic" || lowerName.includes("republic")
+}
+
 export { isGptModel, isGeminiModel }
 
 /** Ultrawork message source type */

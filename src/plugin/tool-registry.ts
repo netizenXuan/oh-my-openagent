@@ -28,10 +28,12 @@ import {
   createTaskList,
   createTaskUpdateTool,
   createHashlineEditTool,
+  createRepublicTools,
 } from "../tools"
 import { getMainSessionID } from "../features/claude-code-session-state"
 import { filterDisabledTools } from "../shared/disabled-tools"
 import { isTaskSystemEnabled, log } from "../shared"
+import { isRepublicSeatOrchestrationExclusive } from "../republic/exclusive-seat-orchestration"
 
 import type { Managers } from "../create-managers"
 import type { SkillContext } from "./skill-context"
@@ -56,6 +58,7 @@ type ToolRegistryFactories = {
   createTaskList: typeof createTaskList
   createTaskUpdateTool: typeof createTaskUpdateTool
   createHashlineEditTool: typeof createHashlineEditTool
+  createRepublicTools: typeof createRepublicTools
 }
 
 const defaultToolRegistryFactories: ToolRegistryFactories = {
@@ -77,6 +80,7 @@ const defaultToolRegistryFactories: ToolRegistryFactories = {
   createTaskList,
   createTaskUpdateTool,
   createHashlineEditTool,
+  createRepublicTools,
 }
 
 export type ToolRegistryResult = {
@@ -96,6 +100,13 @@ const LOW_PRIORITY_TOOL_ORDER = [
   "task_get",
   "task_list",
   "task_update",
+  "republic_team_status",
+  "republic_seat_update",
+  "republic_phase_update",
+  "republic_round_start",
+  "republic_inbox",
+  "republic_publish",
+  "republic_contract",
   "background_output",
   "background_cancel",
   "edit",
@@ -267,6 +278,10 @@ export function createToolRegistry(args: {
     ...factories.createGlobTools(ctx),
     ...factories.createAstGrepTools(ctx),
     ...factories.createSessionManagerTools(ctx),
+    ...factories.createRepublicTools(ctx, {
+      manager: managers.backgroundManager,
+      config: pluginConfig.republic,
+    }),
     ...backgroundTools,
     call_omo_agent: callOmoAgent,
     ...(lookAt ? { look_at: lookAt } : {}),
@@ -283,6 +298,10 @@ export function createToolRegistry(args: {
   }
 
   const filteredTools: ToolsRecord = filterDisabledTools(allTools, pluginConfig.disabled_tools)
+  if (isRepublicSeatOrchestrationExclusive(pluginConfig)) {
+    delete filteredTools.task
+    delete filteredTools.call_omo_agent
+  }
 
   const maxTools = pluginConfig.experimental?.max_tools
   if (maxTools) {

@@ -18,25 +18,31 @@ describe("agent-priority-order", () => {
       expect(Array.isArray(CANONICAL_CORE_AGENT_ORDER)).toBe(true)
     })
 
-    test("canonical order is exactly [sisyphus, hephaestus, prometheus, atlas]", () => {
+    test("canonical order is exactly [sisyphus, republic presets, hephaestus, prometheus, atlas]", () => {
       // then
       expect(CANONICAL_CORE_AGENT_ORDER).toEqual([
         "sisyphus",
+        "republic",
+        "republic-large",
+        "republic-extreme",
         "hephaestus",
         "prometheus",
         "atlas",
       ])
     })
 
-    test("canonical order length is exactly 4", () => {
+    test("canonical order length is exactly 7", () => {
       // then
-      expect(CANONICAL_CORE_AGENT_ORDER).toHaveLength(4)
+      expect(CANONICAL_CORE_AGENT_ORDER).toHaveLength(7)
     })
   })
 
   describe("reorderAgentsByPriority", () => {
     // given: display names for all core agents
     const sisyphus = getAgentListDisplayName("sisyphus")
+    const republic = getAgentListDisplayName("republic")
+    const republicLarge = getAgentListDisplayName("republic-large")
+    const republicExtreme = getAgentListDisplayName("republic-extreme")
     const hephaestus = getAgentListDisplayName("hephaestus")
     const prometheus = getAgentListDisplayName("prometheus")
     const atlas = getAgentListDisplayName("atlas")
@@ -45,12 +51,15 @@ describe("agent-priority-order", () => {
     const explore = getAgentDisplayName("explore")
 
     describe("#given agents in random order", () => {
-      test("#when all core agents present #then orders as sisyphus→hephaestus→prometheus→atlas", () => {
+      test("#when all core agents present #then orders Republic presets after standard Republic", () => {
         // given: agents in reverse order
         const agents: Record<string, unknown> = {
           [atlas]: { name: "atlas" },
           [prometheus]: { name: "prometheus" },
           [hephaestus]: { name: "hephaestus" },
+          [republicExtreme]: { name: "republic-extreme" },
+          [republicLarge]: { name: "republic-large" },
+          [republic]: { name: "republic" },
           [sisyphus]: { name: "sisyphus" },
         }
 
@@ -60,9 +69,12 @@ describe("agent-priority-order", () => {
         // then
         const keys = Object.keys(result)
         expect(keys[0]).toBe(sisyphus)
-        expect(keys[1]).toBe(hephaestus)
-        expect(keys[2]).toBe(prometheus)
-        expect(keys[3]).toBe(atlas)
+        expect(keys[1]).toBe(republic)
+        expect(keys[2]).toBe(republicLarge)
+        expect(keys[3]).toBe(republicExtreme)
+        expect(keys[4]).toBe(hephaestus)
+        expect(keys[5]).toBe(prometheus)
+        expect(keys[6]).toBe(atlas)
       })
 
       test("#when core agents mixed with non-core #then core agents come first in canonical order", () => {
@@ -72,6 +84,9 @@ describe("agent-priority-order", () => {
           [atlas]: { name: "atlas" },
           [librarian]: { name: "librarian" },
           [prometheus]: { name: "prometheus" },
+          [republicExtreme]: { name: "republic-extreme" },
+          [republic]: { name: "republic" },
+          [republicLarge]: { name: "republic-large" },
           [explore]: { name: "explore" },
           [hephaestus]: { name: "hephaestus" },
           custom: { name: "custom" },
@@ -83,7 +98,7 @@ describe("agent-priority-order", () => {
 
         // then
         const keys = Object.keys(result)
-        expect(keys.slice(0, 4)).toEqual([sisyphus, hephaestus, prometheus, atlas])
+        expect(keys.slice(0, 7)).toEqual([sisyphus, republic, republicLarge, republicExtreme, hephaestus, prometheus, atlas])
       })
     })
 
@@ -92,6 +107,9 @@ describe("agent-priority-order", () => {
         // given: base agent config
         const baseAgents = {
           [sisyphus]: { name: "sisyphus" },
+          [republic]: { name: "republic" },
+          [republicLarge]: { name: "republic-large" },
+          [republicExtreme]: { name: "republic-extreme" },
           [hephaestus]: { name: "hephaestus" },
           [prometheus]: { name: "prometheus" },
           [atlas]: { name: "atlas" },
@@ -129,9 +147,12 @@ describe("agent-priority-order", () => {
           expect(results[i]).toEqual(firstResult)
         }
 
-        // then: core agents are always first 4 in canonical order
-        expect(firstResult.slice(0, 4)).toEqual([
+        // then: core agents are always first 7 in canonical order
+        expect(firstResult.slice(0, 7)).toEqual([
           sisyphus,
+          republic,
+          republicLarge,
+          republicExtreme,
           hephaestus,
           prometheus,
           atlas,
@@ -184,6 +205,9 @@ describe("agent-priority-order", () => {
         // given
         const agents: Record<string, unknown> = {
           [sisyphus]: { name: "sisyphus", mode: "primary" },
+          [republic]: { name: "republic", mode: "primary" },
+          [republicLarge]: { name: "republic-large", mode: "primary" },
+          [republicExtreme]: { name: "republic-extreme", mode: "primary" },
           [hephaestus]: { name: "hephaestus", mode: "primary" },
           [prometheus]: { name: "prometheus", mode: "primary" },
           [atlas]: { name: "atlas", mode: "primary" },
@@ -194,9 +218,12 @@ describe("agent-priority-order", () => {
 
         // then
         expect(result[sisyphus]).toEqual({ name: "sisyphus", mode: "primary", order: 1 })
-        expect(result[hephaestus]).toEqual({ name: "hephaestus", mode: "primary", order: 2 })
-        expect(result[prometheus]).toEqual({ name: "prometheus", mode: "primary", order: 3 })
-        expect(result[atlas]).toEqual({ name: "atlas", mode: "primary", order: 4 })
+        expect(result[republic]).toEqual({ name: "republic", mode: "primary", order: 2 })
+        expect(result[republicLarge]).toEqual({ name: "republic-large", mode: "primary", order: 3 })
+        expect(result[republicExtreme]).toEqual({ name: "republic-extreme", mode: "primary", order: 4 })
+        expect(result[hephaestus]).toEqual({ name: "hephaestus", mode: "primary", order: 5 })
+        expect(result[prometheus]).toEqual({ name: "prometheus", mode: "primary", order: 6 })
+        expect(result[atlas]).toEqual({ name: "atlas", mode: "primary", order: 7 })
       })
 
       test("#when core agent is non-object #then leaves value unchanged", () => {

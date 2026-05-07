@@ -8,6 +8,9 @@ import { REFACTOR_TEMPLATE } from "./templates/refactor"
 import { START_WORK_TEMPLATE } from "./templates/start-work"
 import { HANDOFF_TEMPLATE } from "./templates/handoff"
 import { REMOVE_AI_SLOPS_TEMPLATE } from "./templates/remove-ai-slops"
+import { DELIBERATE_TEMPLATE } from "./templates/deliberate"
+import { REPUBLIC_STATUS_TEMPLATE } from "./templates/republic-status"
+import { REPUBLIC_DASHBOARD_TEMPLATE } from "./templates/republic-dashboard"
 
 interface LoadBuiltinCommandsOptions {
   useRegisteredAgents?: boolean
@@ -71,6 +74,44 @@ ${CANCEL_RALPH_TEMPLATE}
 ${REFACTOR_TEMPLATE}
 </command-instruction>`,
       argumentHint: "<refactoring-target> [--scope=<file|module|project>] [--strategy=<safe|aggressive>]",
+    },
+    deliberate: {
+      description: "(builtin) Run multi-seat deliberation and record an OMO Republic ledger",
+      template: `<command-instruction>
+${DELIBERATE_TEMPLATE}
+</command-instruction>
+
+<session-context>
+Session ID: $SESSION_ID
+Timestamp: $TIMESTAMP
+</session-context>
+
+<user-request>
+$ARGUMENTS
+</user-request>`,
+      argumentHint: "<problem-or-plan>",
+    },
+    "republic-status": {
+      description: "(builtin) Summarize OMO Republic ledger and native Git audit state",
+      template: `<command-instruction>
+${REPUBLIC_STATUS_TEMPLATE}
+</command-instruction>
+
+<user-request>
+$ARGUMENTS
+</user-request>`,
+      argumentHint: "[deliberation-id]",
+    },
+    "republic-dashboard": {
+      description: "(builtin) Render or serve the OMO Republic collaboration graph",
+      template: `<command-instruction>
+${REPUBLIC_DASHBOARD_TEMPLATE}
+</command-instruction>
+
+<user-request>
+$ARGUMENTS
+</user-request>`,
+      argumentHint: "[deliberation-id] [--serve] [--port=4097]",
     },
     "start-work": {
       description: "(builtin) Start Sisyphus work session from Prometheus plan",

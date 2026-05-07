@@ -45,6 +45,39 @@ export const AGENT_MODEL_REQUIREMENTS: Record<string, ModelRequirement> = {
     ],
     requiresAnyModel: true,
   },
+  republic: {
+    fallbackChain: [
+      { providers: ["opencode-go", "vercel"], model: "kimi-k2.5" },
+      {
+        providers: ["openai", "github-copilot", "opencode", "vercel"],
+        model: "gpt-5.5",
+        variant: "medium",
+      },
+      { providers: ["opencode-go", "vercel"], model: "minimax-m2.7" },
+    ],
+  },
+  "republic-large": {
+    fallbackChain: [
+      { providers: ["opencode-go", "vercel"], model: "kimi-k2.5" },
+      {
+        providers: ["openai", "github-copilot", "opencode", "vercel"],
+        model: "gpt-5.5",
+        variant: "medium",
+      },
+      { providers: ["opencode-go", "vercel"], model: "minimax-m2.7" },
+    ],
+  },
+  "republic-extreme": {
+    fallbackChain: [
+      { providers: ["opencode-go", "vercel"], model: "kimi-k2.5" },
+      {
+        providers: ["openai", "github-copilot", "opencode", "vercel"],
+        model: "gpt-5.5",
+        variant: "medium",
+      },
+      { providers: ["opencode-go", "vercel"], model: "minimax-m2.7" },
+    ],
+  },
   hephaestus: {
     fallbackChain: [
       {

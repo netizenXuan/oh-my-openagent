@@ -44,6 +44,23 @@ function isStartWorkHookOutput(value: unknown): value is StartWorkHookOutput {
   })
 }
 
+function getMessageModelOverride(value: unknown): SessionModelOverride | undefined {
+  if (
+    value &&
+    typeof value === "object" &&
+    "providerID" in value &&
+    "modelID" in value
+  ) {
+    const providerID = (value as { providerID?: string }).providerID
+    const modelID = (value as { modelID?: string }).modelID
+    if (typeof providerID === "string" && typeof modelID === "string") {
+      return { providerID, modelID }
+    }
+  }
+
+  return undefined
+}
+
 function hasExplicitAgentModelOverride(
   agent: string | undefined,
   pluginConfig: OhMyOpenCodeConfig
@@ -200,6 +217,7 @@ export function createChatMessageHandler(args: {
     if (isFirstMessage) {
       firstMessageVariantGate.markApplied(input.sessionID)
     }
+    const promptTextBeforeHookMutation = extractPromptText(output.parts)
 
     const storedMainSessionModel = getStoredMainSessionModel(
       input,
@@ -214,18 +232,9 @@ export function createChatMessageHandler(args: {
     if (!isRuntimeFallbackEnabled) {
       await hooks.modelFallback?.["chat.message"]?.(input, output)
     }
-    const modelOverride = output.message["model"]
-    if (
-      modelOverride &&
-      typeof modelOverride === "object" &&
-      "providerID" in modelOverride &&
-      "modelID" in modelOverride
-    ) {
-      const providerID = (modelOverride as { providerID?: string }).providerID
-      const modelID = (modelOverride as { modelID?: string }).modelID
-      if (typeof providerID === "string" && typeof modelID === "string") {
-        setSessionModel(input.sessionID, { providerID, modelID })
-      }
+    const modelOverride = getMessageModelOverride(output.message["model"])
+    if (modelOverride) {
+      setSessionModel(input.sessionID, modelOverride)
     } else if (input.model) {
       setSessionModel(input.sessionID, input.model)
     }
@@ -238,6 +247,11 @@ export function createChatMessageHandler(args: {
     await hooks.autoSlashCommand?.["chat.message"]?.(input, output)
     await hooks.noSisyphusGpt?.["chat.message"]?.(input, output)
     await hooks.noHephaestusNonGpt?.["chat.message"]?.(input, output)
+    await hooks.nativeGit?.["chat.message"]?.({
+      ...input,
+      model: input.model ?? modelOverride,
+      promptText: promptTextBeforeHookMutation,
+    }, output)
     if (hooks.startWork && isStartWorkHookOutput(output)) {
       const promptText = extractPromptText(output.parts)
       if (isStartWorkFallbackTemplate(promptText)) {

@@ -647,6 +647,40 @@ describe("createChatMessageHandler - TUI variant passthrough", () => {
     expect(output.parts[0].text).toContain("[BACKGROUND TASK COMPLETED]")
   })
 
+  test("passes effective session model to native git context hook", async () => {
+    //#given
+    const nativeGitInputs: Array<{
+      sessionID: string
+      agent?: string
+      model?: { providerID: string; modelID: string }
+    }> = []
+    const args = createMockHandlerArgs()
+    args.hooks.nativeGit = {
+      "chat.message": async (input: {
+        sessionID: string
+        agent?: string
+        model?: { providerID: string; modelID: string }
+      }) => {
+        nativeGitInputs.push(input)
+      },
+    }
+    const handler = createChatMessageHandler(args)
+    const input = createMockInput("Hephaestus - Deep Agent")
+    const output = createMockOutput()
+    output.message["model"] = { providerID: "kimi-for-coding", modelID: "k2p6" }
+
+    //#when
+    await handler(input, output)
+
+    //#then
+    expect(nativeGitInputs).toHaveLength(1)
+    expect(nativeGitInputs[0]).toMatchObject({
+      sessionID: "test-session",
+      agent: "Hephaestus - Deep Agent",
+      model: { providerID: "kimi-for-coding", modelID: "k2p6" },
+    })
+  })
+
   test("reuses the stored model for subsequent messages in the main session when the UI sends none", async () => {
     //#given
     setMainSession("test-session")

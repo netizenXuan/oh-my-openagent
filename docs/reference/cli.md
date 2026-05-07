@@ -21,6 +21,8 @@ npx oh-my-opencode
 | `run`                         | OpenCode session runner with task completion enforcement |
 | `get-local-version`           | Display local version information and update check     |
 | `refresh-model-capabilities`  | Refresh the cached models.dev-based model capabilities |
+| `republic status`             | Summarize OMO Republic ledger and native Git audit state |
+| `republic dashboard`          | Render or serve an OMO Republic command board            |
 | `version`                     | Show version information                               |
 | `mcp oauth`                   | MCP OAuth authentication management                    |
 
@@ -119,7 +121,7 @@ Tools
   ✓ LSP servers configured
 
 Models
-  ✓ 11 agents, 8 categories, 0 overrides
+  ✓ 12 agents, 8 categories, 0 overrides
   ⚠ Some configured models rely on compatibility fallback
 
 Summary: 10 passed, 1 warning, 0 failed
@@ -177,6 +179,65 @@ Shows:
 - Latest available version on npm
 - Whether you're up to date
 - Special modes (local dev, pinned version)
+
+---
+
+## republic status
+
+Summarizes the OMO Republic deliberation ledger together with native Git audit records.
+
+### Usage
+
+```bash
+bunx oh-my-opencode republic status
+bunx oh-my-opencode republic status --directory /path/to/repo
+bunx oh-my-opencode republic status --deliberation-id delib_20260504_native_git --json
+```
+
+### Options
+
+| Option                 | Description                                           |
+| ---------------------- | ----------------------------------------------------- |
+| `-d, --directory <path>` | Working directory to inspect                         |
+| `--deliberation-id <id>` | Filter Republic ledger records to one deliberation   |
+| `--json`               | Output structured JSON for scripts or dashboards      |
+
+The command reads `.git/omo/republic/ledger.jsonl`, `.git/omo/republic/commons.jsonl`, and `.git/omo/native-git/audit.jsonl`. All three files live under the Git common dir, so status reporting does not dirty the worktree.
+
+The report includes a decision gate: `no-records`, `needs-quorum`, `blocked`, `approved`, or `revise`. It also summarizes Commons messages so you can see whether parallel seats actually challenged, answered, and revised each other instead of only reporting back to the main agent.
+
+---
+
+## republic dashboard
+
+Renders the OMO Republic collaboration state as a command board with phase, workgroup, seat, scheduler, contract, Commons, and native-git views. By default it writes a static HTML file under the Git common dir at `.git/omo/republic/dashboard.html`, so it does not dirty the worktree.
+
+### Usage
+
+```bash
+bunx oh-my-opencode republic dashboard
+bunx oh-my-opencode republic dashboard --directory /path/to/repo
+bunx oh-my-opencode republic dashboard --directory /path/to/repo --serve --port 4097
+bunx oh-my-opencode republic dashboard --directory /path/to/repo --open
+bunx oh-my-opencode republic dashboard --directory /path/to/repo --json
+```
+
+### Options
+
+| Option                 | Description                                           |
+| ---------------------- | ----------------------------------------------------- |
+| `-d, --directory <path>` | Working directory to inspect                         |
+| `--deliberation-id <id>` | Filter Republic graph data to one deliberation       |
+| `-o, --output <path>`  | Static HTML output path                               |
+| `--json`               | Output graph data instead of HTML                     |
+| `--serve`              | Serve a live dashboard that polls `.git/omo` records  |
+| `--open`               | Open the rendered or served dashboard in the default browser |
+| `--port <port>`        | Port for `--serve`                                    |
+| `--refresh-ms <ms>`    | Polling interval for `--serve`                        |
+
+The command board groups seats by phase and workgroup instead of showing every edge by default. Click a seat to inspect its live state, allocation reason, runtime agent, queue records, contract traceability, and expandable raw Commons/scheduler/contract JSON. The underlying JSON still includes repository, deliberation, chamber, workgroup, seat, agent, task, message, module, file, tool, and decision nodes for downstream visualizers.
+
+For OpenCode Desktop App usage, enable `republic.dashboard.auto_open` in config. When `republic_team_init` or a configured `republic_round_start` event runs, OMO starts the same live local dashboard and opens it in the browser automatically.
 
 ---
 

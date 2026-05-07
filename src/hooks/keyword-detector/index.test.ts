@@ -94,6 +94,66 @@ describe("keyword-detector message transform", () => {
     expect(textPart!.text).toContain("[search-mode]")
   })
 
+  test("should prepend republic message for repwork trigger", async () => {
+    // given - a low-collision Republic trigger in the main prompt
+    const collector = new ContextCollector()
+    const hook = createKeywordDetectorHook(createMockPluginInput(), collector)
+    const sessionID = "republic-test-session"
+    const output = {
+      message: {} as Record<string, unknown>,
+      parts: [{ type: "text", text: "repwork add cancellation support" }],
+    }
+
+    // when - keyword detection runs
+    await hook["chat.message"]({ sessionID }, output)
+
+    // then - Republic guidance should be prepended without losing the original request
+    const textPart = output.parts.find(p => p.type === "text")
+    expect(textPart).toBeDefined()
+    expect(textPart!.text).toContain("REPUBLIC WORK MODE ENABLED")
+    expect(textPart!.text).toContain("Seats are execution carriers")
+    expect(textPart!.text).toContain("add cancellation support")
+  })
+
+  test("should prepend republic message for republicwork trigger", async () => {
+    // given - the longer Republic trigger spelling
+    const collector = new ContextCollector()
+    const hook = createKeywordDetectorHook(createMockPluginInput(), collector)
+    const sessionID = "republicwork-test-session"
+    const output = {
+      message: {} as Record<string, unknown>,
+      parts: [{ type: "text", text: "republicwork design the workgroup contract" }],
+    }
+
+    // when - keyword detection runs
+    await hook["chat.message"]({ sessionID }, output)
+
+    // then - Republic guidance should be injected
+    const textPart = output.parts.find(p => p.type === "text")
+    expect(textPart).toBeDefined()
+    expect(textPart!.text).toContain("REPUBLIC WORK MODE ENABLED")
+    expect(textPart!.text).toContain("republic_team_init")
+  })
+
+  test("should not activate republic mode for the ordinary word republic", async () => {
+    // given - a normal discussion mentioning Republic without the trigger token
+    const collector = new ContextCollector()
+    const hook = createKeywordDetectorHook(createMockPluginInput(), collector)
+    const sessionID = "ordinary-republic-session"
+    const output = {
+      message: {} as Record<string, unknown>,
+      parts: [{ type: "text", text: "explain the republic architecture" }],
+    }
+
+    // when - keyword detection runs
+    await hook["chat.message"]({ sessionID }, output)
+
+    // then - no Republic mode prompt is injected
+    const textPart = output.parts.find(p => p.type === "text")
+    expect(textPart).toBeDefined()
+    expect(textPart!.text).toBe("explain the republic architecture")
+  })
+
   test("should tell analyze-mode agents to evaluate skills before delegating", async () => {
     // given - analyze mode keyword detection runs on a user investigation request
     const collector = new ContextCollector()
@@ -838,6 +898,26 @@ describe("keyword-detector non-OMO agent skipping", () => {
     expect(textPart).toBeDefined()
     expect(textPart!.text).toContain("YOU MUST LEVERAGE ALL AVAILABLE AGENTS")
     expect(textPart!.text).toContain("implement this")
+  })
+
+  test("should skip legacy keyword injection for Republic agent", async () => {
+    // given - Republic is selected as the primary OpenCode App agent
+    const collector = new ContextCollector()
+    const hook = createKeywordDetectorHook(createMockPluginInput(), collector)
+    const sessionID = "republic-agent-session"
+    const output = {
+      message: {} as Record<string, unknown>,
+      parts: [{ type: "text", text: "inspect the repo and review the Republic run" }],
+    }
+
+    // when - text would normally trigger analyze-mode
+    await hook["chat.message"]({ sessionID, agent: "Republic - Team Orchestrator" }, output)
+
+    // then - legacy analyze/search/ultrawork guidance is not layered onto Republic
+    const textPart = output.parts.find(p => p.type === "text")
+    expect(textPart).toBeDefined()
+    expect(textPart!.text).toBe("inspect the repo and review the Republic run")
+    expect(textPart!.text).not.toContain("[analyze-mode]")
   })
 
   test("should skip keyword injection for agent names containing 'builder'", async () => {

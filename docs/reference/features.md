@@ -449,6 +449,9 @@ Commands are slash-triggered workflows that execute predefined templates.
 | `/ulw-loop`          | Start ultrawork loop - continues with ultrawork mode                                       |
 | `/cancel-ralph`      | Cancel active Ralph Loop                                                                   |
 | `/refactor`          | Intelligent refactoring with LSP, AST-grep, architecture analysis, and TDD verification    |
+| `/deliberate`        | Run multi-seat OMO Republic deliberation and write Git common-dir ledger/commons records    |
+| `/republic-status`   | Summarize OMO Republic ledger, commons, and native Git audit state                          |
+| `/republic-dashboard` | Render or serve the OMO Republic command board                                             |
 | `/start-work`        | Start Sisyphus work session from Prometheus plan                                           |
 | `/stop-continuation` | Stop all continuation mechanisms (ralph loop, todo continuation, boulder) for this session |
 | `/handoff`           | Create a detailed context summary for continuing work in a new session                     |
@@ -519,6 +522,65 @@ Everything runs at maximum intensity - parallel agents, background tasks, aggres
 - Architecture analysis before changes
 - TDD verification after changes
 - Codemap generation
+
+### /deliberate
+
+**Purpose**: Run an opt-in deliberative multi-agent workflow before implementation.
+
+**Usage**:
+
+```
+/deliberate <problem-or-plan>
+```
+
+The command uses multiple independent seats for the same role rather than adding more one-off expert titles:
+
+- House of Planners: fast same-role planning seats
+- Senate of Planners: conservative same-role planning seats
+- Conference Committee: synthesis and conflict resolution
+- Review Bench: blocker and rollback review
+
+When run inside a Git repository, deliberation records are written under the Git common dir at `.git/omo/republic/ledger.jsonl`, `.git/omo/republic/commons.jsonl`, `.git/omo/republic/agents/<seat-id>.md`, `.git/omo/republic/contracts/<workgroup-id>.md`, and `.git/omo/republic/deliberations/<id>/`, so the deliberation audit does not dirty the worktree. The commons log lets parallel seats publish proposals, targeted questions, objections, answers, revisions, handoffs, consensus messages, native-git status events, dependency-gate events, supervisor interventions, and workgroup contracts. Republic governance does not automatically commit, stash, or create worktrees.
+
+### /republic-status
+
+**Purpose**: Summarize the OMO Republic ledger, commons, and native Git audit trail.
+
+**Usage**:
+
+```
+/republic-status [deliberation-id]
+```
+
+Reads `.git/omo/republic/ledger.jsonl`, `.git/omo/republic/commons.jsonl`, and `.git/omo/native-git/audit.jsonl`, then reports deliberation IDs, phase counts, chamber counts, workgroups, modules, task IDs, commons message counts, targeted/referenced message counts, seat votes, visible agent/model participation, blocker status, touched files, and the recommended next action. This is read-only and does not create new ledger entries.
+
+The CLI also provides `oh-my-opencode republic dashboard`, which renders the same state as a click-to-inspect command board, including persistent team manifest, team phase, per-seat state, queue records, contracts, and expandable raw Commons details. Static output defaults to `.git/omo/republic/dashboard.html`; `--serve` starts a local live dashboard that polls Git common-dir records. In Desktop App workflows, `republic.dashboard.auto_open` can open this live board automatically when a team or round starts.
+
+In the OpenCode App, Republic can be selected from the same primary-agent dropdown as the other OMO roles:
+
+- `Republic - Team Orchestrator`: standard preset, `max_parallel_seats=4`.
+- `Republic - Large Team`: larger preset, `max_parallel_seats=8` with more planner/executor/reviewer seats.
+- `Republic - Extreme Team`: stress preset, `max_parallel_seats=12` with the largest default benches.
+
+All three entries run the same Republic governance system. The difference is only the default team size passed to `republic_team_init`; the workflow remains plan with multiple seats, lock contracts, execute with seat ownership, review with reviewer seats and supervisor policy, then close the phase with a final verdict.
+
+Interactive Republic collaboration is available through nine tools:
+
+- `republic_team_init`: initialize `.git/omo/republic/team/` with dynamically allocated or explicitly configured seats.
+- `republic_team_status`: inspect team phase, seat states, optional memory tails, and recent Commons activity.
+- `republic_seat_update`: record a seat's current status, blockers, task metadata, and durable memory.
+- `republic_phase_update`: transition planning/execution/review state and lock contracts or blockers.
+- `republic_round_start`: actively launch multiple seats for a planning, execution, review, or idle round.
+- `republic_publish`: ask or answer another seat, object, propose, revise, hand off, or record consensus.
+- `republic_inbox`: read targeted, referenced, workgroup, module, dependency-gate, and supervisor messages for a seat.
+- `republic_wait`: block the current seat until another Commons message references an earlier message ID.
+- `republic_contract`: record shared API, schema, test, or handoff contracts before adjacent modules implement against each other.
+
+`republic_team_init` writes team manifest, phase state, per-seat state, and per-seat memory under the Git common dir. It can infer seats from the goal/files, honor user-provided seat counts, or use explicit seat lists from config. `republic_round_start` then selects seats by phase, workgroup, or explicit ID, respects `team.max_parallel_seats`, and launches those seats as active background sessions. Seats can call `republic_seat_update` to record whether they are running, waiting, blocked, done, or in error, and `republic_team_status` provides the stable read model needed by supervisor review and dashboard views. `republic_phase_update` records the boundary between planning, execution, review, and idle, including locked contracts and blockers. When enabled, targeted `question`, `handoff`, and `objection` messages published with `republic_publish` are actively dispatched to a background response seat. The publishing seat can then call `republic_wait` to block until an `answer`, `revision`, `objection`, `consensus`, `contract`, or `handoff` references the original message. Objections and Commons messages marked `blocked` or `review-required` also dispatch a supervisor review seat. The scheduler records each dispatch in Commons and the ledger, then background seats can answer, revise, object, hand off, publish supervisor decisions, update their persistent seat state, transition team phase, start additional rounds, or write contracts through the same Republic tools. Preferred seat agents are checked against the current OpenCode runtime registry; unavailable OMO roles fall back to an available runtime agent while preserving the requested role in the dispatch prompt/output. The native-git hook injects relevant inbox messages into the next chat turn as `<republic-commons-inbox>` and can warn or block weak-model execution writes until locked contract context has been received. The supervisor policy loop records `supervisor-policy` messages on idle when questions, objections, or governance warnings remain unresolved.
+
+In `team_model: "parliament"`, `"squad"`, or `"parliament_squad"`, Republic seats are not a decorative wrapper around Sisyphus-style delegation. With `team.exclusive_seat_orchestration: true` they are the orchestration layer: OMO runtime agents may execute a seat, but the main agent is blocked from opening an independent `task` or `call_omo_agent` decomposition. Add capacity by allocating more seats or starting another Republic round, not by mixing in the legacy automatic subagent plan.
+
+This is the main product distinction from ordinary multi-agent fan-out. The runtime model may still be the same OpenCode/Kimi/OpenRouter model, but Republic makes each seat durable: it has a seat ID, state file, memory doc, Commons inbox, workgroup contract context, and native-git trace. That lets a supervisor detect idle-but-open phases, unresolved dependency gates, missing contracts, and model shortcuts after the chat turn has ended.
 
 ### /start-work
 
@@ -594,6 +656,20 @@ Load custom commands from:
 | **task**              | Category-based task delegation. Supports built-in categories like `visual-engineering`, `ultrabrain`, `deep`, `artistry`, `quick`, `unspecified-low`, `unspecified-high`, and `writing`, or direct agent targeting via `subagent_type`. |
 | **background_output** | Retrieve background task results                                                                                                                                                                                                        |
 | **background_cancel** | Cancel running background tasks                                                                                                                                                                                                         |
+
+### Republic Collaboration Tools
+
+| Tool                  | Description                                                                                                      |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **republic_team_init** | Initialize a persistent team from inferred, count-based, or explicit seat allocation.                             |
+| **republic_team_status** | Read manifest, phase, seat states, memory tails, and recent Commons messages for supervision or visualization.  |
+| **republic_seat_update** | Update a seat's running/waiting/blocked/done state, task metadata, blockers, and durable memory.                |
+| **republic_phase_update** | Transition team phase and lock contracts/blockers between planning, execution, review, and idle.               |
+| **republic_round_start** | Launch selected dynamic seats as background sessions for a collaboration round.                                |
+| **republic_publish**  | Publish a Git-native Commons message: question, answer, objection, proposal, revision, handoff, consensus, or note. Targeted questions, handoffs, and objections can dispatch background response seats. |
+| **republic_inbox**    | Read relevant Commons messages for a seat, optionally including that seat's Markdown working doc.                 |
+| **republic_wait**     | Wait for a response that references an earlier Commons message.                                                  |
+| **republic_contract** | Write or revise a workgroup contract for shared API shape, data schemas, test boundaries, and handoffs.          |
 
 ### Visual Analysis Tools
 
@@ -747,7 +823,7 @@ Hooks intercept and modify behavior at key points in the agent lifecycle across 
 
 | Hook                        | Event               | Description                                                                                                                                                 |
 | --------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **keyword-detector**        | Message + Transform | Detects keywords and activates modes: `ultrawork`/`ulw` (max performance), `search`/`find` (parallel exploration), `analyze`/`investigate` (deep analysis). |
+| **keyword-detector**        | Message + Transform | Detects keywords and activates modes: `ultrawork`/`ulw` (max performance), `repwork`/`republicwork` (Republic persistent seats), `search`/`find` (parallel exploration), `analyze`/`investigate` (deep analysis). |
 | **think-mode**              | Params              | Auto-detects extended thinking needs. Catches "think deeply", "ultrathink" and adjusts model settings.                                                      |
 | **ralph-loop**              | Event + Message     | Manages self-referential loop continuation.                                                                                                                 |
 | **start-work**              | Message             | Handles /start-work command execution.                                                                                                                      |
@@ -764,6 +840,7 @@ Hooks intercept and modify behavior at key points in the agent lifecycle across 
 | **thinking-block-validator**    | Transform                | Validates thinking blocks to prevent API errors.                                          |
 | **edit-error-recovery**         | PostToolUse + Event      | Recovers from edit tool failures.                                                         |
 | **write-existing-file-guard**   | PreToolUse               | Prevents accidental overwrites of existing files without reading them first.              |
+| **native-git**                  | PreToolUse + PostToolUse + Event | Tracks dirty Git changes caused by write/edit/bash-style tools, writes audit JSONL under `.git`, publishes Republic governance records, and reminds users to commit with `git-master`. |
 | **hashline-read-enhancer**      | PostToolUse              | Enhances read output with hash-anchored line markers for the hashline edit tool.          |
 | **hashline-edit-diff-enhancer** | PreToolUse + PostToolUse | Enhances edit operations with diff markers for the hashline edit tool.                    |
 

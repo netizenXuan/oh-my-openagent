@@ -32,7 +32,7 @@ hooks/
 ├── hashline-read-enhancer/     # Adds LINE#ID hashes to Read output
 ├── interactive-bash-session/   # Tmux session management
 ├── json-error-recovery/        # JSON parse error correction
-├── keyword-detector/           # ultrawork/search/analyze modes
+├── keyword-detector/           # ultrawork/republic/search/analyze modes
 ├── legacy-plugin-toast/        # Legacy plugin name migration toast
 ├── model-fallback/             # Provider-level model fallback
 ├── no-hephaestus-non-gpt/      # Block Hephaestus from non-GPT
@@ -113,7 +113,7 @@ hooks/
 | Hook | Event | Purpose |
 |------|-------|---------|
 | claudeCodeHooks | messages.transform | Claude Code settings.json compatibility |
-| keywordDetector | messages.transform | Detect ultrawork/search/analyze modes |
+| keywordDetector | messages.transform | Detect ultrawork/republic/search/analyze modes |
 | contextInjectorMessagesTransform | messages.transform | Inject AGENTS.md/README.md into context |
 | thinkingBlockValidator | messages.transform | Validate thinking block structure |
 | toolPairValidator | messages.transform | Validate tool call/result pairs |

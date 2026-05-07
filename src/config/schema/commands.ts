@@ -6,8 +6,12 @@ export const BuiltinCommandNameSchema = z.enum([
   "ulw-loop",
   "cancel-ralph",
   "refactor",
+  "deliberate",
+  "republic-status",
+  "republic-dashboard",
   "start-work",
   "stop-continuation",
+  "handoff",
   "remove-ai-slops",
 ])
 

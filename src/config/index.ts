@@ -21,4 +21,6 @@ export type {
   RuntimeFallbackConfig,
   ModelCapabilitiesConfig,
   FallbackModels,
+  NativeGitConfig,
+  RepublicConfig,
 } from "./schema"

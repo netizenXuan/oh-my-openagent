@@ -1,0 +1,155 @@
+/// <reference types="bun-types" />
+
+import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { execFileSync } from "node:child_process"
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import {
+  appendNativeGitAuditRecord,
+  appendRepublicCommonsMessage,
+  appendRepublicLedgerRecord,
+  appendRepublicSchedulerQueueRecord,
+  getNativeGitRepository,
+} from "../../shared/git-worktree"
+import { buildRepublicStatusReport, formatRepublicStatusReport } from "./status"
+
+function git(cwd: string, args: string[]): string {
+  return execFileSync("git", args, {
+    cwd,
+    encoding: "utf-8",
+    stdio: ["pipe", "pipe", "pipe"],
+  }).trimEnd()
+}
+
+function commitAll(cwd: string, message: string): void {
+  git(cwd, ["add", "."])
+  git(cwd, [
+    "-c",
+    "user.name=Republic Status Test",
+    "-c",
+    "user.email=republic-status@example.test",
+    "commit",
+    "--no-gpg-sign",
+    "-m",
+    message,
+  ])
+}
+
+describe("republic status report", () => {
+  let directory: string
+
+  beforeEach(() => {
+    directory = mkdtempSync(join(tmpdir(), "omo-republic-status-"))
+  })
+
+  afterEach(() => {
+    rmSync(directory, { recursive: true, force: true })
+  })
+
+  test("reports no repository outside git", () => {
+    const report = buildRepublicStatusReport({ directory })
+
+    expect(report.repository).toBeNull()
+    expect(report.republic.recordCount).toBe(0)
+    expect(formatRepublicStatusReport(report)).toContain("Not inside a git repository")
+  })
+
+  test("combines republic ledger and native git audit summaries", () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")
+    commitAll(directory, "init")
+
+    const repository = getNativeGitRepository(directory)
+    expect(repository).not.toBeNull()
+    appendRepublicLedgerRecord(repository!, {
+      deliberationID: "native git republic",
+      phase: "seat-proposal",
+      chamber: "house",
+      seatID: "planner-house-1",
+      role: "planner",
+      agent: "prometheus",
+      workgroupID: "api-workgroup",
+      module: "api",
+      taskID: "api-contract",
+      vote: "approve",
+      confidence: 0.75,
+      files: ["README.md"],
+      summary: "Proceed with tracked native git.",
+    })
+    appendRepublicCommonsMessage(repository!, {
+      deliberationID: "native git republic",
+      channel: "house-planning",
+      phase: "cross-examination",
+      round: 1,
+      authorSeatID: "planner-house-2",
+      authorAgent: "prometheus",
+      targetSeatID: "planner-house-1",
+      workgroupID: "api-workgroup",
+      module: "api",
+      taskID: "api-review",
+      dependsOn: ["api-contract"],
+      messageType: "question",
+      references: ["proposal-1"],
+      files: ["README.md"],
+      content: "Does the proposal preserve rollback visibility?",
+    })
+    appendNativeGitAuditRecord(repository!, {
+      tool: "edit",
+      sessionID: "ses_1",
+      callID: "call_1",
+      agent: "atlas",
+      model: "kimi-for-coding/k2p6",
+      category: "quick",
+      files: ["README.md"],
+      summary: "README.md changed",
+    })
+    appendRepublicSchedulerQueueRecord(repository!, {
+      queueType: "seat-response",
+      status: "queued",
+      reason: "manager_unavailable",
+      deliberationID: "native git republic",
+      phase: "cross-examination",
+      sourceMessageID: "question-1",
+      sourceMessageType: "question",
+      targetSeatID: "planner-house-1",
+      requestedAgent: "sisyphus",
+      summary: "Queue planner-house-1 for a response.",
+    })
+
+    const report = buildRepublicStatusReport({
+      directory,
+      deliberationId: "native git republic",
+    })
+    const formatted = formatRepublicStatusReport(report)
+
+    expect(report.repository?.repoRoot).toBe(directory.replace(/\\/g, "/"))
+    expect(report.republic.recordCount).toBe(1)
+    expect(report.republic.deliberationID).toBe("native-git-republic")
+    expect(report.decision.status).toBe("needs-quorum")
+    expect(report.commons.messageCount).toBe(1)
+    expect(report.commons.workgroups["api-workgroup"]).toBe(1)
+    expect(report.commons.modules.api).toBe(1)
+    expect(report.commons.tasks).toEqual(["api-review"])
+    expect(report.commons.targetedMessages).toBe(1)
+    expect(report.commons.referencedMessages).toBe(1)
+    expect(report.nativeGit.recordCount).toBe(1)
+    expect(report.schedulerQueue.recordCount).toBe(1)
+    expect(report.schedulerQueue.pending).toBe(1)
+    expect(report.schedulerQueue.queued).toBe(1)
+    expect(formatted).toContain("OMO Republic Status")
+    expect(formatted).toContain("Deliberations: native-git-republic")
+    expect(formatted).toContain("Agents: prometheus=1")
+    expect(formatted).toContain("Republic Commons")
+    expect(formatted).toContain("Messages: 1")
+    expect(formatted).toContain("Workgroups: api-workgroup=1")
+    expect(formatted).toContain("Tasks: api-review")
+    expect(formatted).toContain("Types: question=1")
+    expect(formatted).toContain("Decision: needs-quorum")
+    expect(formatted).toContain("Models: kimi-for-coding/k2p6=1")
+    expect(formatted).toContain("Republic Scheduler Queue")
+    expect(formatted).toContain("Pending: 1")
+    expect(formatted).toContain("Queued: 1")
+    expect(formatted).toContain("Next action:")
+  })
+})

@@ -1,15 +1,23 @@
 export const AGENT_NAME_MAP: Record<string, string> = {
-  // Sisyphus variants → "sisyphus"
+  // Sisyphus variants -> "sisyphus"
   omo: "sisyphus",
   OmO: "sisyphus",
   Sisyphus: "sisyphus",
   "Sisyphus (Ultraworker)": "sisyphus",
   sisyphus: "sisyphus",
 
-  // Hephaestus variants → "hephaestus"
+  // Republic variants
+  "Republic - Team Orchestrator": "republic",
+  "Republic - Large Team": "republic-large",
+  "Republic - Extreme Team": "republic-extreme",
+  republic: "republic",
+  "republic-large": "republic-large",
+  "republic-extreme": "republic-extreme",
+
+  // Hephaestus variants -> "hephaestus"
   "Hephaestus (Deep Agent)": "hephaestus",
 
-  // Prometheus variants → "prometheus"
+  // Prometheus variants -> "prometheus"
   "OmO-Plan": "prometheus",
   "omo-plan": "prometheus",
   "Planner-Sisyphus": "prometheus",
@@ -18,24 +26,24 @@ export const AGENT_NAME_MAP: Record<string, string> = {
   "Prometheus (Plan Builder)": "prometheus",
   prometheus: "prometheus",
 
-  // Atlas variants → "atlas"
+  // Atlas variants -> "atlas"
   "orchestrator-sisyphus": "atlas",
   Atlas: "atlas",
   "Atlas (Plan Executor)": "atlas",
   atlas: "atlas",
 
-  // Metis variants → "metis"
+  // Metis variants -> "metis"
   "plan-consultant": "metis",
   "Metis - Plan Consultant": "metis",
   "Metis (Plan Consultant)": "metis",
   metis: "metis",
 
-  // Momus variants → "momus"
+  // Momus variants -> "momus"
   "Momus - Plan Critic": "momus",
   "Momus (Plan Critic)": "momus",
   momus: "momus",
 
-  // Sisyphus-Junior → "sisyphus-junior"
+  // Sisyphus-Junior -> "sisyphus-junior"
   "Sisyphus-Junior": "sisyphus-junior",
   "sisyphus-junior": "sisyphus-junior",
 
@@ -46,9 +54,11 @@ export const AGENT_NAME_MAP: Record<string, string> = {
   explore: "explore",
   "multimodal-looker": "multimodal-looker",
 }
-
 export const BUILTIN_AGENT_NAMES = new Set([
   "sisyphus", // was "Sisyphus"
+  "republic",
+  "republic-large",
+  "republic-extreme",
   "oracle",
   "librarian",
   "explore",

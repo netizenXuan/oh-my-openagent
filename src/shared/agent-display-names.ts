@@ -11,6 +11,9 @@
  */
 export const AGENT_DISPLAY_NAMES: Record<string, string> = {
   sisyphus: "Sisyphus - Ultraworker",
+  republic: "Republic - Team Orchestrator",
+  "republic-large": "Republic - Large Team",
+  "republic-extreme": "Republic - Extreme Team",
   hephaestus: "Hephaestus - Deep Agent",
   prometheus: "Prometheus - Plan Builder",
   atlas: "Atlas - Plan Executor",

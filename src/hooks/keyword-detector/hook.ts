@@ -1,6 +1,6 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import { detectKeywordsWithType, extractPromptText } from "./detector"
-import { isPlannerAgent, isNonOmoAgent } from "./constants"
+import { isPlannerAgent, isNonOmoAgent, isRepublicAgent } from "./constants"
 import { log } from "../../shared"
 import {
   isSystemDirective,
@@ -50,6 +50,11 @@ export function createKeywordDetectorHook(
 
       const currentAgent = getSessionAgent(input.sessionID) ?? input.agent
 
+      if (isRepublicAgent(currentAgent)) {
+        log(`[keyword-detector] Skipping legacy keyword injection for Republic agent`, { sessionID: input.sessionID, agent: currentAgent })
+        return
+      }
+
       // Skip all keyword injection for non-OMO agents (e.g., OpenCode-Builder, Plan)
       if (isNonOmoAgent(currentAgent)) {
         log(`[keyword-detector] Skipping keyword injection for non-OMO agent`, { sessionID: input.sessionID, agent: currentAgent })
@@ -94,6 +99,7 @@ export function createKeywordDetectorHook(
       }
 
       const hasUltrawork = detectedKeywords.some((k) => k.type === "ultrawork")
+      const hasRepublic = detectedKeywords.some((k) => k.type === "republic")
       if (hasUltrawork) {
         const runtimeVariant = getRuntimeVariant(input, output.message)
         const isRuntimeMax = runtimeVariant === "max"
@@ -121,6 +127,28 @@ export function createKeywordDetectorHook(
             })
           )
 
+      }
+
+      if (hasRepublic) {
+        log(`[keyword-detector] Republic work mode activated`, {
+          sessionID: input.sessionID,
+        })
+
+        ctx.client.tui
+          .showToast({
+            body: {
+              title: "Republic Work Mode Activated",
+              message: "Persistent seats, Commons, contracts, supervisor governance, and native-git tracking engaged.",
+              variant: "success" as const,
+              duration: 3000,
+            },
+          })
+          .catch((err) =>
+            log(`[keyword-detector] Failed to show Republic toast`, {
+              error: err,
+              sessionID: input.sessionID,
+            })
+          )
       }
 
       const textPartIndex = output.parts.findIndex((p) => p.type === "text" && p.text !== undefined)

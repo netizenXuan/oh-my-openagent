@@ -4,6 +4,7 @@ import type { CategoriesConfig, GitMasterConfig } from "../config/schema"
 import type { LoadedSkill } from "../features/opencode-skill-loader/types"
 import type { BrowserAutomationProvider } from "../config/schema"
 import { createSisyphusAgent } from "./sisyphus"
+import { createRepublicAgent } from "./republic"
 import { createOracleAgent, ORACLE_PROMPT_METADATA } from "./oracle"
 import { createLibrarianAgent, LIBRARIAN_PROMPT_METADATA } from "./librarian"
 import { createExploreAgent, EXPLORE_PROMPT_METADATA } from "./explore"
@@ -24,13 +25,26 @@ import { mergeCategories } from "../shared/merge-categories"
 import { buildAvailableSkills } from "./builtin-agents/available-skills"
 import { collectPendingBuiltinAgents } from "./builtin-agents/general-agents"
 import { maybeCreateSisyphusConfig } from "./builtin-agents/sisyphus-agent"
+import { maybeCreateRepublicConfigs } from "./builtin-agents/republic-agent"
 import { maybeCreateHephaestusConfig } from "./builtin-agents/hephaestus-agent"
 import { maybeCreateAtlasConfig } from "./builtin-agents/atlas-agent"
 
 type AgentSource = AgentFactory | AgentConfig
 
+const createRepublicLargeAgent = Object.assign(
+  (model: string) => createRepublicAgent(model, "large"),
+  { mode: "primary" as const },
+)
+const createRepublicExtremeAgent = Object.assign(
+  (model: string) => createRepublicAgent(model, "extreme"),
+  { mode: "primary" as const },
+)
+
 const agentSources: Record<BuiltinAgentName, AgentSource> = {
   sisyphus: createSisyphusAgent,
+  republic: createRepublicAgent,
+  "republic-large": createRepublicLargeAgent,
+  "republic-extreme": createRepublicExtremeAgent,
   hephaestus: createHephaestusAgent,
   oracle: createOracleAgent,
   librarian: createLibrarianAgent,
@@ -137,6 +151,22 @@ export async function createBuiltinAgents(
   })
   if (sisyphusConfig) {
     result["sisyphus"] = sisyphusConfig
+  }
+
+  const republicConfigs = maybeCreateRepublicConfigs({
+    disabledAgents,
+    agentOverrides,
+    uiSelectedModel,
+    availableModels,
+    systemDefaultModel,
+    isFirstRunNoCache,
+    mergedCategories,
+    directory,
+  })
+  for (const [name, config] of Object.entries(republicConfigs)) {
+    if (config) {
+      result[name] = config
+    }
   }
 
   const hephaestusConfig = maybeCreateHephaestusConfig({

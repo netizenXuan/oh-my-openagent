@@ -12,10 +12,12 @@ import { CommentCheckerConfigSchema } from "./comment-checker"
 import { BuiltinCommandNameSchema } from "./commands"
 import { ExperimentalConfigSchema } from "./experimental"
 import { GitMasterConfigSchema } from "./git-master"
+import { NativeGitConfigSchema } from "./git"
 import { NotificationConfigSchema } from "./notification"
 import { OpenClawConfigSchema } from "./openclaw"
 import { ModelCapabilitiesConfigSchema } from "./model-capabilities"
 import { RalphLoopConfigSchema } from "./ralph-loop"
+import { RepublicConfigSchema } from "./republic"
 import { RuntimeFallbackConfigSchema } from "./runtime-fallback"
 import { SkillsConfigSchema } from "./skills"
 import { SisyphusConfigSchema } from "./sisyphus"
@@ -68,6 +70,108 @@ export const OhMyOpenCodeConfigSchema = z.object({
     commit_footer: true,
     include_co_authored_by: true,
     git_env_prefix: "GIT_MASTER=1",
+  }),
+  git: NativeGitConfigSchema.default({
+    mode: "tracked",
+    audit_log: true,
+  }),
+  republic: RepublicConfigSchema.default({
+    enabled: true,
+    mode: "advisory",
+    ledger: true,
+    house_seats: 3,
+    senate_seats: 2,
+    review_bench_seats: 2,
+    quorum: 4,
+    supermajority: 0.67,
+    veto_on_blocker: true,
+    git_summary: true,
+    team_model: "advisory",
+    team: {
+      seat_allocation: "auto",
+      seat_memory: true,
+      persistent_sessions: true,
+      exclusive_seat_orchestration: true,
+      planner_seat_count: "auto",
+      executor_seat_count: "auto",
+      reviewer_seat_count: 2,
+      max_parallel_seats: 4,
+      default_runtime_agent: "general",
+    },
+    seats: {
+      planners: [],
+      executors: [],
+      reviewers: [],
+      supervisors: ["republic-supervisor"],
+    },
+    commons: {
+      auto_publish: true,
+      inbox: true,
+      inject_max_messages: 6,
+      agent_docs: true,
+    },
+    supervisor: {
+      intervention: true,
+      policy_loop: true,
+      file_threshold: 5,
+      high_risk_paths: [
+        "package.json",
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "yarn.lock",
+        "bun.lock",
+        "bun.lockb",
+        "node_modules/",
+        "dist/",
+        "build/",
+        "coverage/",
+        ".next/",
+        "out/",
+        "src/config/",
+        "src/plugin/",
+        "src/shared/git-worktree/",
+        ".github/workflows/",
+      ],
+    },
+    dependency_gate: {
+      enabled: true,
+      mode: "advisory",
+      cross_module_threshold: 2,
+    },
+    contracts: {
+      enabled: true,
+    },
+    weak_model_guardrails: {
+      enabled: true,
+      labeled_context: true,
+      require_context_before_edit: true,
+      require_explicit_context_read: false,
+      pre_edit_context_gate: "advisory",
+      generated_artifact_gate: "block",
+      generated_artifact_paths: [
+        "node_modules/",
+        "dist/",
+        "build/",
+        "coverage/",
+        ".next/",
+        "out/",
+      ],
+    },
+    scheduler: {
+      enabled: true,
+      auto_dispatch: true,
+      message_types: ["question", "handoff", "objection"],
+      default_agent: "sisyphus",
+      supervisor_agent: "hephaestus",
+      seat_agents: {},
+      prompt_max_messages: 8,
+    },
+    dashboard: {
+      auto_open: true,
+      auto_open_events: ["team_init"],
+      port: 4097,
+      refresh_ms: 2000,
+    },
   }),
   browser_automation_engine: BrowserAutomationConfigSchema.optional(),
   websearch: WebsearchConfigSchema.optional(),

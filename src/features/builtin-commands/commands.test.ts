@@ -2,8 +2,11 @@
 
 import { afterEach, beforeEach, describe, test, expect } from "bun:test"
 import { loadBuiltinCommands } from "./commands"
+import { DELIBERATE_TEMPLATE } from "./templates/deliberate"
 import { HANDOFF_TEMPLATE } from "./templates/handoff"
 import { REMOVE_AI_SLOPS_TEMPLATE } from "./templates/remove-ai-slops"
+import { REPUBLIC_DASHBOARD_TEMPLATE } from "./templates/republic-dashboard"
+import { REPUBLIC_STATUS_TEMPLATE } from "./templates/republic-status"
 import type { BuiltinCommandName } from "./types"
 import { _resetForTesting, registerAgentName } from "../claude-code-session-state"
 
@@ -145,6 +148,133 @@ describe("loadBuiltinCommands - remove-ai-slops", () => {
 
     //#then
     expect(commands["remove-ai-slops"].description).toContain("AI-generated code smells")
+  })
+})
+
+describe("loadBuiltinCommands - deliberate", () => {
+  test("should include deliberate command in loaded commands", () => {
+    //#given
+    const disabledCommands: BuiltinCommandName[] = []
+
+    //#when
+    const commands = loadBuiltinCommands(disabledCommands)
+
+    //#then
+    expect(commands.deliberate).toBeDefined()
+    expect(commands.deliberate.name).toBe("deliberate")
+  })
+
+  test("should exclude deliberate when disabled", () => {
+    //#given
+    const disabledCommands: BuiltinCommandName[] = ["deliberate"]
+
+    //#when
+    const commands = loadBuiltinCommands(disabledCommands)
+
+    //#then
+    expect(commands.deliberate).toBeUndefined()
+  })
+
+  test("should include deliberate template and session context variables", () => {
+    //#given - no disabled commands
+
+    //#when
+    const commands = loadBuiltinCommands()
+
+    //#then
+    expect(commands.deliberate.template).toContain(DELIBERATE_TEMPLATE)
+    expect(commands.deliberate.template).toContain("$SESSION_ID")
+    expect(commands.deliberate.template).toContain("$TIMESTAMP")
+    expect(commands.deliberate.template).toContain("$ARGUMENTS")
+  })
+
+  test("should describe the republic ledger path and multi-seat same-role design", () => {
+    //#given - the template string
+
+    //#when / #then
+    expect(DELIBERATE_TEMPLATE).toContain("House of Planners")
+    expect(DELIBERATE_TEMPLATE).toContain("Senate of Planners")
+    expect(DELIBERATE_TEMPLATE).toContain("multiple independent seats for the same role")
+    expect(DELIBERATE_TEMPLATE).toContain(".git/omo/republic/ledger.jsonl")
+  })
+})
+
+describe("loadBuiltinCommands - republic-status", () => {
+  test("should include republic-status command in loaded commands", () => {
+    //#given
+    const disabledCommands: BuiltinCommandName[] = []
+
+    //#when
+    const commands = loadBuiltinCommands(disabledCommands)
+
+    //#then
+    expect(commands["republic-status"]).toBeDefined()
+    expect(commands["republic-status"].name).toBe("republic-status")
+  })
+
+  test("should exclude republic-status when disabled", () => {
+    //#given
+    const disabledCommands: BuiltinCommandName[] = ["republic-status"]
+
+    //#when
+    const commands = loadBuiltinCommands(disabledCommands)
+
+    //#then
+    expect(commands["republic-status"]).toBeUndefined()
+  })
+
+  test("should include ledger and native git audit status instructions", () => {
+    //#given - no disabled commands
+
+    //#when
+    const commands = loadBuiltinCommands()
+
+    //#then
+    expect(commands["republic-status"].template).toContain(REPUBLIC_STATUS_TEMPLATE)
+    expect(commands["republic-status"].template).toContain(".git/omo/republic/ledger.jsonl")
+    expect(commands["republic-status"].template).toContain(".git/omo/native-git/audit.jsonl")
+    expect(commands["republic-status"].template).toContain("$ARGUMENTS")
+  })
+})
+
+describe("loadBuiltinCommands - republic-dashboard", () => {
+  test("should include republic-dashboard command in loaded commands", () => {
+    //#given
+    const disabledCommands: BuiltinCommandName[] = []
+
+    //#when
+    const commands = loadBuiltinCommands(disabledCommands)
+
+    //#then
+    expect(commands["republic-dashboard"]).toBeDefined()
+    expect(commands["republic-dashboard"].name).toBe("republic-dashboard")
+  })
+
+  test("should exclude republic-dashboard when disabled", () => {
+    //#given
+    const disabledCommands: BuiltinCommandName[] = ["republic-dashboard"]
+
+    //#when
+    const commands = loadBuiltinCommands(disabledCommands)
+
+    //#then
+    expect(commands["republic-dashboard"]).toBeUndefined()
+  })
+
+  test("should include dashboard instructions", () => {
+    //#given - no disabled commands
+
+    //#when
+    const commands = loadBuiltinCommands()
+
+    //#then
+    expect(commands["republic-dashboard"].template).toContain(REPUBLIC_DASHBOARD_TEMPLATE)
+    expect(commands["republic-dashboard"].template).toContain("oh-my-opencode republic dashboard")
+    expect(commands["republic-dashboard"].template).toContain(".git/omo/republic/dashboard.html")
+    expect(commands["republic-dashboard"].template).toContain("workgroup")
+    expect(commands["republic-dashboard"].template).toContain("--open")
+    expect(commands["republic-dashboard"].template).toContain("click-to-inspect seat detail panel")
+    expect(commands["republic-dashboard"].template).toContain("republic.dashboard.auto_open=true")
   })
 })
 

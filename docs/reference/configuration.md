@@ -23,6 +23,7 @@ Complete reference for Oh My OpenCode plugin configuration. During the rename tr
   - [Commands](#commands)
   - [Browser Automation](#browser-automation)
   - [Tmux Integration](#tmux-integration)
+  - [Native Git Tracking](#native-git-tracking)
   - [Git Master](#git-master)
   - [Comment Checker](#comment-checker)
   - [Notification](#notification)
@@ -146,7 +147,7 @@ Here's a practical starting configuration:
 
 ### Agents
 
-Override built-in agent settings. Available agents: `sisyphus`, `hephaestus`, `prometheus`, `oracle`, `librarian`, `explore`, `multimodal-looker`, `metis`, `momus`, `atlas`, `sisyphus-junior`.
+Override built-in agent settings. Available agents: `sisyphus`, `republic`, `republic-large`, `republic-extreme`, `hephaestus`, `prometheus`, `oracle`, `librarian`, `explore`, `multimodal-looker`, `metis`, `momus`, `atlas`, `sisyphus-junior`.
 
 ```json
 {
@@ -159,7 +160,7 @@ Override built-in agent settings. Available agents: `sisyphus`, `hephaestus`, `p
 
 Disable agents entirely: `{ "disabled_agents": ["oracle", "multimodal-looker"] }`
 
-Core agents receive an injected runtime `order` field for deterministic Tab cycling in the UI: Sisyphus = 1, Hephaestus = 2, Prometheus = 3, Atlas = 4. This is not a user-configurable config key.
+Core agents receive an injected runtime `order` field for deterministic Tab cycling in the UI: Sisyphus = 1, Republic = 2, Republic Large = 3, Republic Extreme = 4, Hephaestus = 5, Prometheus = 6, Atlas = 7. This is not a user-configurable config key.
 
 #### Agent Options
 
@@ -509,7 +510,7 @@ Disable built-in hooks via `disabled_hooks`:
 { "disabled_hooks": ["comment-checker"] }
 ```
 
-Available hooks: `todo-continuation-enforcer`, `context-window-monitor`, `session-recovery`, `session-notification`, `comment-checker`, `grep-output-truncator`, `tool-output-truncator`, `directory-agents-injector`, `directory-readme-injector`, `empty-task-response-detector`, `think-mode`, `anthropic-context-window-limit-recovery`, `rules-injector`, `background-notification`, `auto-update-checker`, `startup-toast`, `keyword-detector`, `agent-usage-reminder`, `non-interactive-env`, `interactive-bash-session`, `compaction-context-injector`, `thinking-block-validator`, `claude-code-hooks`, `ralph-loop`, `preemptive-compaction`, `auto-slash-command`, `sisyphus-junior-notepad`, `no-sisyphus-gpt`, `start-work`, `runtime-fallback`
+Available hooks: `todo-continuation-enforcer`, `context-window-monitor`, `session-recovery`, `session-notification`, `comment-checker`, `grep-output-truncator`, `tool-output-truncator`, `directory-agents-injector`, `directory-readme-injector`, `empty-task-response-detector`, `think-mode`, `anthropic-context-window-limit-recovery`, `rules-injector`, `background-notification`, `auto-update-checker`, `startup-toast`, `keyword-detector`, `agent-usage-reminder`, `non-interactive-env`, `interactive-bash-session`, `compaction-context-injector`, `thinking-block-validator`, `claude-code-hooks`, `ralph-loop`, `preemptive-compaction`, `auto-slash-command`, `sisyphus-junior-notepad`, `no-sisyphus-gpt`, `start-work`, `runtime-fallback`, `native-git`
 
 **Notes:**
 
@@ -526,7 +527,7 @@ Disable built-in commands via `disabled_commands`:
 { "disabled_commands": ["init-deep", "start-work"] }
 ```
 
-Available commands: `init-deep`, `ralph-loop`, `ulw-loop`, `cancel-ralph`, `refactor`, `start-work`, `stop-continuation`, `handoff`
+Available commands: `init-deep`, `ralph-loop`, `ulw-loop`, `cancel-ralph`, `refactor`, `deliberate`, `republic-status`, `republic-dashboard`, `start-work`, `stop-continuation`, `handoff`
 
 ### Browser Automation
 
@@ -564,6 +565,174 @@ Run background subagents in separate tmux panes. Requires running inside tmux wi
 | `main_pane_size`       | `60`            | Main pane % (20–80)                                                                 |
 | `main_pane_min_width`  | `120`           | Min main pane columns                                                               |
 | `agent_pane_min_width` | `40`            | Min agent pane columns                                                              |
+
+### Native Git Tracking
+
+Track agent-caused Git changes without automatically committing, stashing, or creating worktrees:
+
+```json
+{
+  "git": {
+    "mode": "tracked",
+    "audit_log": true
+  }
+}
+```
+
+| Option      | Default     | Description                                                                 |
+| ----------- | ----------- | --------------------------------------------------------------------------- |
+| `mode`      | `"tracked"` | `"manual"` disables tracking. `"tracked"` records dirty Git state. `"strict"` is reserved for future enforcement. |
+| `audit_log` | `true`      | Write JSONL audit records under the Git common dir at `.git/omo/native-git/audit.jsonl`. |
+
+In `tracked` mode, write/edit/bash-style tool activity is audited when it leaves the repository dirty. When the session goes idle, OpenCode shows a reminder to use `git-master` for atomic commits. Audit files live under `.git`, so they do not dirty the worktree.
+
+### OMO Republic
+
+Configure the deliberative multi-agent workflow and ledger:
+
+```json
+{
+  "republic": {
+    "enabled": true,
+    "mode": "advisory",
+    "ledger": true,
+    "house_seats": 3,
+    "senate_seats": 2,
+    "review_bench_seats": 2,
+    "quorum": 4,
+    "supermajority": 0.67,
+    "veto_on_blocker": true,
+    "git_summary": true,
+    "team_model": "advisory",
+    "team": {
+      "seat_allocation": "auto",
+      "seat_memory": true,
+      "persistent_sessions": true,
+      "exclusive_seat_orchestration": true,
+      "planner_seat_count": "auto",
+      "executor_seat_count": "auto",
+      "reviewer_seat_count": 2,
+      "max_parallel_seats": 4,
+      "default_runtime_agent": "general"
+    },
+    "commons": {
+      "auto_publish": true,
+      "inbox": true,
+      "inject_max_messages": 6,
+      "agent_docs": true
+    },
+    "supervisor": {
+      "intervention": true,
+      "policy_loop": true,
+      "file_threshold": 5,
+      "high_risk_paths": [
+        "package.json",
+        "bun.lock",
+        "src/config/",
+        "src/plugin/",
+        "src/shared/git-worktree/",
+        ".github/workflows/"
+      ]
+    },
+    "dependency_gate": {
+      "enabled": true,
+      "mode": "advisory",
+      "cross_module_threshold": 2
+    },
+    "contracts": {
+      "enabled": true
+    },
+    "weak_model_guardrails": {
+      "enabled": true,
+      "labeled_context": true,
+      "require_context_before_edit": true,
+      "require_explicit_context_read": false,
+      "pre_edit_context_gate": "advisory"
+    },
+    "scheduler": {
+      "enabled": true,
+      "auto_dispatch": true,
+      "message_types": ["question", "handoff", "objection"],
+      "default_agent": "sisyphus",
+      "supervisor_agent": "hephaestus",
+      "seat_agents": {},
+      "prompt_max_messages": 8
+    },
+    "dashboard": {
+      "auto_open": false,
+      "auto_open_events": ["team_init"],
+      "port": 4097,
+      "refresh_ms": 2000
+    }
+  }
+}
+```
+
+Republic is also exposed directly in the OpenCode App agent selector through three primary agents:
+
+| App agent | Preset | Default capacity | Intended use |
+| --------- | ------ | ---------------- | ------------ |
+| `Republic - Team Orchestrator` | `standard` | `max_parallel_seats=4` | Normal complex work where cost and coordination need to stay balanced |
+| `Republic - Large Team` | `large` | `max_parallel_seats=8`, planner/executor/reviewer counts biased upward | Broad projects with several adjacent modules or heavier review needs |
+| `Republic - Extreme Team` | `extreme` | `max_parallel_seats=12`, larger planning/execution/review benches | Stress tests, large rewrites, and high-risk work where coordination cost is acceptable |
+
+The preset only changes the initialization defaults used by `republic_team_init`. Users can still override counts in the prompt or config. The standard preset remains the product default because four concurrent seats are enough for most tasks and avoid overwhelming weaker or rate-limited models. Use Large or Extreme when the task has enough independent modules to justify the additional calls.
+
+| Option                                   | Default      | Description                                                                 |
+| ---------------------------------------- | ------------ | --------------------------------------------------------------------------- |
+| `enabled`                                | `true`       | Enable OMO Republic command helpers                                         |
+| `mode`                                   | `"advisory"` | `"manual"` disables governance, `"advisory"` records and warns, `"governed"` enables configured hard gates |
+| `ledger`                                 | `true`       | Write deliberation records under `.git/omo/republic/`                       |
+| `house_seats`                            | `3`          | Fast same-role planner seats                                                |
+| `senate_seats`                           | `2`          | Conservative same-role planner seats                                        |
+| `review_bench_seats`                     | `2`          | Reviewer seats for blocker, rollback, and test scrutiny                     |
+| `quorum`                                 | `4`          | Minimum seat records expected before conference synthesis                   |
+| `supermajority`                          | `0.67`       | Approval ratio used for high-confidence execution recommendations           |
+| `veto_on_blocker`                        | `true`       | Treat reject/blocker review votes as final-plan blockers                    |
+| `git_summary`                            | `true`       | Include native-git audit information in Republic status reports             |
+| `team_model`                             | `"advisory"` | `"single"` and `"advisory"` keep OMO's normal agent flow; `"parliament"`, `"squad"`, and `"parliament_squad"` enable Republic seat orchestration |
+| `team.seat_allocation`                   | `"auto"`     | Allocate seats from task goal/files, by user-provided counts, or from explicit lists |
+| `team.exclusive_seat_orchestration`      | `true`       | When a real seat team is active, Republic owns multi-agent planning/execution and blocks legacy ad hoc `task` / `call_omo_agent` delegation |
+| `team.max_parallel_seats`                | `4`          | Maximum seats launched by one `republic_round_start` call                   |
+| `team.default_runtime_agent`             | `"general"`  | Runtime OpenCode agent used to execute seats unless overridden              |
+| `commons.auto_publish`                   | `true`       | Publish native-git tool-change events to Republic Commons automatically     |
+| `commons.inbox`                          | `true`       | Inject relevant Commons inbox messages into the next seat turn              |
+| `commons.inject_max_messages`            | `6`          | Maximum Commons inbox messages injected into a chat turn                    |
+| `commons.agent_docs`                     | `true`       | Mirror Commons messages into per-seat Markdown docs under `.git/omo/republic/agents/` |
+| `supervisor.intervention`                | `true`       | Record supervisor intervention messages for high-risk or boundary-crossing changes |
+| `supervisor.policy_loop`                 | `true`       | On idle, publish supervisor-policy messages for unresolved questions or governance warnings |
+| `supervisor.file_threshold`              | `5`          | Trigger supervisor intervention when one tool call changes this many files  |
+| `supervisor.high_risk_paths`             | see example  | Path prefixes or files that require supervisor intervention                 |
+| `dependency_gate.enabled`                | `true`       | Enable preflight checks for cross-workgroup explicit write tools            |
+| `dependency_gate.mode`                   | `"advisory"` | `"advisory"` warns and records; `"block"` blocks only when `republic.mode` is `"governed"` |
+| `dependency_gate.cross_module_threshold` | `2`          | Number of inferred modules that triggers the dependency gate                 |
+| `contracts.enabled`                      | `true`       | Enable workgroup contract storage under `.git/omo/republic/contracts/`      |
+| `weak_model_guardrails.enabled`          | `true`       | Enable short labeled constraints and pre-edit Republic context checks for weaker models |
+| `weak_model_guardrails.labeled_context`  | `true`       | Prefer extractable labels such as `hard_dependency_rule` in Republic prompts and inboxes |
+| `weak_model_guardrails.require_context_before_edit` | `true` | Require locked execution contracts or Republic context before mutating tools proceed |
+| `weak_model_guardrails.require_explicit_context_read` | `false` | Require an explicit `republic_inbox` or `republic_team_status` read instead of accepting injected context |
+| `weak_model_guardrails.pre_edit_context_gate` | `"advisory"` | `"advisory"` records and warns; `"block"` blocks only when `republic.mode` is `"governed"` |
+| `scheduler.enabled`                      | `true`       | Enable active dispatch for targeted Commons messages                         |
+| `scheduler.auto_dispatch`                | `true`       | Launch a background response seat when a targeted dispatchable message is published |
+| `scheduler.message_types`                | see example  | Message types that trigger dispatch: `question`, `handoff`, `objection`     |
+| `scheduler.default_agent`                | `"sisyphus"` | Preferred OMO/runtime agent when a target seat has no explicit mapping      |
+| `scheduler.supervisor_agent`             | `"hephaestus"` | Preferred OMO/runtime agent for supervisor-targeted dispatch               |
+| `scheduler.seat_agents`                  | `{}`         | Map conceptual seat IDs such as `api-seat` to preferred OMO/runtime agents  |
+| `scheduler.prompt_max_messages`          | `8`          | Context budget hint included in dispatched response prompts                  |
+| `dashboard.auto_open`                    | `true`       | Start and open a local live Republic dashboard when configured events occur |
+| `dashboard.auto_open_events`             | `["team_init"]` | Events that can open the dashboard: `team_init`, `round_start`          |
+| `dashboard.port`                         | `4097`       | Port for the local live dashboard                                           |
+| `dashboard.refresh_ms`                   | `2000`       | Browser polling interval for live `.git/omo` state                          |
+
+Deliberation ledgers live under the Git common dir at `.git/omo/republic/ledger.jsonl`. Agent-to-agent Commons messages live beside them at `.git/omo/republic/commons.jsonl`, so parallel seats can publish proposals, questions, objections, answers, revisions, handoffs, status updates, dependency-gate events, and supervisor interventions without dirtying the worktree. Persistent team state lives under `.git/omo/republic/team/` with `manifest.json`, `phase.json`, and per-seat `state.json` / `memory.md`. Per-seat working docs live at `.git/omo/republic/agents/<seat-id>.md`; workgroup contracts live at `.git/omo/republic/contracts/<workgroup-id>.md`. Tool-caused dirty Git changes are audited separately at `.git/omo/native-git/audit.jsonl`. Use `/republic-status` or `oh-my-opencode republic status` to combine these views.
+
+The interactive Republic tools are `republic_team_init`, `republic_team_status`, `republic_seat_update`, `republic_phase_update`, `republic_round_start`, `republic_publish`, `republic_inbox`, `republic_wait`, and `republic_contract`. They are available to agents as normal tools and store their records under the Git common dir. `republic_team_init` can allocate seats automatically from task goals/files, by user-provided counts, or from explicit config. `republic_round_start` actively launches selected seats for a planning, execution, review, or idle round while respecting `team.max_parallel_seats`. `republic_seat_update` records each seat's current running/waiting/blocked/done status, blockers, task metadata, and durable memory; `republic_team_status` reads that state back for supervisor review and dashboard views. `republic_phase_update` records planning/execution/review transitions and can lock contracts or blockers into `phase.json`. When the scheduler is enabled, targeted `question`, `handoff`, and `objection` messages also create background response sessions for the target seat and write `channel: "scheduler"` dispatch records. The sender can call `republic_wait` on the published `message_id` to wait for a referenced response. Objections and messages marked `blocked` or `review-required` additionally create supervisor review dispatch records. Weak-model guardrails add deterministic enforcement around this loop: execution-phase writes with locked contracts require either injected Republic context or, when configured, an explicit `republic_inbox` / `republic_team_status` read before mutating tools are allowed. Dispatch validates the preferred agent against the current OpenCode runtime registry; when the preferred OMO role is unavailable, OMO falls back to an available runtime agent such as `general` and records the requested role in the prompt/output.
+
+When `team_model` is `parliament`, `squad`, or `parliament_squad` and `team.exclusive_seat_orchestration` remains `true`, seats become the product's only multi-agent organization layer. The plugin injects a system instruction that tells primary agents to use Republic tools instead of creating a second OMO subagent plan, and the pre-tool hook blocks direct `task` / `call_omo_agent` delegation from the main agent. Republic may still use OpenCode runtime agents internally as the execution transport for a seat, but responsibility, memory, communication, contracts, and supervision belong to the seat.
+
+OpenCode's current server plugin API does not expose a stable custom Desktop App panel slot. For a practical App workflow, set `dashboard.auto_open` to `true`; `republic_team_init` and/or `republic_round_start` will open a local live browser dashboard at `http://127.0.0.1:<port>` while the App continues running the session. This gives the user a separate real-time command board without writing dashboard files into the worktree.
+
+Compared with upstream OMO Team Mode, Republic is intentionally Git-native and governance-oriented. Upstream Team Mode focuses on a live lead/member team. Republic focuses on persistent seats, dynamic seat allocation, Commons messages, contracts, supervisor interventions, weak-model guardrails, native-git audit records, and a dashboard that can reconstruct who asked, answered, objected, revised, approved, or blocked a change from Git common-dir files. That makes it heavier, but also more suitable for auditable engineering work and weaker-model coordination.
 
 ### Git Master
 

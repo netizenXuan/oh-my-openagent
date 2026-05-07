@@ -16,6 +16,7 @@ export { createGlobTools } from "./glob"
 export { createSkillTool } from "./skill"
 export { discoverCommandsSync } from "./slashcommand"
 export { createSessionManagerTools } from "./session-manager"
+export { createRepublicTools } from "./republic"
 
 export { sessionExists } from "./session-manager/storage"
 

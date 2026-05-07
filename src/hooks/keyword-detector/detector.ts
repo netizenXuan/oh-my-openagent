@@ -5,7 +5,7 @@ import {
 } from "./constants"
 
 export interface DetectedKeyword {
-  type: "ultrawork" | "search" | "analyze"
+  type: "ultrawork" | "republic" | "search" | "analyze"
   message: string
 }
 
@@ -33,10 +33,9 @@ export function detectKeywords(text: string, agentName?: string, modelID?: strin
 
 export function detectKeywordsWithType(text: string, agentName?: string, modelID?: string): DetectedKeyword[] {
   const textWithoutCode = removeCodeBlocks(text)
-  const types: Array<"ultrawork" | "search" | "analyze"> = ["ultrawork", "search", "analyze"]
-  return KEYWORD_DETECTORS.map(({ pattern, message }, index) => ({
+  return KEYWORD_DETECTORS.map(({ pattern, message, type }) => ({
     matches: pattern.test(textWithoutCode),
-    type: types[index],
+    type,
     message: resolveMessage(message, agentName, modelID),
   }))
     .filter((result) => result.matches)

@@ -1,0 +1,235 @@
+/// <reference types="bun-types" />
+
+import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { execFileSync } from "node:child_process"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import {
+  appendNativeGitAuditRecord,
+  getNativeGitAuditPath,
+  getNativeGitRepository,
+  getNativeGitStatus,
+  parseNativeGitStatusEntriesPorcelainZ,
+  parseNativeGitStatusPorcelainZ,
+  readNativeGitAuditRecords,
+  restoreNativeGitFiles,
+  summarizeNativeGitAudit,
+} from "./native-git"
+
+function git(cwd: string, args: string[]): string {
+  return execFileSync("git", args, {
+    cwd,
+    encoding: "utf-8",
+    stdio: ["pipe", "pipe", "pipe"],
+  }).trimEnd()
+}
+
+function commitAll(cwd: string, message: string): void {
+  git(cwd, ["add", "."])
+  git(cwd, [
+    "-c",
+    "user.name=Native Git Test",
+    "-c",
+    "user.email=native-git@example.test",
+    "commit",
+    "--no-gpg-sign",
+    "-m",
+    message,
+  ])
+}
+
+describe("native git service", () => {
+  let directory: string
+
+  beforeEach(() => {
+    directory = mkdtempSync(join(tmpdir(), "omo-native-git-"))
+  })
+
+  afterEach(() => {
+    rmSync(directory, { recursive: true, force: true })
+  })
+
+  test("returns null outside a git repository", () => {
+    expect(getNativeGitRepository(directory)).toBeNull()
+    expect(getNativeGitStatus(directory)).toBeNull()
+  })
+
+  test("reads repository root and common dir", () => {
+    git(directory, ["init"])
+
+    const repository = getNativeGitRepository(directory)
+
+    expect(repository).not.toBeNull()
+    expect(repository?.repoRoot).toBe(directory.replace(/\\/g, "/"))
+    expect(repository?.gitCommonDir).toContain(".git")
+  })
+
+  test("detects modified, untracked, and renamed files", () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")
+    commitAll(directory, "init")
+
+    writeFileSync(join(directory, "README.md"), "hello\nworld\n", "utf-8")
+    writeFileSync(join(directory, "new file.txt"), "new\n", "utf-8")
+    git(directory, ["mv", "README.md", "RENAMED.md"])
+
+    const status = getNativeGitStatus(directory)
+
+    expect(status?.dirty).toBe(true)
+    expect(status?.files).toContain("RENAMED.md")
+    expect(status?.files).toContain("new file.txt")
+  })
+
+  test("lists untracked files inside directories individually", () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")
+    commitAll(directory, "init")
+
+    mkdirSync(join(directory, "nested"))
+    writeFileSync(join(directory, "nested", "first.txt"), "first\n", "utf-8")
+    writeFileSync(join(directory, "nested", "second.txt"), "second\n", "utf-8")
+
+    const status = getNativeGitStatus(directory)
+
+    expect(status?.dirty).toBe(true)
+    expect(status?.files).toContain("nested/first.txt")
+    expect(status?.files).toContain("nested/second.txt")
+    expect(status?.files).not.toContain("nested/")
+  })
+
+  test("parses porcelain z rename entries by keeping the new path", () => {
+    const files = parseNativeGitStatusPorcelainZ("R  new-name.ts\0old-name.ts\0?? added.ts\0")
+
+    expect(files).toEqual(["new-name.ts", "added.ts"])
+  })
+
+  test("parses porcelain z entries with status metadata", () => {
+    const entries = parseNativeGitStatusEntriesPorcelainZ("R100 new-name.ts\0old-name.ts\0?? added.ts\0")
+
+    expect(entries).toEqual([
+      { status: "R100", file: "new-name.ts", originalFile: "old-name.ts" },
+      { status: "??", file: "added.ts" },
+    ])
+  })
+
+  test("parses porcelain z rename entries that include similarity scores", () => {
+    const files = parseNativeGitStatusPorcelainZ("R100 new-name.ts\0old-name.ts\0C075 copied.ts\0source.ts\0")
+
+    expect(files).toEqual(["new-name.ts", "copied.ts"])
+  })
+
+  test("status key changes when dirty file contents change without changing paths", () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")
+    commitAll(directory, "init")
+
+    writeFileSync(join(directory, "README.md"), "first\n", "utf-8")
+    const firstStatus = getNativeGitStatus(directory)
+    writeFileSync(join(directory, "README.md"), "second\n", "utf-8")
+    const secondStatus = getNativeGitStatus(directory)
+
+    expect(firstStatus?.files).toEqual(["README.md"])
+    expect(secondStatus?.files).toEqual(["README.md"])
+    expect(firstStatus?.statusKey).not.toBe(secondStatus?.statusKey)
+  })
+
+  test("restores tracked and untracked files from a clean baseline", () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")
+    commitAll(directory, "init")
+
+    mkdirSync(join(directory, "src", "api"), { recursive: true })
+    writeFileSync(join(directory, "README.md"), "changed\n", "utf-8")
+    writeFileSync(join(directory, "src", "api", "orders.ts"), "export const order = true\n", "utf-8")
+    const repository = getNativeGitRepository(directory)!
+
+    const result = restoreNativeGitFiles(repository, ["README.md", "src/api/orders.ts"])
+
+    expect(result).toEqual({ restored: ["README.md", "src/api/orders.ts"], failed: [] })
+    expect(readFileSync(join(directory, "README.md"), "utf-8").replace(/\r\n/g, "\n")).toBe("hello\n")
+    expect(existsSync(join(directory, "src", "api", "orders.ts"))).toBe(false)
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
+  test("restores renamed files from a clean baseline", () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "old-name.ts"), "export const oldName = true\n", "utf-8")
+    commitAll(directory, "init")
+    git(directory, ["mv", "old-name.ts", "new-name.ts"])
+    const repository = getNativeGitRepository(directory)!
+
+    const result = restoreNativeGitFiles(repository, ["new-name.ts"])
+
+    expect(result).toEqual({ restored: ["new-name.ts"], failed: [] })
+    expect(existsSync(join(directory, "old-name.ts"))).toBe(true)
+    expect(existsSync(join(directory, "new-name.ts"))).toBe(false)
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
+  test("writes audit under git common dir without dirtying the worktree", () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")
+    commitAll(directory, "init")
+
+    const repository = getNativeGitRepository(directory)
+    expect(repository).not.toBeNull()
+
+    const auditPath = appendNativeGitAuditRecord(repository!, {
+      tool: "edit",
+      sessionID: "ses_test",
+      callID: "call_test",
+      files: ["README.md"],
+      summary: "README.md changed",
+    })
+
+    expect(auditPath).toBe(getNativeGitAuditPath(repository!))
+    expect(existsSync(auditPath)).toBe(true)
+    expect(readFileSync(auditPath, "utf-8")).toContain('"tool":"edit"')
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
+  test("summarizes audit records by tool, agent, model, category, session, and files", () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")
+    commitAll(directory, "init")
+
+    const repository = getNativeGitRepository(directory)
+    expect(repository).not.toBeNull()
+
+    appendNativeGitAuditRecord(repository!, {
+      tool: "edit",
+      sessionID: "ses_1",
+      callID: "call_1",
+      agent: "atlas",
+      model: "kimi-for-coding/k2p6",
+      category: "quick",
+      files: ["README.md"],
+      summary: "README.md changed",
+    })
+    appendNativeGitAuditRecord(repository!, {
+      tool: "bash",
+      sessionID: "ses_1",
+      callID: "call_2",
+      agent: "atlas",
+      model: "kimi-for-coding/k2p6",
+      category: "quick",
+      files: ["src/index.ts"],
+      summary: "src/index.ts changed",
+    })
+
+    const records = readNativeGitAuditRecords(repository!)
+    const summary = summarizeNativeGitAudit(repository!)
+
+    expect(records).toHaveLength(2)
+    expect(summary.recordCount).toBe(2)
+    expect(summary.tools.edit).toBe(1)
+    expect(summary.tools.bash).toBe(1)
+    expect(summary.agents.atlas).toBe(2)
+    expect(summary.models["kimi-for-coding/k2p6"]).toBe(2)
+    expect(summary.categories.quick).toBe(2)
+    expect(summary.sessions.ses_1).toBe(2)
+    expect(summary.files).toEqual(["README.md", "src/index.ts"])
+    expect(summary.latestSummary).toBe("src/index.ts changed")
+  })
+})

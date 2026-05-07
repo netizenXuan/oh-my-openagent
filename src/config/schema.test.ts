@@ -8,9 +8,11 @@ import {
   BuiltinCategoryNameSchema,
   CategoryConfigSchema,
   ExperimentalConfigSchema,
+  NativeGitConfigSchema,
   GitMasterConfigSchema,
   HookNameSchema,
   OhMyOpenCodeConfigSchema,
+  RepublicConfigSchema,
 } from "./schema"
 
 describe("disabled_mcps schema", () => {
@@ -1005,6 +1007,294 @@ describe("OhMyOpenCodeConfigSchema - git_master defaults (#2040)", () => {
       expect(result.data.git_master.commit_footer).toBe(false)
       expect(result.data.git_master.include_co_authored_by).toBe(false)
     }
+  })
+})
+
+describe("NativeGitConfigSchema", () => {
+  test("defaults to tracked mode with audit logging enabled", () => {
+    //#when
+    const result = NativeGitConfigSchema.safeParse({})
+
+    //#then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.mode).toBe("tracked")
+      expect(result.data.audit_log).toBe(true)
+    }
+  })
+
+  test("accepts manual, tracked, and strict modes", () => {
+    for (const mode of ["manual", "tracked", "strict"] as const) {
+      //#when
+      const result = NativeGitConfigSchema.safeParse({ mode })
+
+      //#then
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.mode).toBe(mode)
+      }
+    }
+  })
+
+  test("rejects unsupported modes", () => {
+    //#when
+    const result = NativeGitConfigSchema.safeParse({ mode: "always" })
+
+    //#then
+    expect(result.success).toBe(false)
+  })
+})
+
+describe("OhMyOpenCodeConfigSchema - native git defaults", () => {
+  test("git defaults are applied when section is missing from config", () => {
+    //#when
+    const result = OhMyOpenCodeConfigSchema.safeParse({})
+
+    //#then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.git.mode).toBe("tracked")
+      expect(result.data.git.audit_log).toBe(true)
+    }
+  })
+
+  test("git respects manual mode and audit override", () => {
+    //#given
+    const config = {
+      git: {
+        mode: "manual",
+        audit_log: false,
+      },
+    }
+
+    //#when
+    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+
+    //#then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.git.mode).toBe("manual")
+      expect(result.data.git.audit_log).toBe(false)
+    }
+  })
+})
+
+describe("RepublicConfigSchema", () => {
+  test("defaults to advisory mode with durable ledger enabled", () => {
+    //#when
+    const result = RepublicConfigSchema.safeParse({})
+
+    //#then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.enabled).toBe(true)
+      expect(result.data.mode).toBe("advisory")
+      expect(result.data.ledger).toBe(true)
+      expect(result.data.house_seats).toBe(3)
+      expect(result.data.senate_seats).toBe(2)
+      expect(result.data.review_bench_seats).toBe(2)
+      expect(result.data.quorum).toBe(4)
+      expect(result.data.supermajority).toBe(0.67)
+      expect(result.data.veto_on_blocker).toBe(true)
+      expect(result.data.git_summary).toBe(true)
+      expect(result.data.team_model).toBe("advisory")
+      expect(result.data.team.seat_allocation).toBe("auto")
+      expect(result.data.team.planner_seat_count).toBe("auto")
+      expect(result.data.team.executor_seat_count).toBe("auto")
+      expect(result.data.team.reviewer_seat_count).toBe(2)
+      expect(result.data.team.max_parallel_seats).toBe(4)
+      expect(result.data.team.default_runtime_agent).toBe("general")
+      expect(result.data.team.exclusive_seat_orchestration).toBe(true)
+      expect(result.data.seats.supervisors).toEqual(["republic-supervisor"])
+      expect(result.data.dashboard.auto_open).toBe(true)
+      expect(result.data.dashboard.auto_open_events).toEqual(["team_init"])
+      expect(result.data.dashboard.port).toBe(4097)
+      expect(result.data.dashboard.refresh_ms).toBe(2000)
+      expect(result.data.commons.auto_publish).toBe(true)
+      expect(result.data.supervisor.intervention).toBe(true)
+      expect(result.data.supervisor.file_threshold).toBe(5)
+      expect(result.data.supervisor.high_risk_paths).toContain("src/plugin/")
+      expect(result.data.supervisor.high_risk_paths).toContain("node_modules/")
+      expect(result.data.supervisor.high_risk_paths).toContain("dist/")
+      expect(result.data.dependency_gate.enabled).toBe(true)
+      expect(result.data.dependency_gate.mode).toBe("advisory")
+      expect(result.data.dependency_gate.cross_module_threshold).toBe(2)
+      expect(result.data.weak_model_guardrails.enabled).toBe(true)
+      expect(result.data.weak_model_guardrails.labeled_context).toBe(true)
+      expect(result.data.weak_model_guardrails.require_context_before_edit).toBe(true)
+      expect(result.data.weak_model_guardrails.require_explicit_context_read).toBe(false)
+      expect(result.data.weak_model_guardrails.pre_edit_context_gate).toBe("advisory")
+      expect(result.data.weak_model_guardrails.generated_artifact_gate).toBe("block")
+      expect(result.data.weak_model_guardrails.generated_artifact_paths).toContain("node_modules/")
+      expect(result.data.weak_model_guardrails.generated_artifact_paths).toContain("dist/")
+      expect(result.data.scheduler.enabled).toBe(true)
+      expect(result.data.scheduler.auto_dispatch).toBe(true)
+      expect(result.data.scheduler.message_types).toEqual(["question", "handoff", "objection"])
+      expect(result.data.scheduler.default_agent).toBe("sisyphus")
+      expect(result.data.scheduler.supervisor_agent).toBe("hephaestus")
+    }
+  })
+
+  test("accepts manual, advisory, and governed modes", () => {
+    for (const mode of ["manual", "advisory", "governed"] as const) {
+      //#when
+      const result = RepublicConfigSchema.safeParse({ mode })
+
+      //#then
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.mode).toBe(mode)
+      }
+    }
+  })
+
+  test("rejects invalid seat counts and supermajority thresholds", () => {
+    expect(RepublicConfigSchema.safeParse({ house_seats: 0 }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ senate_seats: 8 }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ supermajority: 0.49 }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ supermajority: 1.01 }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ supervisor: { file_threshold: 0 } }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ dependency_gate: { cross_module_threshold: 1 } }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ dependency_gate: { mode: "warn" } }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ weak_model_guardrails: { pre_edit_context_gate: "warn" } }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ scheduler: { default_agent: "" } }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ scheduler: { message_types: ["note"] } }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ team_model: "committee" }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ team: { seat_allocation: "fixed" } }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ team: { planner_seat_count: 0 } }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ team: { executor_seat_count: 21 } }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ team: { max_parallel_seats: 0 } }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ dashboard: { auto_open_events: ["team"] } }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ dashboard: { port: 0 } }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ dashboard: { refresh_ms: 100 } }).success).toBe(false)
+  })
+
+  test("accepts scheduler seat agent mapping", () => {
+    //#when
+    const result = RepublicConfigSchema.safeParse({
+      scheduler: {
+        seat_agents: {
+          "api-seat": "atlas",
+          "docs-seat": "hephaestus",
+        },
+      },
+    })
+
+    //#then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.scheduler.seat_agents["api-seat"]).toBe("atlas")
+      expect(result.data.scheduler.seat_agents["docs-seat"]).toBe("hephaestus")
+    }
+  })
+
+  test("allows zero inbox message injection for strict smoke harnesses", () => {
+    //#when
+    const result = RepublicConfigSchema.safeParse({
+      commons: {
+        inbox: false,
+        inject_max_messages: 0,
+      },
+    })
+
+    //#then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.commons.inbox).toBe(false)
+      expect(result.data.commons.inject_max_messages).toBe(0)
+    }
+  })
+
+  test("accepts dynamic persistent team controls", () => {
+    //#when
+    const result = RepublicConfigSchema.safeParse({
+      team_model: "parliament_squad",
+      team: {
+        seat_allocation: "count",
+        planner_seat_count: 6,
+        executor_seat_count: 4,
+        reviewer_seat_count: "auto",
+        max_parallel_seats: 5,
+        default_runtime_agent: "general",
+        exclusive_seat_orchestration: false,
+      },
+      dashboard: {
+        auto_open: true,
+        auto_open_events: ["team_init", "round_start"],
+        port: 4101,
+        refresh_ms: 1000,
+      },
+      seats: {
+        planners: ["protocol-seat"],
+        executors: ["runtime-seat"],
+        reviewers: ["security-seat"],
+        supervisors: ["chief-supervisor"],
+      },
+    })
+
+    //#then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.team_model).toBe("parliament_squad")
+      expect(result.data.team.seat_allocation).toBe("count")
+      expect(result.data.team.planner_seat_count).toBe(6)
+      expect(result.data.team.executor_seat_count).toBe(4)
+      expect(result.data.team.reviewer_seat_count).toBe("auto")
+      expect(result.data.team.exclusive_seat_orchestration).toBe(false)
+      expect(result.data.dashboard.auto_open).toBe(true)
+      expect(result.data.dashboard.auto_open_events).toEqual(["team_init", "round_start"])
+      expect(result.data.dashboard.port).toBe(4101)
+      expect(result.data.dashboard.refresh_ms).toBe(1000)
+      expect(result.data.seats.planners).toEqual(["protocol-seat"])
+      expect(result.data.seats.supervisors).toEqual(["chief-supervisor"])
+    }
+  })
+})
+
+describe("OhMyOpenCodeConfigSchema - republic defaults", () => {
+  test("republic defaults are applied when section is missing from config", () => {
+    //#when
+    const result = OhMyOpenCodeConfigSchema.safeParse({})
+
+    //#then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.republic.enabled).toBe(true)
+      expect(result.data.republic.mode).toBe("advisory")
+      expect(result.data.republic.ledger).toBe(true)
+      expect(result.data.republic.scheduler.enabled).toBe(true)
+      expect(result.data.republic.team.seat_allocation).toBe("auto")
+      expect(result.data.republic.team.exclusive_seat_orchestration).toBe(true)
+      expect(result.data.republic.dashboard.auto_open).toBe(true)
+    }
+  })
+})
+
+describe("OhMyOpenCodeConfigSchema - disabled commands", () => {
+  test("accepts all current built-in command names", () => {
+    //#given
+    const config = {
+      disabled_commands: [
+        "init-deep",
+        "ralph-loop",
+        "ulw-loop",
+        "cancel-ralph",
+        "refactor",
+        "deliberate",
+        "republic-status",
+        "republic-dashboard",
+        "start-work",
+        "stop-continuation",
+        "handoff",
+        "remove-ai-slops",
+      ],
+    }
+
+    //#when
+    const result = OhMyOpenCodeConfigSchema.safeParse(config)
+
+    //#then
+    expect(result.success).toBe(true)
   })
 })
 

@@ -1,0 +1,470 @@
+# Republic Governance Experiments, 2026-05-06
+
+This note records the first practical A/B pass for OMO Republic as a Git-native multi-agent governance layer. The goal was not to prove a universal benchmark win. The goal was to find out whether the current design can make weaker, cheaper models more reliable by surrounding them with contracts, explicit seats, supervisor review, and native Git evidence.
+
+## Hypothesis
+
+Weak or inexpensive models can be useful on complex engineering work when the system constrains them with:
+
+- short seat-level prompts instead of one large ambiguous prompt
+- explicit workgroup contracts before execution
+- targeted ask/reply through Republic Commons
+- supervisor policy and dependency gates
+- native-git audit records for every tool-caused change
+- final deterministic verification with tests and typecheck
+
+The expected benefit is not raw intelligence. The expected benefit is reduced drift, clearer accountability, and cheaper parallel work.
+
+## Experiment Design
+
+All experiments used a small TypeScript order workflow project as the target. The target required API, domain, test, docs, and config changes around order acceptance, rejection, shipment events, and configuration.
+
+Model and workflow variants:
+
+| Variant | Model | Workflow | Result |
+| --- | --- | --- | --- |
+| Hy3 control | `tencent/hy3-preview:free` | single agent | Implemented a direct task successfully, with native-git audit records. |
+| Hy3 treatment | `tencent/hy3-preview:free` | Republic tools | Failed tool-call compliance; the model printed pseudo tool XML instead of calling tools. |
+| Ling control | `inclusionai/ling-2.6-1t:free` | single agent | Implemented a direct task successfully, tests passed, but the CLI run timed out during final narrative output. |
+| Ling treatment v1-v3 | `inclusionai/ling-2.6-1t:free` | Republic tools | Exposed prompt-drift failures: contract wording drift, experiment-word contamination, and invalid shell commands. |
+| Ling treatment v4 | `inclusionai/ling-2.6-1t:free` | Republic with short explicit seat sessions | Produced usable governance evidence, contracts, inter-seat ask/reply, supervisor intervention, and passing final verification. |
+| Kimi check | `kimi-for-coding/k2p6` | CLI smoke | CLI channel recovered; Kimi read injected Republic team state, operating checklist, locked contract excerpts, and the hard dependency rule. |
+| Kimi control | `kimi-for-coding/k2p6` | single agent with native-git tracking | Implemented order cancellation support, passed tests and typecheck, and produced 4 native-git audit records but no Republic Commons records. |
+| Kimi treatment | `kimi-for-coding/k2p6` | Republic-guided single session | Implemented the same task, passed tests and typecheck, initialized an auto team, wrote a contract, and produced Commons, ledger, dependency-gate, and supervisor records. |
+
+## Ling v4 Setup
+
+Repository:
+
+```text
+D:\OMO\republic-governance-ling-v4-20260506
+```
+
+Team initialization used `team_model=parliament_squad` and `seat_allocation=auto`. The allocator produced 11 seats:
+
+- `config-planner-seat`, `docs-planner-seat`, `api-planner-seat`, `test-planner-seat`
+- `config-executor-seat`, `docs-executor-seat`, `api-executor-seat`, `test-executor-seat`
+- `config-review-seat`, `docs-review-seat`
+- `republic-supervisor`
+
+The team locked four workgroup contracts before execution:
+
+```text
+.git/omo/republic/contracts/api-workgroup.md
+.git/omo/republic/contracts/config-workgroup.md
+.git/omo/republic/contracts/docs-workgroup.md
+.git/omo/republic/contracts/test-workgroup.md
+```
+
+Final recorded counts:
+
+| Record type | Count |
+| --- | ---: |
+| Republic Commons messages | 100 |
+| Republic ledger records | 100 |
+| Native-git audit records | 21 |
+| Locked contracts | 4 |
+
+## Observed Collaboration
+
+The strongest positive signal was not that every seat behaved perfectly. It was that the workflow made mistakes visible and recoverable.
+
+One real ask/reply path occurred during planning:
+
+1. `test-planner-seat` published a targeted question to `api-planner-seat` about rejection strings and shipment behavior.
+2. The scheduler recorded a dispatch event.
+3. The supervisor policy loop detected one unresolved question.
+4. `api-planner-seat` read its inbox and answered with exact rejection strings.
+5. The answer was recorded in Commons and became available to other seats.
+
+Supervisor and dependency gates also found useful issues:
+
+- `api-executor-seat` touched `bun.lock` and created a helper `typecheck.js`, which was outside its workgroup. The dependency gate and supervisor intervention flagged the boundary crossing.
+- `docs-review-seat` caught a `customerId` versus `customerID` mismatch in public docs.
+- Final manual QA still found a docs mismatch around `productId` versus `sku`, showing that reviewer seats need stronger final contract-diff checks.
+
+## Final Verification
+
+After the Ling v4 repair and final polish, the target project passed:
+
+```text
+bun test
+bun node_modules\typescript\bin\tsc --noEmit
+git diff --check
+```
+
+Final changed worktree files in the target project:
+
+```text
+docs/api/orders.md
+docs/config.md
+src/api/orders.ts
+src/config/index.ts
+src/domain/orders.ts
+tests/orders.test.ts
+```
+
+## What Worked
+
+- Dynamic seat allocation matched the project structure without predefining a fixed role list.
+- Contracts under `.git/omo/republic/contracts/` gave later seats a durable source of truth.
+- Commons made agent-to-agent questions and answers inspectable after the run.
+- Native-git audit captured concrete tool-caused file changes without dirtying the worktree.
+- Supervisor and dependency gates caught several weak-model failure modes that a single-agent run would have hidden in the final diff.
+
+## What Failed
+
+- Background Republic rounds launched through the CLI did not reliably keep working after the parent CLI session exited. The successful v4 pattern used short explicit seat sessions.
+- Hy3 was not tool-call reliable enough for Republic tools in this environment.
+- Ling can execute tool calls, but it is highly sensitive to prompt wording. Phrases like "experiment" caused it to optimize for an experiment design instead of the product task.
+- Weak models still need deterministic final QA. Reviewer seats caught some mismatches, but not all.
+- Kimi was unavailable during the first experiment window, then later recovered and passed the context-injection smoke.
+
+## Engineering Changes From This Pass
+
+The experiment directly motivated stronger weak-model constraints in Republic prompts:
+
+- round prompts now include constrained operating rules
+- seat inbox output now includes current phase state
+- seat inbox output now includes locked contract excerpts
+- execution seats are told not to create dependencies, lockfiles, generated scripts, global config, or helper files unless explicitly allowed
+- execution seats are told to keep edits inside their workgroup or publish a handoff/objection and stop
+- tests assert that these constraints are present in the generated prompts and inbox output
+
+After this change, a Ling smoke check was run against the v4 experiment repository. The model was instructed not to edit files and to call `republic_inbox` for `api-executor-seat` with `include_agent_doc=true`. Ling successfully called the tool and confirmed that the inbox contained all four expected constraint anchors:
+
+- `Operating Checklist`
+- `Locked Contracts`
+- `Do not create or update dependencies`
+- `customerID`
+
+No additional worktree changes were created by this smoke check.
+
+Follow-up smoke checks then moved the same constraints into the pre-send message transform, so seats can receive Republic context even when they do not proactively call `republic_inbox`.
+
+Results:
+
+| Smoke check | Model | Result |
+| --- | --- | --- |
+| explicit inbox | `inclusionai/ling-2.6-1t:free` | Passed. Ling called `republic_inbox` and saw operating checklist, locked contracts, dependency rule, and contract field names. |
+| automatic context | `kimi-for-coding/k2p6` | Passed. Kimi reported `republic-team-state`, `operating_checklist`, `locked_contract_excerpts`, exact contract fields, and the dependency rule. |
+| automatic context | `inclusionai/ling-2.6-1t:free` | Partial. Ling detected contract fields and the hard dependency rule after the rule was given a stable `hard_dependency_rule` label, but it still misclassified one marker presence check. |
+
+This is the main weak-model lesson: cheap models should not be governed only by prose. They need short, labeled, repeated constraints plus deterministic tool-level gates.
+
+The lesson has now been implemented as a first-class guardrail profile:
+
+- Republic prompts expose the dependency rule with a stable `hard_dependency_rule` label.
+- `weak_model_guardrails.labeled_context` is enabled by default so critical constraints remain easy to extract.
+- `weak_model_guardrails.require_context_before_edit` is enabled by default so execution-phase writes with locked contracts require Republic context before mutating tools proceed.
+- Advisory mode records a `channel: "guardrail"` / `messageType: "supervisor-policy"` Commons entry when a seat starts editing before receiving the locked execution context.
+- Governed mode can hard-block the same case with `weak_model_guardrails.pre_edit_context_gate: "block"`.
+- `weak_model_guardrails.require_explicit_context_read: true` can require a real `republic_inbox` or `republic_team_status` call instead of accepting injected context.
+- Governed mode now also has a post-change fail-closed fallback: if a real runtime misses the preflight hook and writes into a clean repository, OMO restores the changed files and records a `phase: "post-change"` guardrail entry.
+- Republic status and dashboard now include deterministic contract traceability: hard terms from contract files are checked against the files declared by those contracts, and missing files or uncovered terms are surfaced as warnings.
+
+## Real CLI Guardrail Finding
+
+A later Kimi CLI smoke showed a product-critical integration issue: the unit-tested `tool.execute.before` guardrail path was not sufficient by itself in the real OpenCode CLI runtime. With Republic read tools disabled and a locked execution contract present, Kimi wrote `src/api/orders.ts`; the `tool.execute.after` audit path fired, but the preflight block did not stop the write in that environment.
+
+The fix was to make the context gate two-layered:
+
+- preflight still blocks when the runtime exposes the write before execution
+- post-change fallback re-checks the locked contract context after mutating tools complete
+- when the repository was clean before the tool call, post-change fallback restores the touched files
+- when the repository was already dirty, it records the violation and skips rollback to avoid deleting unrelated user work
+- explicit context reads are scoped to the current prompt, so a reused OpenCode session cannot carry an old Republic read into a new locked-contract task
+
+The new unit coverage asserts both post-change rollback and dirty-baseline no-rollback behavior. This changes the product lesson from "add a before hook" to "make weak-model gates observable and fail-closed at the tool boundary the runtime actually guarantees."
+
+Follow-up real OpenCode/Kimi smoke found one Windows-specific edge case: a PowerShell-created `.git/omo/republic/team/phase.json` can include a UTF-8 BOM, which made the phase reader return `null` and caused the post-change gate to think no locked contract existed. The Republic team JSON reader now strips a leading BOM, and unit coverage asserts BOM phase files still expose `phase: "execution"` and `lockedContracts`.
+
+The final negative smoke used the real OpenCode CLI, local plugin path, `kimi-for-coding/k2p6`, Republic tools disabled, a locked execution contract, and a clean test repository. Kimi attempted to create `src/api/orders.ts`; the post-change guardrail recorded a `channel: "guardrail"` / `phase: "post-change"` / `status: "blocked"` Commons entry, restored `src/api/orders.ts`, skipped native-git audit for the unauthorized write, and left `git status --short` empty. The guardrail reminder now states that `republic_inbox` and `republic_team_status` are OpenCode tool calls, not `.republic` files, and tells weak models to stop instead of retrying when the required tool is unavailable.
+
+## Clean Kimi A/B: Order Cancellation
+
+After the guardrail fixes, a clean Kimi A/B run used the same initial TypeScript order project and the same model, `kimi-for-coding/k2p6`. The task was to add order cancellation and shipment status support across domain, API, tests, and docs, with no dependency or lockfile changes.
+
+Control repository:
+
+```text
+D:\OMO\republic-ab-control-kimi-20260506
+```
+
+Treatment repository:
+
+```text
+D:\OMO\republic-ab-treatment-kimi-20260506
+```
+
+Both runs passed deterministic verification:
+
+```text
+bun test
+bun node_modules\typescript\bin\tsc --noEmit
+```
+
+Results:
+
+| Metric | Kimi control | Kimi treatment |
+| --- | ---: | ---: |
+| Product files changed | 4 | 4 |
+| Tests after run | 5 pass | 5 pass |
+| Typecheck after run | pass | pass |
+| Native-git audit records | 4 | 4 |
+| Republic ledger records | 0 | 18 |
+| Republic Commons messages | 0 | 18 |
+| Contracts written | 0 | 1 |
+| Dependency-gate records | 0 | 3 |
+| Supervisor intervention records | 0 | 4 |
+| Auto-allocated team seats | 0 | 8 |
+
+Observed behavior:
+
+- The single-agent control completed the code task efficiently and native-git captured each file-changing tool call.
+- The Republic treatment also completed the code task, but added a durable planning proposal, a workgroup contract, a phase transition, seat state updates, native-git-to-Commons publication, dependency-gate records, and supervisor interventions for high-risk multi-module edits.
+- The treatment dashboard rendered from `.git/omo/republic/dashboard.html` with the simplified workgroup board and Seat Inspector view. Contract traceability reported `Contracts: 1`, `Warnings: 0`, and `api-workgroup: pass`.
+- This run was not a full parallel `republic_round_start` execution. It was a Republic-guided single session that proved the governance artifacts can be produced without breaking the product task. Full parallel-seat proof still requires a persistent scheduler benchmark.
+
+The same repositories can now be summarized with a deterministic benchmark report:
+
+```powershell
+bun src\cli\index.ts republic benchmark-report --run control=D:\OMO\republic-ab-control-kimi-20260506 --run treatment=D:\OMO\republic-ab-treatment-kimi-20260506 --output D:\OMO\experiment-logs\republic-kimi-ab-benchmark.md
+```
+
+This report is intentionally read-only. It converts Git status, native-git audit, Republic ledger, Commons, contracts, targeted messages, referenced messages, seats, workgroups, contract traceability, and optional hidden-QA acceptance checks into a stable Markdown or JSON evidence table. It is the preferred record format for future weak-model, hard-task, large-task, and innovation-task comparisons.
+
+## Real OpenCode Hy3 High Reproduction
+
+A later real OpenCode CLI smoke retested the original user-reported failure mode with the local plugin path and `opencode/hy3-preview-free` using `--variant high`.
+
+Repository:
+
+```text
+D:\OMO\republic-seat-abort-smoke-20260507
+```
+
+Task:
+
+```text
+Add order cancellation support to a tiny order module. Initialize a Republic `parliament_squad` team with `seat_allocation="auto"`, make api/docs/test seats discuss whether `OrderStatus` needs `cancelled`, write a workgroup contract, implement `cancelOrder(order)`, add tests, update README, run `bun test`, and keep the changes uncommitted.
+```
+
+The first reproduction attempt found a CLI usage issue rather than a Republic bug: passing a multiline prompt as a PowerShell variable sent only the first line to `opencode run`, so the model only initialized the Republic team. The successful run attached the task with `--file` and used a short positional instruction:
+
+```powershell
+opencode run --model opencode/hy3-preview-free --variant high --agent "Sisyphus - Ultraworker" --dangerously-skip-permissions --file D:\OMO\republic-order-cancellation-task.md --title "Republic Hy3 order cancellation full" "Execute the attached task exactly. Use bun test for verification."
+```
+
+Result:
+
+| Check | Result |
+| --- | --- |
+| Republic team init | pass |
+| Planning question/answer records | pass |
+| Workgroup contract | pass |
+| Product implementation | pass |
+| `bun test` | 6 pass, 0 fail |
+| Native-git audit | 3 edit records, model `opencode/hy3-preview-free` |
+| Abort regression | no `operation was aborted` records |
+| Seat identity regression | no `sisyphus-executor` or `not in current team manifest` records |
+
+The run produced the expected reviewable worktree changes:
+
+```text
+README.md
+src/orders.js
+test/orders.test.js
+```
+
+This is the strongest Hy3 signal so far because it used the real OpenCode CLI host, the local plugin build, high reasoning, and the same failure class reported from the app. It also refined the weak-model lesson: Hy3 can follow Republic tools when the task is attached as a file and the workflow exposes hard fields (`author_seat_id`, `target_seat_id`, contract status, test command). The framework should keep treating cheap-model success as something to verify through Git-recorded facts, not through final prose.
+
+## Hard Kimi A/B: Fulfillment Returns
+
+A harder Kimi run used a fulfillment workflow project with separate order, inventory, shipment, API, test, and docs modules. The task was to implement delivered-order returns and refunds with 30-day return-window validation, quantity validation, optional restocking, restocking fees, tests, and docs.
+
+Repositories:
+
+```text
+D:\OMO\republic-hard-control-kimi-20260506
+D:\OMO\republic-hard-treatment-kimi-20260506
+```
+
+Both runs passed public verification:
+
+```text
+bun test
+bun node_modules\typescript\bin\tsc --noEmit
+git diff --check
+```
+
+Benchmark report:
+
+```text
+D:\OMO\experiment-logs\republic-kimi-hard-benchmark.md
+```
+
+The hard-task benchmark also records the hidden QA edge:
+
+```powershell
+bun src\cli\index.ts republic benchmark-report --run control=D:\OMO\republic-hard-control-kimi-20260506 --run treatment=D:\OMO\republic-hard-treatment-kimi-20260506 --acceptance control:missing-delivery-timestamp=pass:got_order_not_delivered --acceptance treatment:missing-delivery-timestamp=fail:expected_order_not_delivered_got_shipment_not_found --output D:\OMO\experiment-logs\republic-kimi-hard-benchmark.md
+```
+
+Dashboard screenshot:
+
+```text
+D:\OMO\experiment-logs\republic-hard-dashboard.png
+```
+
+Results:
+
+| Metric | Control | Treatment |
+| --- | ---: | ---: |
+| Product files changed | 5 | 4 |
+| Public tests after run | 8 pass | 8 pass |
+| Typecheck after run | pass | pass |
+| Native-git audit records | 8 | 8 |
+| Republic ledger records | 21 | 18 |
+| Republic Commons messages | 21 | 18 |
+| Contracts written | 0 | 1 |
+| Contract traceability warnings | n/a | 0 |
+| Auto-allocated team seats | 0 | 8 |
+
+Observed behavior:
+
+- The control prompt did not ask for Republic planning or contracts, but default passive governance still mirrored native-git changes and supervisor records into Commons.
+- The treatment prompt explicitly initialized a `parliament_squad` team, published a planning proposal, wrote a workgroup contract, moved to execution, and marked the executor seat done.
+- The contract parser had to be hardened during this run: real model-written contracts often use prose sections like `Files governed:` rather than only the structured `- files:` metadata. Traceability now reads both formats and ignores prose heading words and unquoted formula placeholders.
+- A hidden QA check found that both public-test-passing outputs were not equivalent. Control returned `order_not_delivered` when a delivered order lacked a delivered shipment timestamp. Treatment returned `shipment_not_found`, which does not match the requested error taxonomy. This is a useful negative result: contracts and public tests improve observability, but they do not replace hidden acceptance tests or a stricter contract-diff QA pass.
+
+## Interpretation
+
+The current Republic design is already distinct from ordinary multi-agent delegation because the collaboration record, contracts, audit log, scheduler queue, and seat state all live under the Git common dir. The more important finding is that this approach is especially suited to weaker models. Instead of trusting a weak model to remember everything, the system repeatedly exposes the same hard boundaries through contracts, inboxes, scheduler dispatch records, and supervisor checks.
+
+This does not yet prove autonomous "always correct" collaboration. It does show a credible path: use cheap models for bounded seat work, use Commons for communication, use contracts for shared truth, and use deterministic checks plus supervisor intervention for recovery.
+
+## Scheduler Queue Smoke
+
+Two focused scheduler smokes verified the new external scheduler path.
+
+The first smoke verified the queue consumer without spending model quota:
+
+```text
+D:\OMO\republic-scheduler-smoke
+```
+
+Setup:
+
+1. Initialized a clean Git repository.
+2. Appended one queued scheduler dispatch for `docs-seat`.
+3. Ran `republic scheduler --write-prompts` to generate a wake prompt under `.git/omo/republic/scheduler/prompts/`.
+4. Ran `republic scheduler --command-template 'cmd /c type {prompt} > NUL'` to simulate an external host consuming that prompt.
+
+Observed result:
+
+- `queue.jsonl` retained the original `status: "queued"` record.
+- A second record with the same `dispatchID` and `status: "dispatched"` was appended.
+- The dispatched record had a fresh timestamp, `runtimeAgent: "sisyphus"`, and `taskID: "external:smoke-docs-seat-1"`.
+- `git status --short` remained clean because all scheduler records and prompts live under `.git/omo/republic`.
+
+The second smoke used the real OpenCode CLI, local plugin path, and `kimi-for-coding/k2p6`:
+
+```text
+D:\OMO\republic-scheduler-kimi-smoke-20260506
+```
+
+Setup:
+
+1. Initialized a clean Git repository with `.opencode/opencode.json` pointing at `D:\OMO\oh-my-openagent`.
+2. Published a Commons `question` from `api-seat` to `docs-seat`.
+3. Appended a queued scheduler dispatch for `docs-seat`.
+4. Ran:
+
+```powershell
+bun src\cli\index.ts republic scheduler --directory D:\OMO\republic-scheduler-kimi-smoke-20260506 --deliberation-id scheduler-kimi-smoke --command-template 'opencode run --dir {repo} --agent {agent} --model kimi-for-coding/k2p6 --dangerously-skip-permissions --file {prompt} -- Respond_to_attached_OMO_Republic_scheduler_wake_prompt'
+```
+
+Observed result:
+
+- Kimi launched through OpenCode and loaded the local plugin.
+- OpenCode warned that the literal `sisyphus` runtime agent name was unavailable and fell back to the default agent, while still showing `Sisyphus - Ultraworker`.
+- The model called `republic_inbox` for `docs-seat`.
+- The model called `republic_publish` with `message_type: "answer"`, `author_seat_id: "docs-seat"`, `target_seat_id: "api-seat"`, and `references: ["scheduler-kimi-question-1"]`.
+- Commons ended with one `question` and one referenced `answer` containing the exact enum values `pending, confirmed, shipped, delivered, cancelled`.
+- The scheduler queue recorded the successful Kimi launch as `status: "dispatched"`.
+- `git status --short` remained clean.
+- The status report now distinguishes pending dispatches from historical queue records:
+
+```text
+Republic Scheduler Queue
+Pending: 0
+Queued: 4
+Dispatched: 2
+Failed: 2
+```
+
+The two failed historical records in this smoke came from discovering the correct OpenCode CLI invocation. `opencode run` requires `--file {prompt} -- <message>`; passing a bare positional message after `--file` was interpreted as another file path.
+
+The same smoke can now be checked with a deterministic capability gate:
+
+```powershell
+bun src\cli\index.ts republic capability-check --directory D:\OMO\republic-scheduler-kimi-smoke-20260506 --deliberation-id scheduler-kimi-smoke --dispatch-id scheduler-kimi-docs-seat-4 --source-message-id scheduler-kimi-question-1 --expected-author-seat docs-seat --expected-target-seat api-seat --expected-message-type answer --require-content pending --require-content delivered --expect-clean-worktree --require-dispatched-queue
+```
+
+This command is the productized form of the weak-model lesson. It checks the Git-recorded facts instead of the model's self-report: the Commons response must reference the original question, use the expected author and target seats, contain required hard terms, have the exact requested dispatch reach `dispatched`, and leave the worktree clean. This makes Kimi, Ling, Hy3, or other cheap-model runs comparable with the same acceptance contract.
+
+A follow-up Hy3 scheduler smoke showed why the target-seat hard field matters. Hy3 successfully called `republic_inbox`, published an `answer`, included the exact enum values, and left the worktree clean, but omitted `target_seat_id: "api-seat"` from `republic_publish`. The capability gate correctly failed the run because no response matched all expected hard fields. The scheduler wake prompt now explicitly tells response seats to set `target_seat_id` to the author of the referenced inbox message, which turns that weak-model drift into a prompt-level requirement plus deterministic acceptance check.
+
+After that scheduler prompt change, the same Hy3 smoke was retried:
+
+```text
+D:\OMO\republic-scheduler-hy3-smoke-20260506
+D:\OMO\experiment-logs\republic-scheduler-hy3-capability.json
+D:\OMO\experiment-logs\republic-scheduler-hy3-benchmark.md
+```
+
+The retry passed capability-check with `dispatchID=scheduler-hy3-docs-seat-2`: Hy3 read `republic_inbox`, published an `answer` from `docs-seat` to `api-seat`, referenced `scheduler-hy3-question-1`, included `pending` and `delivered`, left the worktree clean, and had a matching `dispatched` scheduler record. This is a concrete weak-model constraint win: the framework converted a subtle routing omission into a failing hard-field check, then a targeted prompt change made the same cheaper model produce acceptable Git-recorded collaboration evidence.
+
+Capability-check JSON can also be attached to the benchmark report:
+
+```powershell
+bun src\cli\index.ts republic capability-check --directory D:\OMO\republic-scheduler-kimi-smoke-20260506 --deliberation-id scheduler-kimi-smoke --dispatch-id scheduler-kimi-docs-seat-4 --source-message-id scheduler-kimi-question-1 --expected-author-seat docs-seat --expected-target-seat api-seat --expected-message-type answer --require-content pending --require-content delivered --expect-clean-worktree --require-dispatched-queue --json --output D:\OMO\experiment-logs\republic-scheduler-kimi-capability.json
+bun src\cli\index.ts republic benchmark-report --run scheduler-kimi=D:\OMO\republic-scheduler-kimi-smoke-20260506 --capability scheduler-kimi=D:\OMO\experiment-logs\republic-scheduler-kimi-capability.json --output D:\OMO\experiment-logs\republic-scheduler-kimi-benchmark.md
+```
+
+The next deterministic gate is contract checking:
+
+```powershell
+bun src\cli\index.ts republic doctor --directory D:\OMO\republic-hard-treatment-kimi-20260506 --strict
+bun src\cli\index.ts republic contract-check --directory D:\OMO\republic-hard-treatment-kimi-20260506 --strict
+```
+
+`republic doctor` gives the machine-readable health view before assigning work to cheap seats: repository state, ledger, Commons, scheduler queue, and contract warning state. `contract-check` then turns the dashboard's contract traceability into a CI-style pass/fail command. It is designed for the hidden-QA lesson from the hard fulfillment run: public tests can pass while a model drifts on exact error taxonomy or field names, so the locked contract needs a deterministic hard-term check before the result is treated as product-ready.
+
+Per-workgroup worktree planning is now also scriptable:
+
+```powershell
+bun src\cli\index.ts republic worktrees --directory D:\OMO\republic-hard-treatment-kimi-20260506 --deliberation-id hard-returns
+```
+
+The command reads the Republic team manifest and produces one branch/worktree lane per distinct workgroup. `--create` performs the `git worktree add` step, but defaults to clean-root enforcement so the root repository is not split into branches while user or agent changes are still uncommitted.
+
+## Resilience Layer Follow-Up
+
+The Gemini critique correctly identified four product gaps after the first weak-model experiments: worktrees need integration, capability checks need semantic validation, scheduler failures need escalation, and noisy Commons history needs a recovery path. These are now implemented as scriptable CLI surfaces:
+
+| Gap | New command | Product behavior |
+| --- | --- | --- |
+| Worktree integration | `republic integrate` | Plans or applies a shared integration branch from workgroup branches, runs check commands, and publishes supervisor interventions on merge/check failure. |
+| Semantic validation | `republic evaluate` | Writes validator prompts for stronger models or humans, then records pass/warn/fail as Commons consensus/revision/objection. |
+| Noisy active state | `republic gc` | Archives original Commons/ledger/scheduler JSONL files before compacting active records, then records a supervisor intervention. |
+| Failed or stale weak-model seats | `republic escalate` | Converts repeated failures or pending TTL breaches into supervisor interventions and stronger-agent scheduler queue records. |
+
+This changes the governance model from "record failures" to "record, recover, and reassign." It is still Git-native: all active records, prompts, archives, and scheduler events live under `.git/omo/republic`, and none of these commands dirty the product worktree. The next experimental focus should compare cheap-model treatment runs with and without `republic escalate`, and compare final quality with and without `republic evaluate` prompts handed to a stronger validator seat.
+
+## Next Steps
+
+1. Run controlled Kimi/Ling scheduler experiments that compare `republic escalate` disabled versus enabled on the same failed-dispatch setup.
+2. Run semantic-evaluator experiments where a stronger validator seat receives `republic evaluate --write-prompt` output and records pass/warn/fail verdicts before integration.
+3. Extend `republic integrate` into a long-running CI daemon that periodically syncs delivered workgroup branches and broadcasts check failures.
+4. Extend the benchmark report into a full benchmark harness that runs single-agent, advisory Republic, governed Republic, and governed-plus-escalation variants against the same project tasks.
