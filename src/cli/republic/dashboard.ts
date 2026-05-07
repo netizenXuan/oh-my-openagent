@@ -785,6 +785,41 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
     .seat-name { font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .seat-meta { color:var(--muted); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .seat-foot { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+    .communication-section { overflow:hidden; }
+    .communication-map { position:relative; min-height:280px; padding:14px; background:radial-gradient(circle at 50% 40%, rgba(79,140,255,.08), transparent 52%); }
+    .communication-empty { position:relative; z-index:2; }
+    .comm-lanes { position:relative; z-index:2; display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:10px; }
+    .comm-lane { border:1px solid rgba(48,56,66,.78); border-radius:8px; background:rgba(12,16,22,.88); padding:10px; min-height:188px; }
+    .comm-lane h4 { margin:0 0 8px; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0; display:flex; justify-content:space-between; gap:8px; }
+    .comm-node-stack { display:flex; flex-direction:column; gap:8px; }
+    .comm-seat-node { position:relative; width:100%; border:1px solid var(--line); border-radius:8px; padding:8px 9px; background:#0d1117; color:var(--text); text-align:left; cursor:pointer; font:inherit; transition:border-color .12s ease, background .12s ease; }
+    .comm-seat-node:hover, .comm-seat-node.selected { border-color:var(--accent); background:#111a27; }
+    .comm-seat-node strong { display:block; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .comm-seat-node small { display:block; color:var(--muted); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .comm-node-row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    .comm-dot { display:inline-block; width:8px; height:8px; border-radius:999px; background:var(--muted); flex:0 0 auto; }
+    .comm-dot.planning { background:var(--accent); }
+    .comm-dot.execution { background:var(--cyan); }
+    .comm-dot.review { background:var(--green); }
+    .comm-dot.idle { background:var(--purple); }
+    .comm-edge-svg { position:absolute; inset:0; width:100%; height:100%; pointer-events:auto; z-index:1; overflow:visible; }
+    .comm-edge { fill:none; color:var(--accent); stroke:var(--accent); stroke-width:2; opacity:.74; pointer-events:stroke; cursor:pointer; transition:opacity .12s ease, stroke-width .12s ease; }
+    .comm-edge:hover, .comm-edge.selected { opacity:1; stroke-width:4; }
+    .comm-edge.question { color:var(--yellow); stroke:var(--yellow); }
+    .comm-edge.answer, .comm-edge.consensus, .comm-edge.contract { color:var(--green); stroke:var(--green); }
+    .comm-edge.objection, .comm-edge.dependency-blocked, .comm-edge.error { color:var(--red); stroke:var(--red); }
+    .comm-edge.intervention, .comm-edge.supervisor-policy { color:var(--purple); stroke:var(--purple); }
+    .comm-edge.status, .comm-edge.proposal, .comm-edge.revision, .comm-edge.handoff { color:var(--accent); stroke:var(--accent); }
+    .comm-legend { display:flex; flex-wrap:wrap; gap:8px; padding:0 14px 14px; color:var(--muted); font-size:11px; }
+    .comm-legend span { display:inline-flex; align-items:center; gap:5px; }
+    .comm-legend i { width:10px; height:2px; border-radius:999px; display:inline-block; background:var(--accent); }
+    .comm-legend .question i { background:var(--yellow); }
+    .comm-legend .answer i { background:var(--green); }
+    .comm-legend .objection i { background:var(--red); }
+    .comm-legend .intervention i { background:var(--purple); }
+    .relation-summary { border:1px solid rgba(79,140,255,.42); border-radius:8px; padding:12px; background:#111827; }
+    .relation-pair { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-weight:700; margin-bottom:8px; }
+    .relation-arrow { color:var(--accent); }
     .status { display:inline-flex; align-items:center; border-radius:999px; padding:2px 8px; font-size:11px; border:1px solid var(--line); color:var(--muted); white-space:nowrap; }
     .status-running { color:var(--cyan); border-color:rgba(76,201,216,.45); }
     .status-waiting { color:var(--yellow); border-color:rgba(225,184,77,.45); }
@@ -863,6 +898,7 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
     let selectedSeatID = null;
     let selectedPhase = "all";
     let selectedMetric = null;
+    let selectedRelationKey = null;
     const openDetails = new Set();
     const i18n = {
       en: {
@@ -894,6 +930,59 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
         updated:"업데이트", noGitRepository:"Git 저장소 없음", none:"없음", notAvailable:"해당 없음", noTeamShort:"팀 없음", pending:"대기", queue:"큐", threads:"스레드", messages:"메시지", assigned:"할당됨", groups:"그룹", active:"활성", rawData:"원본 데이터", channel:"채널", round:"라운드", status:"상태", references:"참조", files:"파일", target:"대상", requested:"요청 에이전트", dispatch:"디스패치", questionThreadsCompleted:"질문 스레드 완료", authoredQuestions:"작성한 질문", inboundQuestions:"받은 질문", noAllocationReason:"할당 이유가 기록되지 않았습니다.", noLiveStateMemory:"실시간 상태 메모리가 기록되지 않았습니다.", allTermsCovered:"추출된 필수 조건이 모두 충족되었습니다.", uncoveredTerms:"미충족 조건", expand:"펼치기", collapse:"접기", planning:"계획", execution:"실행", review:"리뷰", idle:"유휴", inProgress:"진행 중", needsQuorum:"정족수 부족", noRecords:"기록 없음", approved:"승인됨", approve:"승인", revise:"수정 필요", rejected:"거부됨", reject:"거부", running:"실행 중", waiting:"대기 중", blocked:"차단", done:"완료", standby:"대기", error:"오류", proposal:"제안", question:"질문", answer:"답변", objection:"이의", revision:"수정", handoff:"인계", contract:"계약", consensus:"합의", supervisorPolicy:"감독 정책", intervention:"개입", dependencyBlocked:"의존성 차단", nativeGitChange:"Native Git 변경"
       },
     };
+    const dashboardExtraI18n = {
+      en: {
+        communicationMap:"Seat Communication Map",
+        communicationDesc:"Directed seat-to-seat communication. Click a line to inspect that pair's messages.",
+        noRelations:"No directed seat communication has been recorded yet.",
+        selectedRelation:"Selected Relationship",
+        from:"From",
+        to:"To",
+        messageTypes:"Message Types",
+        latestMessage:"Latest Message",
+        relationMessages:"Relationship Messages",
+        relationInspectorHint:"Click a communication line to inspect the conversation between two seats.",
+      },
+      zh: {
+        communicationMap:"席位通信图",
+        communicationDesc:"按席位之间的定向交流聚合。点击连线可查看这两个席位的消息。",
+        noRelations:"还没有记录到席位之间的定向交流。",
+        selectedRelation:"选中的通信关系",
+        from:"来自",
+        to:"发往",
+        messageTypes:"消息类型",
+        latestMessage:"最新消息",
+        relationMessages:"关系消息",
+        relationInspectorHint:"点击通信连线，查看两个席位之间的对话。",
+      },
+      ja: {
+        communicationMap:"シート通信図",
+        communicationDesc:"シート間の有向コミュニケーションを集約します。線をクリックすると、その2席のメッセージを確認できます。",
+        noRelations:"シート間の有向コミュニケーションはまだ記録されていません。",
+        selectedRelation:"選択中の通信関係",
+        from:"送信元",
+        to:"送信先",
+        messageTypes:"メッセージ種別",
+        latestMessage:"最新メッセージ",
+        relationMessages:"関係メッセージ",
+        relationInspectorHint:"通信線をクリックすると、2つのシート間の会話を確認できます。",
+      },
+      ko: {
+        communicationMap:"시트 통신 지도",
+        communicationDesc:"시트 간 방향성 있는 소통을 집계합니다. 선을 클릭하면 두 시트의 메시지를 확인할 수 있습니다.",
+        noRelations:"아직 시트 간 방향성 있는 소통 기록이 없습니다.",
+        selectedRelation:"선택한 통신 관계",
+        from:"보낸 시트",
+        to:"받는 시트",
+        messageTypes:"메시지 유형",
+        latestMessage:"최근 메시지",
+        relationMessages:"관계 메시지",
+        relationInspectorHint:"통신선을 클릭하면 두 시트 사이의 대화를 확인할 수 있습니다.",
+      },
+    };
+    for (const [locale, values] of Object.entries(dashboardExtraI18n)) {
+      Object.assign(i18n[locale] ?? (i18n[locale] = {}), values);
+    }
     const enumKeyMap = {
       "in-progress":"inProgress", "needs-quorum":"needsQuorum", "no-records":"noRecords", "supervisor-policy":"supervisorPolicy", "dependency-blocked":"dependencyBlocked", "native-git-change":"nativeGitChange",
       planning:"planning", execution:"execution", review:"review", idle:"idle", running:"running", waiting:"waiting", blocked:"blocked", done:"done", standby:"standby", error:"error", pending:"pending", queued:"queue", dispatched:"dispatch", failed:"error", approved:"approved", approve:"approve", revise:"revise", rejected:"rejected", reject:"reject", proposal:"proposal", question:"question", answer:"answer", objection:"objection", revision:"revision", handoff:"handoff", contract:"contract", consensus:"consensus", status:"status", intervention:"intervention"
@@ -1079,6 +1168,155 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       });
     }
 
+    function relationKey(from, to) {
+      return String(from ?? "") + "->" + String(to ?? "");
+    }
+
+    function normalizeMessageType(type) {
+      return String(type ?? "status").replace(/[^a-z0-9-]/gi, "-").toLowerCase();
+    }
+
+    function communicationMessages(data) {
+      return (data.commonsMessages ?? []).filter((message) =>
+        message.authorSeatID && message.targetSeatID && message.authorSeatID !== message.targetSeatID
+      );
+    }
+
+    function relationTone(type) {
+      const normalized = normalizeMessageType(type);
+      if (["question"].includes(normalized)) return "question";
+      if (["answer", "consensus", "contract"].includes(normalized)) return "answer";
+      if (["objection", "dependency-blocked", "error"].includes(normalized)) return "objection";
+      if (["intervention", "supervisor-policy"].includes(normalized)) return "intervention";
+      return "status";
+    }
+
+    function buildCommunicationRelations(data) {
+      const byKey = new Map();
+      for (const message of communicationMessages(data)) {
+        const from = message.authorSeatID;
+        const to = message.targetSeatID;
+        const key = relationKey(from, to);
+        if (!byKey.has(key)) {
+          byKey.set(key, {
+            key,
+            from,
+            to,
+            count: 0,
+            typeCounts: {},
+            latest: message,
+            latestTimestamp: String(message.timestamp ?? ""),
+            messages: [],
+          });
+        }
+        const relation = byKey.get(key);
+        const type = normalizeMessageType(message.messageType);
+        relation.count += 1;
+        relation.typeCounts[type] = (relation.typeCounts[type] ?? 0) + 1;
+        relation.messages.push(message);
+        const timestamp = String(message.timestamp ?? "");
+        if (timestamp >= relation.latestTimestamp) {
+          relation.latest = message;
+          relation.latestTimestamp = timestamp;
+        }
+      }
+      return Array.from(byKey.values()).sort((left, right) =>
+        String(right.latestTimestamp).localeCompare(String(left.latestTimestamp)) || right.count - left.count
+      );
+    }
+
+    function relationForKey(data, key) {
+      return buildCommunicationRelations(data).find((relation) => relation.key === key) ?? null;
+    }
+
+    function seatLaneTitle(phase) {
+      return phase === "all" ? t("all") : enumLabel(phase);
+    }
+
+    function renderCommunicationNode(data, seat) {
+      const state = seatStateByID(data).get(seat.seatID);
+      const status = state?.status ?? "standby";
+      const selected = selectedSeatID === seat.seatID ? " selected" : "";
+      return '<button class="comm-seat-node' + selected + '" data-comm-seat-id="' + safe(seat.seatID) + '" data-seat-id="' + safe(seat.seatID) + '">'
+        + '<div class="comm-node-row"><strong>' + safe(seat.seatID) + '</strong><span class="' + statusClass(status) + '">' + safe(enumLabel(status)) + '</span></div>'
+        + '<small><span class="comm-dot ' + safe(seat.phase ?? "idle") + '"></span> ' + safe(seat.role) + (seat.module ? ' / ' + safe(seat.module) : '') + '</small>'
+        + '</button>';
+    }
+
+    function renderCommunicationMap(data) {
+      const seats = seatDefs(data);
+      const relations = buildCommunicationRelations(data);
+      if (selectedRelationKey && !relations.some((relation) => relation.key === selectedRelationKey)) {
+        selectedRelationKey = null;
+      }
+      const lanes = ["planning", "execution", "review", "idle"];
+      const seatByLane = (lane) => seats.filter((seat) => seat.phase === lane || (lane === "idle" && seat.role === "supervisor"));
+      const laneHtml = lanes.map((lane) => {
+        const laneSeats = seatByLane(lane);
+        if (laneSeats.length === 0) return "";
+        return '<div class="comm-lane"><h4><span>' + safe(seatLaneTitle(lane)) + '</span><span>' + laneSeats.length + ' ' + t("seats") + '</span></h4><div class="comm-node-stack">' + laneSeats.map((seat) => renderCommunicationNode(data, seat)).join("") + '</div></div>';
+      }).join("");
+      const mapBody = relations.length
+        ? '<div id="communication-map" class="communication-map" data-relation-count="' + relations.length + '"><svg id="communication-svg" class="comm-edge-svg" aria-hidden="true"></svg><div class="comm-lanes">' + laneHtml + '</div></div>'
+        : '<div id="communication-map" class="communication-map" data-relation-count="0"><div class="communication-empty empty">' + t("noRelations") + '</div><div class="comm-lanes">' + laneHtml + '</div></div>';
+      const legend = '<div class="comm-legend">'
+        + '<span class="question"><i></i>' + safe(enumLabel("question")) + '</span>'
+        + '<span class="answer"><i></i>' + safe(enumLabel("answer")) + '/' + safe(enumLabel("contract")) + '</span>'
+        + '<span class="objection"><i></i>' + safe(enumLabel("objection")) + '</span>'
+        + '<span class="intervention"><i></i>' + safe(enumLabel("intervention")) + '</span>'
+        + '<span><i></i>' + safe(enumLabel("status")) + '</span>'
+        + '</div>';
+      return '<section class="board-section communication-section"><div class="board-section-head"><div><strong>' + t("communicationMap") + '</strong><p class="muted">' + t("communicationDesc") + '</p></div><span class="pill">' + relations.length + ' ' + label("messages") + '</span></div>' + mapBody + legend + '</section>';
+    }
+
+    function drawCommunicationEdges(data) {
+      const map = document.getElementById("communication-map");
+      const svg = document.getElementById("communication-svg");
+      if (!map || !svg) return;
+      const relations = buildCommunicationRelations(data);
+      const mapRect = map.getBoundingClientRect();
+      const nodes = new Map();
+      for (const node of map.querySelectorAll("[data-comm-seat-id]")) {
+        nodes.set(node.getAttribute("data-comm-seat-id"), node);
+      }
+      const defs = '<defs><marker id="comm-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L7,3.5 L0,7 Z" fill="currentColor"></path></marker></defs>';
+      const paths = relations.map((relation, index) => {
+        const fromNode = nodes.get(relation.from);
+        const toNode = nodes.get(relation.to);
+        if (!fromNode || !toNode) return "";
+        const fromRect = fromNode.getBoundingClientRect();
+        const toRect = toNode.getBoundingClientRect();
+        const fromCenterX = fromRect.left - mapRect.left + fromRect.width / 2;
+        const toCenterX = toRect.left - mapRect.left + toRect.width / 2;
+        const forward = toCenterX >= fromCenterX;
+        const startX = (forward ? fromRect.right : fromRect.left) - mapRect.left;
+        const startY = fromRect.top - mapRect.top + fromRect.height / 2;
+        const endX = (forward ? toRect.left : toRect.right) - mapRect.left;
+        const endY = toRect.top - mapRect.top + toRect.height / 2;
+        const direction = forward ? 1 : -1;
+        const controlX = startX + Math.max(70, Math.abs(endX - startX) * 0.45) * direction;
+        const offset = ((index % 5) - 2) * 12;
+        const controlY = (startY + endY) / 2 + offset;
+        const width = Math.min(5, 1.5 + Math.log2(relation.count + 1));
+        const selected = selectedRelationKey === relation.key ? " selected" : "";
+        const tone = relationTone(relation.latest?.messageType);
+        const d = "M " + startX.toFixed(1) + " " + startY.toFixed(1) + " Q " + controlX.toFixed(1) + " " + controlY.toFixed(1) + " " + endX.toFixed(1) + " " + endY.toFixed(1);
+        return '<path class="comm-edge ' + safe(tone) + selected + '" data-relation-key="' + safe(relation.key) + '" d="' + safe(d) + '" style="stroke-width:' + width.toFixed(1) + '" marker-end="url(#comm-arrow)"><title>' + safe(relation.from + " -> " + relation.to + " (" + relation.count + ")") + '</title></path>';
+      }).join("");
+      svg.setAttribute("viewBox", "0 0 " + mapRect.width + " " + mapRect.height);
+      svg.innerHTML = defs + paths;
+      for (const edge of svg.querySelectorAll("[data-relation-key]")) {
+        edge.addEventListener("click", (event) => {
+          event.stopPropagation();
+          selectedRelationKey = edge.getAttribute("data-relation-key");
+          selectedSeatID = null;
+          selectedMetric = null;
+          renderInspector(currentData);
+          drawCommunicationEdges(currentData);
+        });
+      }
+    }
+
     function completionForSeat(data, seatID) {
       const messages = data.commonsMessages ?? [];
       const authoredQuestions = messages.filter((message) => message.authorSeatID === seatID && message.messageType === "question");
@@ -1214,6 +1452,7 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       }).join("") + '</div>';
       board.innerHTML = renderPhaseStrip(data)
         + '<section class="board-section"><div class="board-section-head"><strong>' + t("teamLoad") + '</strong><span class="pill">' + counts.running + ' ' + t("running") + ' / ' + counts.waiting + ' ' + t("waiting") + ' / ' + counts.blocked + ' ' + t("blocked") + '</span></div>' + (awaitingClosure ? '<div class="empty">' + t("awaitingClosure") + '</div>' : '') + '</section>'
+        + renderCommunicationMap(data)
         + supervisorHtml
         + '<section class="board-section"><div class="board-section-head"><strong>' + t("workgroupLabel") + '</strong><span class="pill">' + workgroups.size + ' ' + label("groups") + '</span></div>' + workgroupHtml + '</section>';
       for (const button of board.querySelectorAll("[data-phase-filter]")) {
@@ -1221,6 +1460,7 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
           selectedPhase = button.getAttribute("data-phase-filter") || "all";
           selectedSeatID = null;
           selectedMetric = null;
+          selectedRelationKey = null;
           renderTeamBoard(currentData);
           renderInspector(currentData);
         });
@@ -1229,10 +1469,12 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
         button.addEventListener("click", () => {
           selectedSeatID = button.getAttribute("data-seat-id");
           selectedMetric = null;
+          selectedRelationKey = null;
           renderTeamBoard(currentData);
           renderInspector(currentData);
         });
       }
+      requestAnimationFrame(() => drawCommunicationEdges(data));
     }
 
     function renderMetrics(data) {
@@ -1282,6 +1524,7 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
         button.addEventListener("click", () => {
           selectedMetric = button.getAttribute("data-metric-group");
           selectedSeatID = null;
+          selectedRelationKey = null;
           renderInspector(currentData);
         });
       }
@@ -1289,6 +1532,29 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
 
     function renderInspector(data) {
       const inspector = document.getElementById("seat-inspector");
+      if (selectedRelationKey) {
+        const relation = relationForKey(data, selectedRelationKey);
+        if (relation) {
+          const sortedMessages = relation.messages.sort((left, right) => String(right.timestamp ?? "").localeCompare(String(left.timestamp ?? "")));
+          const typeRows = Object.entries(relation.typeCounts)
+            .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+            .map(([type, count]) => metric(enumLabel(type), count))
+            .join("");
+          inspector.innerHTML = '<h2>' + t("seatInspector") + '</h2>'
+            + '<div class="relation-summary"><h3>' + t("selectedRelation") + '</h3><div class="relation-pair"><span>' + safe(relation.from) + '</span><span class="relation-arrow">-></span><span>' + safe(relation.to) + '</span></div><p class="muted">' + relation.count + ' ' + label("messages") + ' · ' + t("latestMessage") + ': ' + safe(relation.latestTimestamp || label("notAvailable")) + '</p></div>'
+            + '<div>' + [
+              metric(t("from"), safe(relation.from)),
+              metric(t("to"), safe(relation.to)),
+              metric(t("messageTypes"), safe(Object.keys(relation.typeCounts).map(enumLabel).join(", ") || label("none"))),
+            ].join("") + '</div>'
+            + detailBlock(t("messageTypes"), typeRows, relation.typeCounts, "relation-types:" + relation.key)
+            + '<div><h3>' + t("relationMessages") + '</h3><div class="inspector-list">' + sortedMessages.slice(0, 16).map(renderMessageDetails).join("") + '</div></div>'
+            + detailBlock(label("rawData"), "", relation, "relation-raw:" + relation.key);
+          bindDetailState(inspector);
+          return;
+        }
+        selectedRelationKey = null;
+      }
       if (selectedMetric) {
         const rawByMetric = {
           decision: data.report.decision,
@@ -1373,6 +1639,9 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       localStorage.setItem("omo-republic-lang", lang);
       applyI18n();
       if (currentData) render();
+    });
+    window.addEventListener("resize", () => {
+      if (currentData) requestAnimationFrame(() => drawCommunicationEdges(currentData));
     });
     applyI18n();
     render();
