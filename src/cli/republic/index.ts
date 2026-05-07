@@ -48,6 +48,8 @@ export function createRepublicCommand(): Command {
     .option("-d, --directory <path>", "Working directory to inspect")
     .option("--deliberation-id <id>", "Filter to one deliberation id")
     .option("--strict", "Exit non-zero when warnings are present")
+    .option("--max-pending-age-ms <ms>", "Warn when a pending scheduler dispatch is older than this", (value) => Number.parseInt(value, 10))
+    .option("--max-failed-per-source <n>", "Warn when one source message has more than this many failed dispatches", (value) => Number.parseInt(value, 10))
     .option("-o, --output <path>", "Write the report to a file instead of stdout")
     .option("--json", "Output structured JSON")
     .action(async (options) => {
@@ -55,6 +57,8 @@ export function createRepublicCommand(): Command {
         directory: options.directory,
         deliberationId: options.deliberationId,
         strict: options.strict ?? false,
+        maxPendingAgeMs: options.maxPendingAgeMs,
+        maxFailedPerSource: options.maxFailedPerSource,
         output: options.output,
         json: options.json ?? false,
       })

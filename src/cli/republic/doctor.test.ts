@@ -8,6 +8,7 @@ import { join } from "node:path"
 import {
   appendRepublicCommonsMessage,
   appendRepublicLedgerRecord,
+  appendRepublicSchedulerQueueRecord,
   getNativeGitRepository,
 } from "../../shared/git-worktree"
 import { buildRepublicDoctorReport, formatRepublicDoctorReport, republicDoctor } from "./doctor"
@@ -112,5 +113,53 @@ describe("republic doctor", () => {
     expect(report.checks.every((check) => check.status !== "fail")).toBe(true)
     expect(report.checks.find((check) => check.name === "republic-ledger")?.status).toBe("pass")
     expect(report.checks.find((check) => check.name === "republic-commons")?.status).toBe("pass")
+  })
+
+  test("warns on stale pending dispatches and failed bursts", () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")
+    commitAll(directory, "init")
+
+    const repository = getNativeGitRepository(directory)
+    expect(repository).not.toBeNull()
+    appendRepublicSchedulerQueueRecord(repository!, {
+      dispatchID: "dispatch-1",
+      queueType: "seat-response",
+      status: "queued",
+      deliberationID: "doctor-smoke",
+      sourceMessageID: "question-1",
+      targetSeatID: "docs-seat",
+      summary: "Stale queue.",
+    })
+    appendRepublicSchedulerQueueRecord(repository!, {
+      dispatchID: "dispatch-fail-1",
+      queueType: "seat-response",
+      status: "failed",
+      deliberationID: "doctor-smoke",
+      sourceMessageID: "question-1",
+      targetSeatID: "docs-seat",
+      summary: "Failed once.",
+    })
+    appendRepublicSchedulerQueueRecord(repository!, {
+      dispatchID: "dispatch-fail-2",
+      queueType: "seat-response",
+      status: "failed",
+      deliberationID: "doctor-smoke",
+      sourceMessageID: "question-1",
+      targetSeatID: "docs-seat",
+      summary: "Failed twice.",
+    })
+
+    const report = buildRepublicDoctorReport({
+      directory,
+      deliberationId: "doctor-smoke",
+      maxPendingAgeMs: 0,
+      maxFailedPerSource: 1,
+      now: new Date(Date.now() + 1000),
+    })
+
+    expect(report.checks.find((check) => check.name === "scheduler-ttl")?.status).toBe("warn")
+    expect(report.checks.find((check) => check.name === "scheduler-failed-burst")?.status).toBe("warn")
+    expect(report.checks.find((check) => check.name === "scheduler-failed-burst")?.detail).toContain("escalate or change model")
   })
 })

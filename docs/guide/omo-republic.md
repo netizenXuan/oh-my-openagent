@@ -165,11 +165,12 @@ Summarize from the CLI:
 ```bash
 bunx oh-my-opencode republic doctor --directory /path/to/repo
 bunx oh-my-opencode republic doctor --directory /path/to/repo --strict --json
+bunx oh-my-opencode republic doctor --directory /path/to/repo --max-pending-age-ms 600000 --max-failed-per-source 2 --strict
 bunx oh-my-opencode republic status --directory /path/to/repo
 bunx oh-my-opencode republic status --directory /path/to/repo --json
 ```
 
-`republic doctor` is the first health check to run before assigning weak-model seats. It summarizes whether the selected directory is a Git repository, whether native-git audit and Republic records are readable, whether Commons activity exists, whether scheduler queue records are pending or failed, and whether contract traceability has warnings. Advisory mode tolerates missing Republic activity in a new repository; `--strict` treats warnings as non-zero exit conditions for automation.
+`republic doctor` is the first health check to run before assigning weak-model seats. It summarizes whether the selected directory is a Git repository, whether native-git audit and Republic records are readable, whether Commons activity exists, whether scheduler queue records are pending or failed, and whether contract traceability has warnings. Advisory mode tolerates missing Republic activity in a new repository; `--strict` treats warnings as non-zero exit conditions for automation. The scheduler thresholds are the first livelock circuit breaker: stale pending dispatches and repeated failures from one source message become machine-readable warnings, so a supervisor can stop retrying the same weak model and escalate or change strategy.
 
 Render a static collaboration graph dashboard:
 
