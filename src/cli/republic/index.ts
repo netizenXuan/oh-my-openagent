@@ -9,6 +9,7 @@ import { collectCapabilityContentTerm, republicCapabilityCheck } from "./capabil
 import { republicContractCheck } from "./contract-check"
 import { republicDashboard } from "./dashboard"
 import { republicDoctor } from "./doctor"
+import { republicEvaluate } from "./evaluate"
 import { republicIntent } from "./intent"
 import { republicIntegrate } from "./integrate"
 import { republicScheduler } from "./scheduler"
@@ -18,6 +19,37 @@ import { republicWorktrees } from "./worktrees"
 export function createRepublicCommand(): Command {
   const command = new Command("republic")
     .description("Inspect OMO Republic deliberation and native Git audit state")
+
+  command
+    .command("evaluate")
+    .description("Prepare or record a semantic evaluator seat verdict")
+    .option("-d, --directory <path>", "Working directory to inspect")
+    .option("--deliberation-id <id>", "Deliberation id to evaluate")
+    .option("--evaluator-seat-id <seat>", "Evaluator seat id", "validator-seat")
+    .option("--target-message-id <id>", "Specific Commons message to evaluate")
+    .option("--evidence-file <path>", "Evidence file to include; repeatable", (value, previous: string[]) => previous.concat(value), [])
+    .option("--write-prompt", "Write an evaluator prompt under .git/omo/republic/evaluator/prompts")
+    .option("--prompt-output <path>", "Write the evaluator prompt to a specific path")
+    .option("--result <pass|warn|fail>", "Record an evaluator verdict")
+    .option("--summary <text>", "Summary content for a recorded verdict")
+    .option("-o, --output <path>", "Write the report to a file instead of stdout")
+    .option("--json", "Output structured JSON")
+    .action(async (options) => {
+      const exitCode = await republicEvaluate({
+        directory: options.directory,
+        deliberationId: options.deliberationId,
+        evaluatorSeatId: options.evaluatorSeatId,
+        targetMessageId: options.targetMessageId,
+        evidenceFile: options.evidenceFile,
+        writePrompt: options.writePrompt ?? false,
+        promptOutput: options.promptOutput,
+        result: options.result,
+        summary: options.summary,
+        output: options.output,
+        json: options.json ?? false,
+      })
+      process.exit(exitCode)
+    })
 
   command
     .command("intent")
