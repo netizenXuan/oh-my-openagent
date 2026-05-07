@@ -147,7 +147,7 @@ Here's a practical starting configuration:
 
 ### Agents
 
-Override built-in agent settings. Available agents: `sisyphus`, `republic`, `hephaestus`, `prometheus`, `oracle`, `librarian`, `explore`, `multimodal-looker`, `metis`, `momus`, `atlas`, `sisyphus-junior`.
+Override built-in agent settings. Available agents: `sisyphus`, `republic`, `republic-large`, `republic-extreme`, `hephaestus`, `prometheus`, `oracle`, `librarian`, `explore`, `multimodal-looker`, `metis`, `momus`, `atlas`, `sisyphus-junior`.
 
 ```json
 {
@@ -160,7 +160,7 @@ Override built-in agent settings. Available agents: `sisyphus`, `republic`, `hep
 
 Disable agents entirely: `{ "disabled_agents": ["oracle", "multimodal-looker"] }`
 
-Core agents receive an injected runtime `order` field for deterministic Tab cycling in the UI: Sisyphus = 1, Hephaestus = 2, Prometheus = 3, Atlas = 4. This is not a user-configurable config key.
+Core agents receive an injected runtime `order` field for deterministic Tab cycling in the UI: Sisyphus = 1, Republic = 2, Republic Large = 3, Republic Extreme = 4, Hephaestus = 5, Prometheus = 6, Atlas = 7. This is not a user-configurable config key.
 
 #### Agent Options
 
@@ -668,6 +668,16 @@ Configure the deliberative multi-agent workflow and ledger:
 }
 ```
 
+Republic is also exposed directly in the OpenCode App agent selector through three primary agents:
+
+| App agent | Preset | Default capacity | Intended use |
+| --------- | ------ | ---------------- | ------------ |
+| `Republic - Team Orchestrator` | `standard` | `max_parallel_seats=4` | Normal complex work where cost and coordination need to stay balanced |
+| `Republic - Large Team` | `large` | `max_parallel_seats=8`, planner/executor/reviewer counts biased upward | Broad projects with several adjacent modules or heavier review needs |
+| `Republic - Extreme Team` | `extreme` | `max_parallel_seats=12`, larger planning/execution/review benches | Stress tests, large rewrites, and high-risk work where coordination cost is acceptable |
+
+The preset only changes the initialization defaults used by `republic_team_init`. Users can still override counts in the prompt or config. The standard preset remains the product default because four concurrent seats are enough for most tasks and avoid overwhelming weaker or rate-limited models. Use Large or Extreme when the task has enough independent modules to justify the additional calls.
+
 | Option                                   | Default      | Description                                                                 |
 | ---------------------------------------- | ------------ | --------------------------------------------------------------------------- |
 | `enabled`                                | `true`       | Enable OMO Republic command helpers                                         |
@@ -709,7 +719,7 @@ Configure the deliberative multi-agent workflow and ledger:
 | `scheduler.supervisor_agent`             | `"hephaestus"` | Preferred OMO/runtime agent for supervisor-targeted dispatch               |
 | `scheduler.seat_agents`                  | `{}`         | Map conceptual seat IDs such as `api-seat` to preferred OMO/runtime agents  |
 | `scheduler.prompt_max_messages`          | `8`          | Context budget hint included in dispatched response prompts                  |
-| `dashboard.auto_open`                    | `false`      | Start and open a local live Republic dashboard when configured events occur |
+| `dashboard.auto_open`                    | `true`       | Start and open a local live Republic dashboard when configured events occur |
 | `dashboard.auto_open_events`             | `["team_init"]` | Events that can open the dashboard: `team_init`, `round_start`          |
 | `dashboard.port`                         | `4097`       | Port for the local live dashboard                                           |
 | `dashboard.refresh_ms`                   | `2000`       | Browser polling interval for live `.git/omo` state                          |
@@ -721,6 +731,8 @@ The interactive Republic tools are `republic_team_init`, `republic_team_status`,
 When `team_model` is `parliament`, `squad`, or `parliament_squad` and `team.exclusive_seat_orchestration` remains `true`, seats become the product's only multi-agent organization layer. The plugin injects a system instruction that tells primary agents to use Republic tools instead of creating a second OMO subagent plan, and the pre-tool hook blocks direct `task` / `call_omo_agent` delegation from the main agent. Republic may still use OpenCode runtime agents internally as the execution transport for a seat, but responsibility, memory, communication, contracts, and supervision belong to the seat.
 
 OpenCode's current server plugin API does not expose a stable custom Desktop App panel slot. For a practical App workflow, set `dashboard.auto_open` to `true`; `republic_team_init` and/or `republic_round_start` will open a local live browser dashboard at `http://127.0.0.1:<port>` while the App continues running the session. This gives the user a separate real-time command board without writing dashboard files into the worktree.
+
+Compared with upstream OMO Team Mode, Republic is intentionally Git-native and governance-oriented. Upstream Team Mode focuses on a live lead/member team. Republic focuses on persistent seats, dynamic seat allocation, Commons messages, contracts, supervisor interventions, weak-model guardrails, native-git audit records, and a dashboard that can reconstruct who asked, answered, objected, revised, approved, or blocked a change from Git common-dir files. That makes it heavier, but also more suitable for auditable engineering work and weaker-model coordination.
 
 ### Git Master
 

@@ -556,6 +556,14 @@ Reads `.git/omo/republic/ledger.jsonl`, `.git/omo/republic/commons.jsonl`, and `
 
 The CLI also provides `oh-my-opencode republic dashboard`, which renders the same state as a click-to-inspect command board, including persistent team manifest, team phase, per-seat state, queue records, contracts, and expandable raw Commons details. Static output defaults to `.git/omo/republic/dashboard.html`; `--serve` starts a local live dashboard that polls Git common-dir records. In Desktop App workflows, `republic.dashboard.auto_open` can open this live board automatically when a team or round starts.
 
+In the OpenCode App, Republic can be selected from the same primary-agent dropdown as the other OMO roles:
+
+- `Republic - Team Orchestrator`: standard preset, `max_parallel_seats=4`.
+- `Republic - Large Team`: larger preset, `max_parallel_seats=8` with more planner/executor/reviewer seats.
+- `Republic - Extreme Team`: stress preset, `max_parallel_seats=12` with the largest default benches.
+
+All three entries run the same Republic governance system. The difference is only the default team size passed to `republic_team_init`; the workflow remains plan with multiple seats, lock contracts, execute with seat ownership, review with reviewer seats and supervisor policy, then close the phase with a final verdict.
+
 Interactive Republic collaboration is available through nine tools:
 
 - `republic_team_init`: initialize `.git/omo/republic/team/` with dynamically allocated or explicitly configured seats.
@@ -571,6 +579,8 @@ Interactive Republic collaboration is available through nine tools:
 `republic_team_init` writes team manifest, phase state, per-seat state, and per-seat memory under the Git common dir. It can infer seats from the goal/files, honor user-provided seat counts, or use explicit seat lists from config. `republic_round_start` then selects seats by phase, workgroup, or explicit ID, respects `team.max_parallel_seats`, and launches those seats as active background sessions. Seats can call `republic_seat_update` to record whether they are running, waiting, blocked, done, or in error, and `republic_team_status` provides the stable read model needed by supervisor review and dashboard views. `republic_phase_update` records the boundary between planning, execution, review, and idle, including locked contracts and blockers. When enabled, targeted `question`, `handoff`, and `objection` messages published with `republic_publish` are actively dispatched to a background response seat. The publishing seat can then call `republic_wait` to block until an `answer`, `revision`, `objection`, `consensus`, `contract`, or `handoff` references the original message. Objections and Commons messages marked `blocked` or `review-required` also dispatch a supervisor review seat. The scheduler records each dispatch in Commons and the ledger, then background seats can answer, revise, object, hand off, publish supervisor decisions, update their persistent seat state, transition team phase, start additional rounds, or write contracts through the same Republic tools. Preferred seat agents are checked against the current OpenCode runtime registry; unavailable OMO roles fall back to an available runtime agent while preserving the requested role in the dispatch prompt/output. The native-git hook injects relevant inbox messages into the next chat turn as `<republic-commons-inbox>` and can warn or block weak-model execution writes until locked contract context has been received. The supervisor policy loop records `supervisor-policy` messages on idle when questions, objections, or governance warnings remain unresolved.
 
 In `team_model: "parliament"`, `"squad"`, or `"parliament_squad"`, Republic seats are not a decorative wrapper around Sisyphus-style delegation. With `team.exclusive_seat_orchestration: true` they are the orchestration layer: OMO runtime agents may execute a seat, but the main agent is blocked from opening an independent `task` or `call_omo_agent` decomposition. Add capacity by allocating more seats or starting another Republic round, not by mixing in the legacy automatic subagent plan.
+
+This is the main product distinction from ordinary multi-agent fan-out. The runtime model may still be the same OpenCode/Kimi/OpenRouter model, but Republic makes each seat durable: it has a seat ID, state file, memory doc, Commons inbox, workgroup contract context, and native-git trace. That lets a supervisor detect idle-but-open phases, unresolved dependency gates, missing contracts, and model shortcuts after the chat turn has ended.
 
 ### /start-work
 
