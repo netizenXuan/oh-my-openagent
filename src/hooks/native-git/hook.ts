@@ -68,6 +68,7 @@ type NativeGitSessionContext = {
   agent?: string
   model?: string
   category?: string
+  seatID?: string
   requestedPaths?: string[]
 }
 
@@ -167,8 +168,61 @@ function getDeliberationID(input: NativeGitToolInput): string {
   return sanitizeRepublicDeliberationID(`session-${input.sessionID ?? "unknown"}`)
 }
 
-function getSeatID(input: NativeGitToolInput): string {
+function getRuntimeFallbackSeatID(input: NativeGitToolInput): string {
   return sanitizeRepublicDeliberationID(`${input.agent ?? "agent"}-executor`)
+}
+
+function getManifestSupervisorSeatID(manifest: ReturnType<typeof readRepublicTeamManifest>): string | undefined {
+  return manifest?.seats.find((seat) => seat.seatID === "republic-supervisor")?.seatID
+    ?? manifest?.seats.find((seat) => seat.role === "supervisor")?.seatID
+}
+
+function extractRepublicSeatIDFromPrompt(promptText: string | undefined): string | undefined {
+  if (!promptText) {
+    return undefined
+  }
+  const patterns = [
+    /persistent Republic seat\s+"([^"]+)"/i,
+    /republic[_ -]seat(?:_id)?\s*[:=]\s*"?([A-Za-z0-9_.-]+)"?/i,
+    /author_seat_id\s*=\s*"([^"]+)"/i,
+    /current_seat:\s*([A-Za-z0-9_.-]+)/i,
+  ]
+  for (const pattern of patterns) {
+    const match = promptText.match(pattern)
+    if (match?.[1]) {
+      return sanitizeRepublicDeliberationID(match[1])
+    }
+  }
+  return undefined
+}
+
+function getSeatID(
+  input: NativeGitToolInput,
+  repository?: NativeGitRepository | null,
+  sessionSeatID?: string,
+): string {
+  const explicitSeatID = sessionSeatID ? sanitizeRepublicDeliberationID(sessionSeatID) : undefined
+  const manifest = repository ? readRepublicTeamManifest(repository) : null
+  if (explicitSeatID && (!manifest || manifest.seats.some((seat) => seat.seatID === explicitSeatID))) {
+    return explicitSeatID
+  }
+
+  const fallbackSeatID = getRuntimeFallbackSeatID(input)
+  if (!manifest) {
+    return fallbackSeatID
+  }
+  if (manifest.seats.some((seat) => seat.seatID === fallbackSeatID)) {
+    return fallbackSeatID
+  }
+
+  const matchingRuntimeSeats = input.agent && input.agent !== "general"
+    ? manifest.seats.filter((seat) => seat.runtimeAgent && getAgentConfigKey(seat.runtimeAgent) === input.agent)
+    : []
+  if (matchingRuntimeSeats.length === 1 && matchingRuntimeSeats[0]) {
+    return matchingRuntimeSeats[0].seatID
+  }
+
+  return getManifestSupervisorSeatID(manifest) ?? "republic-orchestrator"
 }
 
 function getTaskID(input: NativeGitToolInput, moduleName: string): string {
@@ -587,10 +641,12 @@ export function createNativeGitHook(
   function rememberSessionContext(input: NativeGitChatInput): void {
     const previous = sessionContextBySession.get(input.sessionID)
     const requestedPaths = getPromptMentionedPaths(input.promptText)
+    const seatID = extractRepublicSeatIDFromPrompt(input.promptText)
     sessionContextBySession.set(input.sessionID, {
       agent: normalizeAgent(input.agent) ?? previous?.agent,
       model: formatModelID(input.model) ?? previous?.model,
       category: input.category ?? previous?.category,
+      seatID: seatID ?? previous?.seatID,
       requestedPaths: requestedPaths.length > 0 ? requestedPaths : previous?.requestedPaths,
     })
   }
@@ -792,8 +848,8 @@ export function createNativeGitHook(
       model: input.model ? formatModelID(input.model) : undefined,
       category: input.category,
     })
-    const seatID = getSeatID(enriched)
     const sessionContext = sessionContextBySession.get(input.sessionID)
+    const seatID = getSeatID(enriched, status.repository, sessionContext?.seatID)
     const modules = getModules(sessionContext?.requestedPaths ?? [])
     const moduleName = modules[0]
     const messages = readRepublicInboxMessages(status.repository, {
@@ -1120,7 +1176,8 @@ export function createNativeGitHook(
     const moduleName = getPrimaryModule(files)
     const workgroupID = getWorkgroupID(moduleName)
     const deliberationID = getDeliberationID(input)
-    const seatID = getSeatID(input)
+    const sessionSeatID = input.sessionID ? sessionContextBySession.get(input.sessionID)?.seatID : undefined
+    const seatID = getSeatID(input, repository, sessionSeatID)
     const taskID = getTaskID(input, moduleName)
 
     appendRepublicCommonsMessage(repository, {
@@ -1200,7 +1257,7 @@ export function createNativeGitHook(
       authorSeatID: "dependency-gate",
       authorAgent: "republic-supervisor",
       authorRole: "supervisor",
-      targetSeatID: getSeatID(input),
+      targetSeatID: getSeatID(input, status.repository, input.sessionID ? sessionContextBySession.get(input.sessionID)?.seatID : undefined),
       workgroupID,
       module: moduleName,
       taskID,
@@ -1286,7 +1343,7 @@ export function createNativeGitHook(
     const deliberationID = phase?.deliberationID ?? getDeliberationID(input)
     const moduleName = getPrimaryModule(files)
     const workgroupID = getWorkgroupID(moduleName)
-    const targetSeatID = getSeatID(input)
+    const targetSeatID = getSeatID(input, repository, input.sessionID ? sessionContextBySession.get(input.sessionID)?.seatID : undefined)
     const timing = options.timing ?? "preflight"
     const summary = [
       `Republic weak-model guardrail ${blocked ? "blocked" : "recorded"} ${input.tool} ${timing === "post-change" ? "after execution" : "before execution"} because locked contracts exist but the session has not received the required contract context.`,
@@ -1511,7 +1568,7 @@ export function createNativeGitHook(
     const moduleName = getPrimaryModule(files)
     const workgroupID = getWorkgroupID(moduleName)
     const deliberationID = getDeliberationID(input)
-    const targetSeatID = getSeatID(input)
+    const targetSeatID = getSeatID(input, repository, input.sessionID ? sessionContextBySession.get(input.sessionID)?.seatID : undefined)
     const taskID = getTaskID(input, moduleName)
     const message = [
       `Supervisor review is required because ${reasons.join("; ")}.`,

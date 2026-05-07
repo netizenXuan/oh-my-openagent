@@ -115,13 +115,44 @@ function getToolRepository(ctx: PluginInput, context: ToolContextLike): NativeGi
   return null
 }
 
-function getSeatID(args: { author_seat_id?: string }, context: ToolContextLike): string {
-  if (args.author_seat_id) {
-    return sanitizeRepublicDeliberationID(args.author_seat_id)
-  }
+function getContextFallbackSeatID(context: ToolContextLike): string {
   const agent = context.agent ?? (context.sessionID ? getSessionAgent(context.sessionID) : undefined)
   const normalizedAgent = agent ? getAgentConfigKey(agent) : "agent"
   return sanitizeRepublicDeliberationID(`${normalizedAgent}-executor`)
+}
+
+function getManifestSupervisorSeatID(manifest: ReturnType<typeof readRepublicTeamManifest>): string | undefined {
+  return manifest?.seats.find((seat) => seat.seatID === "republic-supervisor")?.seatID
+    ?? manifest?.seats.find((seat) => seat.role === "supervisor")?.seatID
+}
+
+function getSeatID(
+  args: { author_seat_id?: string },
+  context: ToolContextLike,
+  repository?: NativeGitRepository | null,
+): string {
+  if (args.author_seat_id) {
+    return sanitizeRepublicDeliberationID(args.author_seat_id)
+  }
+  const fallbackSeatID = getContextFallbackSeatID(context)
+  const manifest = repository ? readRepublicTeamManifest(repository) : null
+  if (!manifest) {
+    return fallbackSeatID
+  }
+  if (manifest.seats.some((seat) => seat.seatID === fallbackSeatID)) {
+    return fallbackSeatID
+  }
+
+  const agent = context.agent ?? (context.sessionID ? getSessionAgent(context.sessionID) : undefined)
+  const normalizedAgent = agent ? getAgentConfigKey(agent) : undefined
+  const matchingRuntimeSeats = normalizedAgent && normalizedAgent !== "general"
+    ? manifest.seats.filter((seat) => seat.runtimeAgent && getAgentConfigKey(seat.runtimeAgent) === normalizedAgent)
+    : []
+  if (matchingRuntimeSeats.length === 1 && matchingRuntimeSeats[0]) {
+    return matchingRuntimeSeats[0].seatID
+  }
+
+  return getManifestSupervisorSeatID(manifest) ?? "republic-orchestrator"
 }
 
 function getDeliberationID(args: { deliberation_id?: string }, context: ToolContextLike): string {
@@ -827,8 +858,11 @@ function buildCommonsMessage(
   args: Record<string, unknown>,
   context: ToolContextLike,
   messageType: RepublicCommonsMessage["messageType"],
+  repository?: NativeGitRepository | null,
 ): RepublicCommonsMessage {
-  const authorSeatID = getSeatID({ author_seat_id: args.author_seat_id as string | undefined }, context)
+  const authorSeatID = getSeatID({ author_seat_id: args.author_seat_id as string | undefined }, context, repository)
+  const manifest = repository ? readRepublicTeamManifest(repository) : null
+  const authorDefinition = manifest?.seats.find((seat) => seat.seatID === authorSeatID)
   const deliberationID = getDeliberationID({ deliberation_id: args.deliberation_id as string | undefined }, context)
   return {
     messageID: sanitizeRepublicDeliberationID(`${deliberationID}-${authorSeatID}-${messageType}-${Date.now()}`),
@@ -836,8 +870,8 @@ function buildCommonsMessage(
     channel: typeof args.channel === "string" ? args.channel : "commons",
     phase: typeof args.phase === "string" ? args.phase : "collaboration",
     authorSeatID,
-    authorAgent: typeof args.author_agent === "string" ? args.author_agent : undefined,
-    authorRole: typeof args.author_role === "string" ? args.author_role : undefined,
+    authorAgent: typeof args.author_agent === "string" ? args.author_agent : authorDefinition?.runtimeAgent,
+    authorRole: typeof args.author_role === "string" ? args.author_role : authorDefinition?.role,
     targetSeatID: typeof args.target_seat_id === "string" ? sanitizeRepublicDeliberationID(args.target_seat_id) : undefined,
     workgroupID: typeof args.workgroup_id === "string" ? args.workgroup_id : undefined,
     module: typeof args.module === "string" ? args.module : undefined,
@@ -1056,7 +1090,7 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
       }
 
       const manifest = readRepublicTeamManifest(repository)
-      const seatID = getSeatID({ author_seat_id: args.seat_id as string | undefined }, context as ToolContextLike)
+      const seatID = getSeatID({ author_seat_id: args.seat_id as string | undefined }, context as ToolContextLike, repository)
       const existing = readRepublicSeatState(repository, seatID)
       const definition = manifest?.seats.find((seat) => seat.seatID === seatID)
       const status = typeof args.status === "string" ? args.status as typeof SEAT_STATUSES[number] : existing?.status ?? "running"
@@ -1172,7 +1206,10 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
         : existing?.activeRound
       const lockedContracts = safeStringArray(args.locked_contracts) ?? existing?.lockedContracts ?? []
       const blockedBy = safeStringArray(args.blocked_by) ?? existing?.blockedBy ?? []
-      const authorSeatID = getSeatID({ author_seat_id: args.author_seat_id as string | undefined }, context as ToolContextLike)
+      const authorSeatID = getSeatID({ author_seat_id: args.author_seat_id as string | undefined }, context as ToolContextLike, repository)
+      const manifest = readRepublicTeamManifest(repository)
+      const authorDefinition = manifest?.seats.find((seat) => seat.seatID === authorSeatID)
+      const authorRole = authorDefinition?.role ?? "orchestrator"
       const reason = typeof args.reason === "string" ? args.reason.trim() : ""
 
       writeRepublicTeamPhase(repository, {
@@ -1196,7 +1233,8 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
         channel: "team",
         phase: "phase-update",
         authorSeatID,
-        authorRole: "orchestrator",
+        authorAgent: authorDefinition?.runtimeAgent,
+        authorRole,
         status,
         messageType: "status",
         content: summary,
@@ -1206,7 +1244,8 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
         phase: "phase-update",
         chamber: "team",
         seatID: authorSeatID,
-        role: "orchestrator",
+        role: authorRole,
+        agent: authorDefinition?.runtimeAgent,
         sessionID: (context as ToolContextLike).sessionID,
         status,
         summary,
@@ -1438,7 +1477,7 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
         return JSON.stringify({ error: "not_git_repository" })
       }
 
-      const message = buildCommonsMessage(args, context as ToolContextLike, args.message_type as RepublicCommonsMessage["messageType"])
+      const message = buildCommonsMessage(args, context as ToolContextLike, args.message_type as RepublicCommonsMessage["messageType"], repository)
       if (!message.content) {
         return JSON.stringify({ error: "empty_content" })
       }
@@ -1535,7 +1574,7 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
         return "Error: not a git repository"
       }
 
-      const seatID = getSeatID({ author_seat_id: args.seat_id as string | undefined }, context as ToolContextLike)
+      const seatID = getSeatID({ author_seat_id: args.seat_id as string | undefined }, context as ToolContextLike, repository)
       const messages = readRepublicInboxMessages(repository, {
         seatID,
         deliberationID: typeof args.deliberation_id === "string" ? args.deliberation_id : undefined,
@@ -1671,7 +1710,7 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
         return JSON.stringify({ error: "not_git_repository" })
       }
 
-      const authorSeatID = getSeatID({ author_seat_id: args.author_seat_id as string | undefined }, context as ToolContextLike)
+      const authorSeatID = getSeatID({ author_seat_id: args.author_seat_id as string | undefined }, context as ToolContextLike, repository)
       const workgroupID = String(args.workgroup_id)
       const contractPath = writeRepublicContract(repository, {
         workgroupID,
@@ -1694,6 +1733,7 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
         },
         context as ToolContextLike,
         "contract",
+        repository,
       )
       appendRepublicCommonsMessage(repository, message)
       appendRepublicLedgerRecord(repository, {

@@ -281,6 +281,76 @@ describe("native git hook", () => {
     expect(output.parts[0]?.text).toContain("Use the locked order API contract")
   })
 
+  test("tracked mode maps main-session republic context to supervisor when no seat matches", async () => {
+    const hook = createNativeGitHook(
+      { directory } as never,
+      { mode: "tracked", audit_log: true },
+      {
+        enabled: true,
+        mode: "advisory",
+        ledger: true,
+        commons: {
+          auto_publish: true,
+          inbox: true,
+          inject_max_messages: 4,
+          agent_docs: true,
+        },
+      } as never,
+    )
+    const repository = getNativeGitRepository(directory)!
+    initializeRepublicTeam(repository, {
+      manifest: {
+        teamModel: "parliament_squad",
+        seatAllocation: "auto",
+        maxParallelSeats: 4,
+        defaultRuntimeAgent: "general",
+        seats: [
+          {
+            seatID: "api-planner-seat",
+            role: "planner",
+            phase: "planning",
+            workgroupID: "api-workgroup",
+            module: "api",
+            runtimeAgent: "general",
+          },
+          {
+            seatID: "test-planner-seat",
+            role: "planner",
+            phase: "planning",
+            workgroupID: "test-workgroup",
+            module: "test",
+            runtimeAgent: "general",
+          },
+          {
+            seatID: "republic-supervisor",
+            role: "supervisor",
+            phase: "planning",
+            runtimeAgent: "general",
+          },
+        ],
+      },
+      phase: {
+        phase: "planning",
+        status: "in-progress",
+        deliberationID: "session-ses_main_team",
+      },
+    })
+    const output = {
+      parts: [{ type: "text", text: "Use OMO Republic governance." }],
+    }
+
+    await hook["chat.message"]?.({
+      sessionID: "ses_main_team",
+      agent: "sisyphus",
+      model: { providerID: "openrouter", modelID: "tencent/hy3-preview:free" },
+      promptText: "Use OMO Republic governance.",
+    }, output)
+
+    expect(output.parts[0]?.text).toContain("<republic-team-state>")
+    expect(output.parts[0]?.text).toContain("current_seat: republic-supervisor")
+    expect(output.parts[0]?.text).not.toContain("sisyphus-executor (not in current team manifest)")
+  })
+
   test("tracked mode injects republic constraints through messages transform", async () => {
     const hook = createNativeGitHook(
       { directory } as never,

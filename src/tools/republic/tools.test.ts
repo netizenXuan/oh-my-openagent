@@ -258,6 +258,44 @@ describe("republic tools", () => {
     expect(git(directory, ["status", "--porcelain"])).toBe("")
   })
 
+  test("defaults main-session republic messages to the team supervisor", async () => {
+    const tools = createRepublicTools({ directory } as PluginInput)
+    const context = createToolContext(directory)
+
+    await tools.republic_team_init.execute({
+      goal: "Add order cancellation support with API, tests, and docs",
+      files: ["src/api/orders.ts", "tests/orders.test.ts", "docs/orders.md"],
+      deliberation_id: "order-cancel-team",
+      team_model: "parliament_squad",
+      seat_allocation: "auto",
+    }, context)
+
+    await tools.republic_publish.execute({
+      message_type: "question",
+      content: "Do planner seats approve adding cancelled to OrderStatus?",
+      target_seat_id: "test-planner-seat",
+      deliberation_id: "order-cancel-team",
+    }, context)
+    await tools.republic_phase_update.execute({
+      phase: "planning",
+      status: "in-progress",
+      deliberation_id: "order-cancel-team",
+      reason: "Planning discussion is active.",
+    }, context)
+
+    const repository = getNativeGitRepository(directory)!
+    const manifest = readRepublicTeamManifest(repository)!
+    const manifestSeatIDs = new Set(manifest.seats.map((seat) => seat.seatID))
+    const messages = readRepublicCommonsMessages(repository, "order-cancel-team")
+    const authoredMessages = messages.filter((message) => ["collaboration", "phase-update"].includes(message.phase))
+
+    expect(authoredMessages).toHaveLength(2)
+    expect(authoredMessages.every((message) => message.authorSeatID === "republic-supervisor")).toBe(true)
+    expect(authoredMessages.every((message) => manifestSeatIDs.has(message.authorSeatID))).toBe(true)
+    expect(authoredMessages.map((message) => message.authorRole)).toEqual(["supervisor", "supervisor"])
+    expect(git(directory, ["status", "--porcelain"])).toBe("")
+  })
+
   test("starts an active collaboration round for dynamic seats", async () => {
     const launched: Array<{ agent: string; prompt: string; description: string }> = []
     const tools = createRepublicTools({ directory } as PluginInput, {
