@@ -1,6 +1,6 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import { detectKeywordsWithType, extractPromptText } from "./detector"
-import { isPlannerAgent, isNonOmoAgent } from "./constants"
+import { isPlannerAgent, isNonOmoAgent, isRepublicAgent } from "./constants"
 import { log } from "../../shared"
 import {
   isSystemDirective,
@@ -49,6 +49,11 @@ export function createKeywordDetectorHook(
       }
 
       const currentAgent = getSessionAgent(input.sessionID) ?? input.agent
+
+      if (isRepublicAgent(currentAgent)) {
+        log(`[keyword-detector] Skipping legacy keyword injection for Republic agent`, { sessionID: input.sessionID, agent: currentAgent })
+        return
+      }
 
       // Skip all keyword injection for non-OMO agents (e.g., OpenCode-Builder, Plan)
       if (isNonOmoAgent(currentAgent)) {

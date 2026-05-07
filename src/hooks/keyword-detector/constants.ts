@@ -1,7 +1,7 @@
 export const CODE_BLOCK_PATTERN = /```[\s\S]*?```/g
 export const INLINE_CODE_PATTERN = /`[^`]+`/g
 
-export { isPlannerAgent, isNonOmoAgent, getUltraworkMessage } from "./ultrawork"
+export { isPlannerAgent, isNonOmoAgent, isRepublicAgent, getUltraworkMessage } from "./ultrawork"
 export { SEARCH_PATTERN, SEARCH_MESSAGE } from "./search"
 export { ANALYZE_PATTERN, ANALYZE_MESSAGE } from "./analyze"
 export { REPUBLIC_PATTERN, REPUBLIC_MESSAGE } from "./republic"

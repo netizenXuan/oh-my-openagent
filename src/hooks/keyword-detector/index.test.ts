@@ -900,6 +900,26 @@ describe("keyword-detector non-OMO agent skipping", () => {
     expect(textPart!.text).toContain("implement this")
   })
 
+  test("should skip legacy keyword injection for Republic agent", async () => {
+    // given - Republic is selected as the primary OpenCode App agent
+    const collector = new ContextCollector()
+    const hook = createKeywordDetectorHook(createMockPluginInput(), collector)
+    const sessionID = "republic-agent-session"
+    const output = {
+      message: {} as Record<string, unknown>,
+      parts: [{ type: "text", text: "inspect the repo and review the Republic run" }],
+    }
+
+    // when - text would normally trigger analyze-mode
+    await hook["chat.message"]({ sessionID, agent: "Republic - Team Orchestrator" }, output)
+
+    // then - legacy analyze/search/ultrawork guidance is not layered onto Republic
+    const textPart = output.parts.find(p => p.type === "text")
+    expect(textPart).toBeDefined()
+    expect(textPart!.text).toBe("inspect the repo and review the Republic run")
+    expect(textPart!.text).not.toContain("[analyze-mode]")
+  })
+
   test("should skip keyword injection for agent names containing 'builder'", async () => {
     // given - keyword-detector hook with a builder-variant agent name
     const collector = new ContextCollector()

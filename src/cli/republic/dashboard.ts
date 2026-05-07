@@ -811,9 +811,8 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
     .detail-block { border:1px solid var(--soft-line); border-radius:8px; background:#0d1117; overflow:hidden; }
     details.detail-block summary { cursor:pointer; list-style:none; padding:10px 12px; color:var(--text); font-weight:700; border-bottom:1px solid var(--soft-line); display:flex; align-items:center; justify-content:space-between; gap:12px; }
     details.detail-block summary .summary-text { min-width:0; overflow-wrap:anywhere; }
+    details.detail-block summary .summary-action { color:var(--muted); font-weight:400; font-size:11px; text-transform:uppercase; flex:0 0 auto; }
     details.detail-block summary::-webkit-details-marker { display:none; }
-    details.detail-block summary::after { content:"expand"; color:var(--muted); font-weight:400; font-size:11px; text-transform:uppercase; flex:0 0 auto; }
-    details.detail-block[open] summary::after { content:"collapse"; }
     .detail-body { padding:10px 12px; color:var(--muted); overflow-wrap:anywhere; }
     .detail-body p { margin-bottom:8px; }
     .raw-json { margin:0; max-height:320px; overflow:auto; white-space:pre-wrap; color:#cbd5e1; font:12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
@@ -881,6 +880,50 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
     };
     let lang = localStorage.getItem("omo-republic-lang") || "en";
     function t(key) { return (i18n[lang] && i18n[lang][key]) || i18n.en[key] || key; }
+    const runtimeLabels = {
+      en: {
+        updated:"Updated", noGitRepository:"No git repository", none:"none", notAvailable:"n/a", noTeamShort:"no team", pending:"pending", queue:"queue", threads:"threads", messages:"msgs", assigned:"assigned", groups:"groups", active:"active", rawData:"Raw Data", channel:"channel", round:"round", status:"status", references:"refs", files:"files", target:"target", requested:"requested", dispatch:"dispatch", questionThreadsCompleted:"question threads completed", authoredQuestions:"Authored questions", inboundQuestions:"Inbound questions", noAllocationReason:"No allocation reason recorded.", noLiveStateMemory:"No live state memory recorded.", allTermsCovered:"All extracted hard terms are covered.", uncoveredTerms:"Uncovered terms", expand:"expand", collapse:"collapse", planning:"planning", execution:"execution", review:"review", idle:"idle", inProgress:"in progress", needsQuorum:"needs quorum", noRecords:"no records", approved:"approved", approve:"approve", revise:"revise", rejected:"rejected", reject:"reject", running:"running", waiting:"waiting", blocked:"blocked", done:"done", standby:"standby", error:"error", proposal:"proposal", question:"question", answer:"answer", objection:"objection", revision:"revision", handoff:"handoff", contract:"contract", consensus:"consensus", supervisorPolicy:"supervisor policy", intervention:"intervention", dependencyBlocked:"dependency blocked", nativeGitChange:"native git change"
+      },
+      zh: {
+        updated:"更新于", noGitRepository:"无 Git 仓库", none:"无", notAvailable:"不可用", noTeamShort:"无团队", pending:"待处理", queue:"队列", threads:"线程", messages:"消息", assigned:"已分配", groups:"组", active:"活跃", rawData:"原始数据", channel:"频道", round:"轮次", status:"状态", references:"引用", files:"文件", target:"目标", requested:"请求代理", dispatch:"派发", questionThreadsCompleted:"问题线程已完成", authoredQuestions:"发起问题", inboundQuestions:"收到问题", noAllocationReason:"没有记录分配原因。", noLiveStateMemory:"没有记录实时状态记忆。", allTermsCovered:"所有抽取的硬性条款都已覆盖。", uncoveredTerms:"未覆盖条款", expand:"展开", collapse:"收起", planning:"规划", execution:"执行", review:"审查", idle:"空闲", inProgress:"进行中", needsQuorum:"未达法定人数", noRecords:"无记录", approved:"已批准", approve:"批准", revise:"需修订", rejected:"已拒绝", reject:"拒绝", running:"运行中", waiting:"等待中", blocked:"阻塞", done:"完成", standby:"待命", error:"错误", proposal:"提案", question:"问题", answer:"回答", objection:"异议", revision:"修订", handoff:"交接", contract:"契约", consensus:"共识", supervisorPolicy:"监督策略", intervention:"干预", dependencyBlocked:"依赖阻塞", nativeGitChange:"原生 Git 变更"
+      },
+      ja: {
+        updated:"更新", noGitRepository:"Git リポジトリなし", none:"なし", notAvailable:"該当なし", noTeamShort:"チームなし", pending:"保留", queue:"キュー", threads:"スレッド", messages:"メッセージ", assigned:"割当済み", groups:"グループ", active:"アクティブ", rawData:"生データ", channel:"チャンネル", round:"ラウンド", status:"状態", references:"参照", files:"ファイル", target:"対象", requested:"要求代理", dispatch:"派遣", questionThreadsCompleted:"質問スレッド完了", authoredQuestions:"作成した質問", inboundQuestions:"受信質問", noAllocationReason:"割当理由は記録されていません。", noLiveStateMemory:"現在状態メモリは記録されていません。", allTermsCovered:"抽出された必須条件はすべてカバー済みです。", uncoveredTerms:"未カバー条件", expand:"展開", collapse:"折りたたむ", planning:"計画", execution:"実行", review:"レビュー", idle:"アイドル", inProgress:"進行中", needsQuorum:"定足数不足", noRecords:"記録なし", approved:"承認済み", approve:"承認", revise:"修正必要", rejected:"却下済み", reject:"却下", running:"実行中", waiting:"待機中", blocked:"ブロック", done:"完了", standby:"待機", error:"エラー", proposal:"提案", question:"質問", answer:"回答", objection:"異議", revision:"修正", handoff:"引き継ぎ", contract:"契約", consensus:"合意", supervisorPolicy:"監督方針", intervention:"介入", dependencyBlocked:"依存関係ブロック", nativeGitChange:"Native Git 変更"
+      },
+      ko: {
+        updated:"업데이트", noGitRepository:"Git 저장소 없음", none:"없음", notAvailable:"해당 없음", noTeamShort:"팀 없음", pending:"대기", queue:"큐", threads:"스레드", messages:"메시지", assigned:"할당됨", groups:"그룹", active:"활성", rawData:"원본 데이터", channel:"채널", round:"라운드", status:"상태", references:"참조", files:"파일", target:"대상", requested:"요청 에이전트", dispatch:"디스패치", questionThreadsCompleted:"질문 스레드 완료", authoredQuestions:"작성한 질문", inboundQuestions:"받은 질문", noAllocationReason:"할당 이유가 기록되지 않았습니다.", noLiveStateMemory:"실시간 상태 메모리가 기록되지 않았습니다.", allTermsCovered:"추출된 필수 조건이 모두 충족되었습니다.", uncoveredTerms:"미충족 조건", expand:"펼치기", collapse:"접기", planning:"계획", execution:"실행", review:"리뷰", idle:"유휴", inProgress:"진행 중", needsQuorum:"정족수 부족", noRecords:"기록 없음", approved:"승인됨", approve:"승인", revise:"수정 필요", rejected:"거부됨", reject:"거부", running:"실행 중", waiting:"대기 중", blocked:"차단", done:"완료", standby:"대기", error:"오류", proposal:"제안", question:"질문", answer:"답변", objection:"이의", revision:"수정", handoff:"인계", contract:"계약", consensus:"합의", supervisorPolicy:"감독 정책", intervention:"개입", dependencyBlocked:"의존성 차단", nativeGitChange:"Native Git 변경"
+      },
+    };
+    const enumKeyMap = {
+      "in-progress":"inProgress", "needs-quorum":"needsQuorum", "no-records":"noRecords", "supervisor-policy":"supervisorPolicy", "dependency-blocked":"dependencyBlocked", "native-git-change":"nativeGitChange",
+      planning:"planning", execution:"execution", review:"review", idle:"idle", running:"running", waiting:"waiting", blocked:"blocked", done:"done", standby:"standby", error:"error", pending:"pending", queued:"queue", dispatched:"dispatch", failed:"error", approved:"approved", approve:"approve", revise:"revise", rejected:"rejected", reject:"reject", proposal:"proposal", question:"question", answer:"answer", objection:"objection", revision:"revision", handoff:"handoff", contract:"contract", consensus:"consensus", status:"status", intervention:"intervention"
+    };
+    let suppressDetailToggles = false;
+    function label(key) { return (runtimeLabels[lang] && runtimeLabels[lang][key]) || runtimeLabels.en[key] || t(key); }
+    function enumLabel(value) {
+      const raw = String(value ?? "");
+      if (raw === "") return label("none");
+      const mapped = enumKeyMap[raw] ?? enumKeyMap[raw.toLowerCase()] ?? raw;
+      return t(mapped) !== mapped ? t(mapped) : label(mapped) !== mapped ? label(mapped) : raw;
+    }
+    function optionalLabel(value) {
+      if (value === undefined || value === null || value === "") return label("none");
+      const raw = String(value);
+      if (raw === "none") return label("none");
+      if (raw === "n/a") return label("notAvailable");
+      return enumLabel(raw);
+    }
+    function decisionReasonLabel(reason) {
+      const raw = String(reason ?? "");
+      if (raw === "No Republic ledger records exist yet.") return t("noTeam");
+      if (raw === "No approve/revise/reject votes were recorded.") {
+        return lang === "zh" ? "没有记录批准、修订或拒绝票。" :
+          lang === "ja" ? "承認、修正、却下の票は記録されていません。" :
+          lang === "ko" ? "승인, 수정, 거부 표가 기록되지 않았습니다." :
+          raw;
+      }
+      return raw;
+    }
     function applyI18n() {
       document.documentElement.lang = lang;
       const selector = document.getElementById("lang-select");
@@ -916,7 +959,8 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       const key = detailKey ? String(detailKey) : "";
       const keyAttr = key ? ' data-detail-key="' + safe(key) + '"' : "";
       const openAttr = key && openDetails.has(key) ? " open" : "";
-      return '<details class="detail-block"' + keyAttr + openAttr + '><summary><span class="summary-text">' + safe(title) + '</span></summary><div class="detail-body">' + body + (raw === undefined ? '' : '<pre class="raw-json">' + safeJson(raw) + '</pre>') + '</div></details>';
+      const action = openAttr ? label("collapse") : label("expand");
+      return '<details class="detail-block"' + keyAttr + openAttr + '><summary><span class="summary-text">' + safe(title) + '</span><span class="summary-action">' + safe(action) + '</span></summary><div class="detail-body">' + body + (raw === undefined ? '' : '<pre class="raw-json">' + safeJson(raw) + '</pre>') + '</div></details>';
     }
 
     function captureOpenDetails() {
@@ -924,18 +968,25 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
         const key = detail.getAttribute("data-detail-key");
         if (!key) continue;
         if (detail.open) openDetails.add(key);
-        else openDetails.delete(key);
       }
+    }
+
+    function syncDetailAction(detail) {
+      const action = detail.querySelector(".summary-action");
+      if (action) action.textContent = detail.open ? label("collapse") : label("expand");
     }
 
     function bindDetailState(root = document) {
       for (const detail of root.querySelectorAll("details[data-detail-key]")) {
         detail.addEventListener("toggle", () => {
+          if (suppressDetailToggles) return;
           const key = detail.getAttribute("data-detail-key");
           if (!key) return;
           if (detail.open) openDetails.add(key);
           else openDetails.delete(key);
+          syncDetailAction(detail);
         });
+        syncDetailAction(detail);
       }
     }
 
@@ -946,21 +997,21 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
 
     function renderMessageDetails(message) {
       const target = message.targetSeatID ? ' -> ' + message.targetSeatID : '';
-      const refs = (message.references ?? []).join(", ") || "none";
-      const files = (message.files ?? []).join(", ") || "none";
+      const refs = (message.references ?? []).join(", ") || label("none");
+      const files = (message.files ?? []).join(", ") || label("none");
       const meta = [
-        fieldPill("channel", message.channel),
-        fieldPill("phase", message.phase),
-        fieldPill("round", message.round ?? "n/a"),
-        fieldPill("status", message.status ?? "n/a"),
+        fieldPill(label("channel"), optionalLabel(message.channel)),
+        fieldPill(t("phase"), optionalLabel(message.phase)),
+        fieldPill(label("round"), message.round ?? label("notAvailable")),
+        fieldPill(label("status"), optionalLabel(message.status)),
         fieldPill("task", message.taskID),
-        fieldPill("module", message.module),
-        fieldPill("refs", refs),
-        fieldPill("files", files),
+        fieldPill(t("module"), message.module),
+        fieldPill(label("references"), refs),
+        fieldPill(label("files"), files),
       ].filter(Boolean).join("");
       const detailKey = "message:" + (message.id ?? [message.timestamp, message.authorSeatID, message.targetSeatID, message.messageType].filter(Boolean).join(":"));
       return '<div class="timeline-event ' + safe(message.messageType ?? "status") + '">' + detailBlock(
-        message.authorSeatID + target + ' / ' + message.messageType,
+        message.authorSeatID + target + ' / ' + enumLabel(message.messageType),
         '<p>' + safe(truncate(message.content, 420)) + '</p><div class="item-meta">' + meta + '</div>',
         message,
         detailKey,
@@ -969,15 +1020,15 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
 
     function renderQueueDetails(record) {
       const meta = [
-        fieldPill("queue", record.queueType),
-        fieldPill("status", record.status),
-        fieldPill("target", record.targetSeatID),
-        fieldPill("requested", record.requestedAgent),
-        fieldPill("runtime", record.runtimeAgent),
-        fieldPill("task", record.taskID),
+        fieldPill(label("queue"), optionalLabel(record.queueType)),
+        fieldPill(label("status"), optionalLabel(record.status)),
+        fieldPill(label("target"), record.targetSeatID),
+        fieldPill(label("requested"), record.requestedAgent),
+        fieldPill(t("runtimeAgent"), record.runtimeAgent),
+        fieldPill(t("task"), record.taskID),
       ].filter(Boolean).join("");
       return detailBlock(
-        (record.status ?? "queue") + ' / ' + (record.queueType ?? "dispatch"),
+        enumLabel(record.status ?? "queue") + ' / ' + enumLabel(record.queueType ?? "dispatch"),
         '<p>' + safe(record.summary ?? record.reason ?? "") + '</p><div class="item-meta">' + meta + '</div>',
         record,
         "queue:" + (record.id ?? [record.timestamp, record.targetSeatID, record.taskID, record.status].filter(Boolean).join(":")),
@@ -986,14 +1037,14 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
 
     function renderContractDetails(contract) {
       const terms = (contract.uncoveredTerms ?? []).length
-        ? 'Uncovered terms: ' + contract.uncoveredTerms.join(", ")
-        : "All extracted hard terms are covered.";
+        ? label("uncoveredTerms") + ': ' + contract.uncoveredTerms.join(", ")
+        : label("allTermsCovered");
       const meta = [
-        fieldPill("status", contract.status),
-        fieldPill("files", (contract.files ?? []).join(", ") || "none"),
+        fieldPill(label("status"), optionalLabel(contract.status)),
+        fieldPill(label("files"), (contract.files ?? []).join(", ") || label("none")),
       ].filter(Boolean).join("");
       return detailBlock(
-        contract.contractID + ' / ' + contract.status,
+        contract.contractID + ' / ' + enumLabel(contract.status),
         '<p>' + safe(terms) + '</p><div class="item-meta">' + meta + '</div>',
         contract,
         "contract:" + contract.contractID + ":" + contract.status,
@@ -1096,9 +1147,9 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       const pendingQueue = pendingSchedulerRecordsForSeat(data, seat.seatID).length;
       const relatedMessages = messagesForSeat(data, seat.seatID).length;
       return '<button class="seat-card' + selected + '" data-seat-id="' + safe(seat.seatID) + '">'
-        + '<div class="seat-top"><span class="seat-name">' + safe(seat.seatID) + '</span><span class="' + statusClass(status) + '">' + safe(status) + '</span></div>'
+        + '<div class="seat-top"><span class="seat-name">' + safe(seat.seatID) + '</span><span class="' + statusClass(status) + '">' + safe(enumLabel(status)) + '</span></div>'
         + '<div class="seat-meta">' + safe(seat.role) + (seat.module ? ' / ' + safe(seat.module) : '') + '</div>'
-        + '<div class="seat-foot"><span class="pill">threads ' + completion.done + '/' + completion.total + '</span><span class="' + pillClass(pendingQueue, true) + '">queue ' + pendingQueue + '</span><span class="pill">msgs ' + relatedMessages + '</span></div>'
+        + '<div class="seat-foot"><span class="pill">' + label("threads") + ' ' + completion.done + '/' + completion.total + '</span><span class="' + pillClass(pendingQueue, true) + '">' + label("queue") + ' ' + pendingQueue + '</span><span class="pill">' + label("messages") + ' ' + relatedMessages + '</span></div>'
         + '</button>';
     }
 
@@ -1117,9 +1168,9 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
         const active = phase !== "all" && phase === activePhase ? " active" : "";
         const selected = selectedPhase === phase ? " selected" : "";
         const width = Math.max(6, Math.round((count / maxCount) * 100));
-        const label = phase === "all" ? t("workgroupLabel") : (phase === activePhase ? (awaitingClosure ? t("idleClosure") : (data.teamPhase?.status ?? "active")) : t("standby"));
-        const title = phase === "all" ? t("all") : phase;
-        return '<button class="phase-card' + active + selected + '" data-phase-filter="' + safe(phase) + '"><div class="phase-title"><strong>' + safe(title) + '</strong><span>' + count + ' ' + t("seats").toLowerCase() + '</span></div><div class="muted">' + safe(label) + '</div><div class="phase-meter"><div style="width:' + width + '%"></div></div></button>';
+        const phaseLabel = phase === "all" ? t("workgroupLabel") : (phase === activePhase ? (awaitingClosure ? t("idleClosure") : enumLabel(data.teamPhase?.status ?? "active")) : enumLabel("standby"));
+        const title = phase === "all" ? t("all") : enumLabel(phase);
+        return '<button class="phase-card' + active + selected + '" data-phase-filter="' + safe(phase) + '"><div class="phase-title"><strong>' + safe(title) + '</strong><span>' + count + ' ' + t("seats") + '</span></div><div class="muted">' + safe(phaseLabel) + '</div><div class="phase-meter"><div style="width:' + width + '%"></div></div></button>';
       }).join("") + '</div>';
     }
 
@@ -1139,14 +1190,14 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       const board = document.getElementById("team-board");
       const awaitingClosure = idleAwaitingClosure(data, counts);
       document.getElementById("board-subtitle").textContent = data.teamPhase
-        ? data.teamPhase.phase + " / " + data.teamPhase.status + " / round " + (data.teamPhase.activeRound ?? "n/a") + (awaitingClosure ? " / agents idle, awaiting closure" : "")
-        : "No active Republic team phase.";
+        ? enumLabel(data.teamPhase.phase) + " / " + enumLabel(data.teamPhase.status) + " / " + label("round") + " " + (data.teamPhase.activeRound ?? label("notAvailable")) + (awaitingClosure ? " / " + t("idleClosure") : "")
+        : t("noTeam");
       document.getElementById("board-pills").innerHTML = [
-        '<span class="pill">' + safe(data.teamManifest?.teamModel ?? "no team") + '</span>',
-        '<span class="pill">' + t("allocation").toLowerCase() + ' ' + safe(data.teamManifest?.seatAllocation ?? "none") + '</span>',
-        '<span class="pill">' + t("maxParallel").toLowerCase() + ' ' + safe(data.teamManifest?.maxParallelSeats ?? "n/a") + '</span>',
-        '<span class="pill">' + t("seats").toLowerCase() + ' ' + seats.length + '</span>',
-        '<span class="' + pillClass(data.report.schedulerQueue?.pending ?? 0, true) + '">pending ' + safe(data.report.schedulerQueue?.pending ?? 0) + '</span>',
+        '<span class="pill">' + safe(data.teamManifest?.teamModel ?? label("noTeamShort")) + '</span>',
+        '<span class="pill">' + t("allocation") + ' ' + safe(optionalLabel(data.teamManifest?.seatAllocation)) + '</span>',
+        '<span class="pill">' + t("maxParallel") + ' ' + safe(data.teamManifest?.maxParallelSeats ?? label("notAvailable")) + '</span>',
+        '<span class="pill">' + t("seats") + ' ' + seats.length + '</span>',
+        '<span class="' + pillClass(data.report.schedulerQueue?.pending ?? 0, true) + '">' + label("pending") + ' ' + safe(data.report.schedulerQueue?.pending ?? 0) + '</span>',
         '<span class="' + pillClass(data.report.contractTraceability?.warningCount ?? 0, true) + '">' + t("contractWarnings").toLowerCase() + ' ' + safe(data.report.contractTraceability?.warningCount ?? 0) + '</span>',
       ].join("");
       if (seats.length === 0) {
@@ -1154,17 +1205,17 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
         return;
       }
       const supervisorHtml = supervisors.length
-        ? '<section class="board-section supervisor-zone"><div class="board-section-head"><strong>' + t("supervisorLane") + '</strong><span class="pill">' + supervisors.length + ' ' + t("seats").toLowerCase() + '</span></div><div class="seat-orbit">' + supervisors.map((seat) => renderSeatCard(data, seat)).join("") + '</div></section>'
+        ? '<section class="board-section supervisor-zone"><div class="board-section-head"><strong>' + t("supervisorLane") + '</strong><span class="pill">' + supervisors.length + ' ' + t("seats") + '</span></div><div class="seat-orbit">' + supervisors.map((seat) => renderSeatCard(data, seat)).join("") + '</div></section>'
         : "";
       const workgroupHtml = '<div class="workgroup-grid">' + Array.from(workgroups.entries()).map(([workgroupID, group]) => {
         const groupCounts = statusCounts(data, group);
         const pending = group.reduce((total, seat) => total + pendingSchedulerRecordsForSeat(data, seat.seatID).length, 0);
-        return '<div class="workgroup-card"><div class="workgroup-head"><div><strong>' + safe(workgroupID) + '</strong><small>' + group.length + ' ' + t("seats").toLowerCase() + ' assigned</small></div><span class="' + pillClass(pending, true) + '">queue ' + pending + '</span></div><div class="workgroup-stats"><div class="stat-chip"><span>' + t("running") + '</span><strong>' + groupCounts.running + '</strong></div><div class="stat-chip"><span>' + t("waiting") + '</span><strong>' + groupCounts.waiting + '</strong></div><div class="stat-chip"><span>' + t("blocked") + '</span><strong>' + groupCounts.blocked + '</strong></div></div><div class="seat-list">' + group.map((seat) => renderSeatCard(data, seat)).join("") + '</div></div>';
+        return '<div class="workgroup-card"><div class="workgroup-head"><div><strong>' + safe(workgroupID) + '</strong><small>' + group.length + ' ' + t("seats") + ' ' + label("assigned") + '</small></div><span class="' + pillClass(pending, true) + '">' + label("queue") + ' ' + pending + '</span></div><div class="workgroup-stats"><div class="stat-chip"><span>' + t("running") + '</span><strong>' + groupCounts.running + '</strong></div><div class="stat-chip"><span>' + t("waiting") + '</span><strong>' + groupCounts.waiting + '</strong></div><div class="stat-chip"><span>' + t("blocked") + '</span><strong>' + groupCounts.blocked + '</strong></div></div><div class="seat-list">' + group.map((seat) => renderSeatCard(data, seat)).join("") + '</div></div>';
       }).join("") + '</div>';
       board.innerHTML = renderPhaseStrip(data)
-        + '<section class="board-section"><div class="board-section-head"><strong>' + t("teamLoad") + '</strong><span class="pill">' + counts.running + ' running / ' + counts.waiting + ' waiting / ' + counts.blocked + ' blocked</span></div>' + (awaitingClosure ? '<div class="empty">' + t("awaitingClosure") + '</div>' : '') + '</section>'
+        + '<section class="board-section"><div class="board-section-head"><strong>' + t("teamLoad") + '</strong><span class="pill">' + counts.running + ' ' + t("running") + ' / ' + counts.waiting + ' ' + t("waiting") + ' / ' + counts.blocked + ' ' + t("blocked") + '</span></div>' + (awaitingClosure ? '<div class="empty">' + t("awaitingClosure") + '</div>' : '') + '</section>'
         + supervisorHtml
-        + '<section class="board-section"><div class="board-section-head"><strong>' + t("workgroupLabel") + '</strong><span class="pill">' + workgroups.size + ' groups</span></div>' + workgroupHtml + '</section>';
+        + '<section class="board-section"><div class="board-section-head"><strong>' + t("workgroupLabel") + '</strong><span class="pill">' + workgroups.size + ' ' + label("groups") + '</span></div>' + workgroupHtml + '</section>';
       for (const button of board.querySelectorAll("[data-phase-filter]")) {
         button.addEventListener("click", () => {
           selectedPhase = button.getAttribute("data-phase-filter") || "all";
@@ -1186,23 +1237,23 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
 
     function renderMetrics(data) {
       const decision = data.report.decision;
-      document.getElementById("repo-pill").textContent = data.repository ? data.repository.repoRoot : "No git repository";
-      document.getElementById("refresh-pill").textContent = "Updated " + new Date(data.generatedAt).toLocaleTimeString();
+      document.getElementById("repo-pill").textContent = data.repository ? data.repository.repoRoot : label("noGitRepository");
+      document.getElementById("refresh-pill").textContent = label("updated") + " " + new Date(data.generatedAt).toLocaleTimeString();
       const seats = seatDefs(data);
       const counts = statusCounts(data, seats);
       const workgroupCount = new Set(seats.map((seat) => seat.workgroupID).filter(Boolean)).size;
       document.getElementById("metrics").innerHTML =
-        '<button class="decision-card metric-button" data-metric-group="decision"><span class="muted">' + t("decision") + '</span><strong class="' + (colors[decision.status] ?? "") + '">' + safe(decision.status) + '</strong><p>' + safe(decision.reason) + '</p></button>'
+        '<button class="decision-card metric-button" data-metric-group="decision"><span class="muted">' + t("decision") + '</span><strong class="' + (colors[decision.status] ?? "") + '">' + safe(enumLabel(decision.status)) + '</strong><p>' + safe(decisionReasonLabel(decision.reason)) + '</p></button>'
         + metricGroup("team", t("team"), [
-          metric(t("model"), safe(data.teamManifest?.teamModel ?? "none")),
-          metric(t("allocation"), safe(data.teamManifest?.seatAllocation ?? "none")),
-          metric(t("phase"), safe(data.teamPhase ? data.teamPhase.phase + "/" + data.teamPhase.status : "none")),
+          metric(t("model"), safe(optionalLabel(data.teamManifest?.teamModel))),
+          metric(t("allocation"), safe(optionalLabel(data.teamManifest?.seatAllocation))),
+          metric(t("phase"), safe(data.teamPhase ? enumLabel(data.teamPhase.phase) + "/" + enumLabel(data.teamPhase.status) : label("none"))),
           metric(t("workgroups"), workgroupCount),
           metric(t("seats"), seats.length),
         ])
         + metricGroup("runtime", t("runtime"), [
-          metric(t("defaultRuntime"), safe(data.teamManifest?.defaultRuntimeAgent ?? "none")),
-          metric(t("maxParallel"), safe(data.teamManifest?.maxParallelSeats ?? "n/a")),
+          metric(t("defaultRuntime"), safe(optionalLabel(data.teamManifest?.defaultRuntimeAgent))),
+          metric(t("maxParallel"), safe(data.teamManifest?.maxParallelSeats ?? label("notAvailable"))),
           metric(t("planningSeats"), seats.filter((seat) => seat.phase === "planning").length),
           metric(t("executionSeats"), seats.filter((seat) => seat.phase === "execution").length),
           metric(t("reviewSeats"), seats.filter((seat) => seat.phase === "review").length),
@@ -1255,8 +1306,8 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
           },
         };
         inspector.innerHTML = '<h2>' + t("seatInspector") + '</h2>'
-          + '<div class="inspector-title"><strong>' + safe(selectedMetric) + '</strong><p class="muted">' + t("noMetric") + '</p></div>'
-          + detailBlock("Raw Data", "", rawByMetric[selectedMetric] ?? null, "metric:" + selectedMetric);
+          + '<div class="inspector-title"><strong>' + safe(t(selectedMetric) !== selectedMetric ? t(selectedMetric) : selectedMetric) + '</strong><p class="muted">' + t("noMetric") + '</p></div>'
+          + detailBlock(label("rawData"), "", rawByMetric[selectedMetric] ?? null, "metric:" + selectedMetric);
         bindDetailState(inspector);
         return;
       }
@@ -1277,19 +1328,19 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       const queueRecords = schedulerRecordsForSeat(data, seat.seatID).sort((left, right) => String(right.timestamp ?? "").localeCompare(String(left.timestamp ?? "")));
       const waitingOn = (state?.status === "waiting" || state?.status === "blocked") ? (state?.waitingOn ?? []) : [];
       inspector.innerHTML = '<h2>' + t("seatInspector") + '</h2>'
-        + '<div class="inspector-title"><strong>' + safe(seat.seatID) + '</strong><span class="' + statusClass(state?.status ?? "standby") + '">' + safe(state?.status ?? "standby") + '</span><p class="muted">' + safe(seat.role) + '</p></div>'
-        + detailBlock(t("seatDefinition"), '<p>' + safe(seat.reason ?? "No allocation reason recorded.") + '</p>', seat, "seat-definition:" + seat.seatID)
-        + detailBlock(t("currentState"), '<p>' + safe(state?.memory ?? "No live state memory recorded.") + '</p>', state ?? null, "seat-state:" + seat.seatID)
+        + '<div class="inspector-title"><strong>' + safe(seat.seatID) + '</strong><span class="' + statusClass(state?.status ?? "standby") + '">' + safe(enumLabel(state?.status ?? "standby")) + '</span><p class="muted">' + safe(seat.role) + '</p></div>'
+        + detailBlock(t("seatDefinition"), '<p>' + safe(seat.reason ?? label("noAllocationReason")) + '</p>', seat, "seat-definition:" + seat.seatID)
+        + detailBlock(t("currentState"), '<p>' + safe(state?.memory ?? label("noLiveStateMemory")) + '</p>', state ?? null, "seat-state:" + seat.seatID)
         + '<div>' + [
-          metric(t("phase"), safe(state?.phase ?? seat.phase ?? "none")),
-          metric(t("workgroups"), safe(state?.workgroupID ?? seat.workgroupID ?? "none")),
-          metric(t("module"), safe(state?.module ?? seat.module ?? "none")),
-          metric(t("runtimeAgent"), safe(state?.runtimeAgent ?? seat.runtimeAgent ?? "none")),
-          metric(t("conceptualAgent"), safe(state?.conceptualAgent ?? seat.conceptualAgent ?? "none")),
-          metric(t("waitingOn"), safe(waitingOn.join(", ") || "none")),
-          metric(t("task"), safe(state?.taskID ?? seat.taskID ?? "none")),
+          metric(t("phase"), safe(optionalLabel(state?.phase ?? seat.phase))),
+          metric(t("workgroups"), safe(optionalLabel(state?.workgroupID ?? seat.workgroupID))),
+          metric(t("module"), safe(optionalLabel(state?.module ?? seat.module))),
+          metric(t("runtimeAgent"), safe(optionalLabel(state?.runtimeAgent ?? seat.runtimeAgent))),
+          metric(t("conceptualAgent"), safe(optionalLabel(state?.conceptualAgent ?? seat.conceptualAgent))),
+          metric(t("waitingOn"), safe(waitingOn.join(", ") || label("none"))),
+          metric(t("task"), safe(optionalLabel(state?.taskID ?? seat.taskID))),
         ].join("") + '</div>'
-        + '<div><h3>' + t("interactionCompletion") + '</h3><div class="progress"><div style="width:' + completion.percent + '%"></div></div><p class="muted">' + completion.done + ' / ' + completion.total + ' question threads completed. Authored questions: ' + completion.authoredQuestions + '. Inbound questions: ' + completion.inboundQuestions + '.</p></div>'
+        + '<div><h3>' + t("interactionCompletion") + '</h3><div class="progress"><div style="width:' + completion.percent + '%"></div></div><p class="muted">' + completion.done + ' / ' + completion.total + ' ' + label("questionThreadsCompleted") + '. ' + label("authoredQuestions") + ': ' + completion.authoredQuestions + '. ' + label("inboundQuestions") + ': ' + completion.inboundQuestions + '.</p></div>'
         + '<div><h3>' + t("schedulerQueue") + '</h3><div class="inspector-list">' + (queueRecords.length ? queueRecords.slice(0, 8).map(renderQueueDetails).join("") : '<div class="empty">' + t("noQueue") + '</div>') + '</div></div>'
         + '<div><h3>' + t("contractTraceability") + '</h3><div class="inspector-list">' + (contracts.length ? contracts.map(renderContractDetails).join("") : '<div class="empty">' + t("noContract") + '</div>') + '</div></div>'
         + '<div><h3>' + t("recentInteractions") + '</h3><div class="inspector-list">' + (related.length ? related.slice(0, 10).map(renderMessageDetails).join("") : '<div class="empty">' + t("noInteractions") + '</div>') + '</div></div>';
