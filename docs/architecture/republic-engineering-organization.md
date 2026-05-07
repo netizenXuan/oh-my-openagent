@@ -96,6 +96,9 @@ This allows execution to look like a network of cooperating module teams, not a 
 .git/omo/republic/ledger.jsonl
 .git/omo/republic/commons.jsonl
 .git/omo/republic/deliberations/<id>/
+.git/omo/republic/scheduler/queue.jsonl
+.git/omo/republic/evaluator/prompts/<id>.md
+.git/omo/republic/archive/<timestamp>-gc/
 .git/omo/native-git/audit.jsonl
 ```
 
@@ -108,6 +111,12 @@ This allows execution to look like a network of cooperating module teams, not a 
 `contracts/<workgroup-id>.md` stores shared workgroup contracts before coupled modules implement against each other.
 
 `audit.jsonl` records tool-caused Git changes, including visible agent/model/category metadata when available.
+
+`scheduler/queue.jsonl` records dispatch intent and outcomes. It is also the control plane for escalation: repeated failures or stale pending work can be requeued to a stronger agent without losing the original source message.
+
+`evaluator/prompts/` stores semantic review prompts that can be handed to a validator seat, stronger model, or human reviewer. The verdict comes back to Commons as consensus, revision, or objection.
+
+`archive/<timestamp>-gc/` stores originals before active Commons, ledger, or scheduler JSONL files are compacted. This gives Republic a rollback and context-garbage-collection mechanism without deleting evidence.
 
 ## Interactive Commons Loop
 
@@ -145,13 +154,18 @@ This graph is intentionally close to a future visual editor. A later UI can let 
    - require explicit dependency acknowledgements before dependent modules proceed
 3. Worktree isolation:
    - per-workgroup or per-task branches/worktrees
-   - merge and conflict reporting in the dashboard
+   - integration branch merge/sync with optional check commands
+   - merge, check, and conflict failures published as supervisor interventions
 4. Visual orchestration:
    - draggable graph editor
    - custom teams, roles, dependencies, and communication lanes
 5. Productization:
    - project templates for common engineering organizations
    - CI export for status, audit, and dashboard artifacts
+6. Resilience:
+   - semantic evaluator prompts and recorded verdicts
+   - rollback/GC archives for noisy or malformed weak-model records
+   - automatic escalation from failed or stale scheduler dispatches to stronger agents
 
 ## Current Verification Notes
 
@@ -162,4 +176,4 @@ The first OpenCode smoke pass used `kimi-for-coding/k2p6` with a local plugin pa
 - Prometheus remains constrained to planning files under `.sisyphus/`, and its allowed plan write is still audited.
 - The dashboard can render native-git audit records into agent, tool, file, and module nodes even before a Republic ledger exists.
 
-The current layer has moved from recording into first-stage collaborative governance: automatic Commons publication, supervisor intervention, dependency gates, interactive inbox messages, per-seat docs, policy-loop records, prompt injection, workgroup contracts, and weak-model context gates are live. The weak-model lesson from Ling and Hy3 testing is now encoded as product behavior: critical constraints use extractable labels, and mutating tools can be warned, blocked, or rolled back until the seat has received locked contract context. It is still not a complete engineering operating system; per-workgroup worktrees, merge orchestration, strict dependency acknowledgement enforcement beyond context reads, and true live multi-agent streaming remain next-stage work.
+The current layer has moved from recording into first-stage collaborative governance: automatic Commons publication, supervisor intervention, dependency gates, interactive inbox messages, per-seat docs, policy-loop records, prompt injection, workgroup contracts, weak-model context gates, per-workgroup worktree planning, integration-branch sync, semantic evaluator prompts, rollback/GC archives, staged intent proposals, and automatic escalation are live. The weak-model lesson from Ling and Hy3 testing is now encoded as product behavior: critical constraints use extractable labels, mutating tools can be warned, blocked, or rolled back until the seat has received locked contract context, failed cheap-model attempts can be escalated, and noisy records can be archived out of the active context. It is still not a complete engineering operating system; strict dependency acknowledgement enforcement beyond context reads, richer semantic validator automation, continuous CI daemon scheduling, and true live multi-agent streaming remain next-stage work.

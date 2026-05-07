@@ -404,8 +404,22 @@ bun src\cli\index.ts republic worktrees --directory D:\OMO\republic-hard-treatme
 
 The command reads the Republic team manifest and produces one branch/worktree lane per distinct workgroup. `--create` performs the `git worktree add` step, but defaults to clean-root enforcement so the root repository is not split into branches while user or agent changes are still uncommitted.
 
+## Resilience Layer Follow-Up
+
+The Gemini critique correctly identified four product gaps after the first weak-model experiments: worktrees need integration, capability checks need semantic validation, scheduler failures need escalation, and noisy Commons history needs a recovery path. These are now implemented as scriptable CLI surfaces:
+
+| Gap | New command | Product behavior |
+| --- | --- | --- |
+| Worktree integration | `republic integrate` | Plans or applies a shared integration branch from workgroup branches, runs check commands, and publishes supervisor interventions on merge/check failure. |
+| Semantic validation | `republic evaluate` | Writes validator prompts for stronger models or humans, then records pass/warn/fail as Commons consensus/revision/objection. |
+| Noisy active state | `republic gc` | Archives original Commons/ledger/scheduler JSONL files before compacting active records, then records a supervisor intervention. |
+| Failed or stale weak-model seats | `republic escalate` | Converts repeated failures or pending TTL breaches into supervisor interventions and stronger-agent scheduler queue records. |
+
+This changes the governance model from "record failures" to "record, recover, and reassign." It is still Git-native: all active records, prompts, archives, and scheduler events live under `.git/omo/republic`, and none of these commands dirty the product worktree. The next experimental focus should compare cheap-model treatment runs with and without `republic escalate`, and compare final quality with and without `republic evaluate` prompts handed to a stronger validator seat.
+
 ## Next Steps
 
-1. Add a persistent scheduler/orchestrator daemon loop on top of the new `republic scheduler` queue consumer, so queued target seats can be woken repeatedly without a manual command.
-2. Add supervisor merge/review orchestration for per-workgroup worktree branches.
-3. Extend the benchmark report into a full benchmark harness that runs single-agent, advisory Republic, and governed Republic variants against the same project tasks.
+1. Run controlled Kimi/Ling scheduler experiments that compare `republic escalate` disabled versus enabled on the same failed-dispatch setup.
+2. Run semantic-evaluator experiments where a stronger validator seat receives `republic evaluate --write-prompt` output and records pass/warn/fail verdicts before integration.
+3. Extend `republic integrate` into a long-running CI daemon that periodically syncs delivered workgroup branches and broadcasts check failures.
+4. Extend the benchmark report into a full benchmark harness that runs single-agent, advisory Republic, governed Republic, and governed-plus-escalation variants against the same project tasks.

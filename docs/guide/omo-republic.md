@@ -23,6 +23,8 @@ OMO Republic writes deliberation records under the Git common dir:
 .git/omo/republic/agents/<seat-id>.md
 .git/omo/republic/contracts/<workgroup-id>.md
 .git/omo/republic/scheduler/queue.jsonl
+.git/omo/republic/evaluator/prompts/<deliberation>.md
+.git/omo/republic/archive/<timestamp>-gc/
 .git/omo/republic/deliberations/<deliberation-id>/
 ```
 
@@ -143,6 +145,10 @@ Republic execution has three live governance hooks:
 - **Waitable collaboration**: `republic_wait` polls Commons for `answer`, `revision`, `objection`, `consensus`, `contract`, or `handoff` messages that reference an earlier Commons message, allowing a seat to block until another seat or supervisor responds.
 - **Supervisor policy loop**: on idle, OMO scans Commons for unresolved questions, unresolved objections, dependency blocks, and supervisor interventions, then records a `supervisor-policy` message that tells affected seats to read inbox and respond before continuing.
 - **Agent prompt injection**: before a new chat turn, OMO reads the current seat's relevant Commons inbox and injects a compact `<republic-commons-inbox>` block into context.
+- **Integration branch sync**: `republic integrate` can merge per-workgroup branches into a shared integration branch and publish supervisor interventions when merges or checks fail.
+- **Semantic evaluator seat**: `republic evaluate` generates reviewer prompts and records pass/warn/fail verdicts as Commons consensus, revision, or objection messages.
+- **Rollback/GC**: `republic gc` archives noisy active Republic records before compacting them, giving supervisors a recovery path from weak-model livelock without deleting evidence.
+- **Automatic escalation**: `republic escalate` turns repeated failures or stale pending dispatches into supervisor interventions and stronger-agent scheduler records.
 
 These hooks still do not auto-commit, auto-stash, or create worktrees. Git history remains under user or `git-master` control.
 
@@ -207,6 +213,16 @@ bunx oh-my-opencode republic scheduler --directory /path/to/repo --watch --poll-
 
 This is still a host-level scheduler, not a mid-token live chat bus. It continuously consumes Git-recorded dispatches and wakes new seat sessions when the host command is available.
 
+Queue weak-model work to a stronger agent when repeated failures or stale pending dispatches appear:
+
+```bash
+bunx oh-my-opencode republic escalate --directory /path/to/repo --deliberation-id order-system --max-failed-per-source 1 --escalation-agent hephaestus --apply
+bunx oh-my-opencode republic escalate --directory /path/to/repo --deliberation-id order-system --max-pending-age-ms 600000 --escalation-agent hephaestus --apply
+bunx oh-my-opencode republic escalate --directory /path/to/repo --deliberation-id order-system --max-failed-per-source 1 --escalation-agent hephaestus --apply --command-template "opencode run --dir {repo} --agent {agent} --file {prompt} -- Respond_to_attached_OMO_Republic_scheduler_wake_prompt"
+```
+
+`republic escalate` is the automatic upgrade path for weaker models. In plan mode it reports candidates only. With `--apply`, it writes a `republic-supervisor` intervention to Commons and appends a new queued scheduler record using the stronger `--escalation-agent`. With `--command-template`, it then hands off to the scheduler consumer so the stronger seat can be launched by the host. Failed cheap-model attempts are not silently retried forever: the failure burst or pending TTL becomes a Git-recorded supervisor decision.
+
 Generate a reproducible benchmark report from one or more experiment repositories:
 
 ```bash
@@ -256,6 +272,34 @@ bunx oh-my-opencode republic intent --directory /path/to/repo --deliberation-id 
 ```
 
 `republic intent` is the staged-intent escape hatch for clean Git history. It does not commit and does not require the worktree to be clean. It reads `git diff --cached --numstat`, publishes a Commons `proposal` under `channel: "intent"` with staged files and insertion/deletion counts, and leaves the actual semantic commit to a reviewer, supervisor, or later Git policy step.
+
+Plan or apply a continuous integration branch from workgroup branches:
+
+```bash
+bunx oh-my-opencode republic integrate --directory /path/to/repo --deliberation-id order-system
+bunx oh-my-opencode republic integrate --directory /path/to/repo --deliberation-id order-system --apply --check-command "bun test" --check-command "bun run typecheck"
+bunx oh-my-opencode republic integrate --directory /path/to/repo --deliberation-id order-system --source-branch republic/order-system/api-workgroup --source-branch republic/order-system/docs-workgroup --apply
+```
+
+`republic integrate` is the continuous-sync bridge for worktree isolation. It reads workgroup branches from the team manifest or explicit `--source-branch` values, creates or updates `republic/<deliberation>/integration`, merges each source branch, runs optional integration checks, and publishes a supervisor intervention if a merge or check fails. Plan mode is read-only. Apply mode requires a clean root worktree unless `--allow-dirty` is explicitly set.
+
+Prepare or record a semantic evaluator seat verdict:
+
+```bash
+bunx oh-my-opencode republic evaluate --directory /path/to/repo --deliberation-id order-system --write-prompt --evidence-file src/api/orders.ts --evidence-file tests/orders.test.ts
+bunx oh-my-opencode republic evaluate --directory /path/to/repo --deliberation-id order-system --target-message-id proposal-1 --result fail --summary "Semantic fail: delivered cancellation returns the wrong error taxonomy." --evidence-file src/api/orders.ts
+```
+
+`republic evaluate` separates deterministic evidence collection from semantic judgment. `--write-prompt` produces a review prompt under `.git/omo/republic/evaluator/prompts/` for a stronger model or human reviewer. `--result pass|warn|fail` records the verdict back into Commons as `consensus`, `revision`, or `objection`. This is the bridge between cheap execution seats and a stronger validator seat.
+
+Archive and compact noisy Republic records after weak-model livelock:
+
+```bash
+bunx oh-my-opencode republic gc --directory /path/to/repo --deliberation-id order-system --seat-id ling-seat --message-type note
+bunx oh-my-opencode republic gc --directory /path/to/repo --deliberation-id order-system --seat-id ling-seat --apply --reason "Compacting repeated malformed weak-model notes after supervisor intervention."
+```
+
+`republic gc` is a safe rollback/garbage-collection tool for active Republic state. It never rewrites the working tree. Plan mode reports which `commons`, `ledger`, and `scheduler` records would be compacted. Apply mode first archives the original JSONL files under `.git/omo/republic/archive/<timestamp>-gc/`, rewrites active JSONL with the selected noisy records removed, and publishes a supervisor intervention that points to the archive.
 
 Open the dashboard from OpenCode:
 
@@ -417,7 +461,7 @@ Modes:
 
 `scheduler.seat_agents` maps conceptual seats to preferred concrete OMO/runtime agents. If no mapping exists, OMO infers common agent names from the target seat ID, uses `scheduler.supervisor_agent` for supervisor seats, and falls back to `scheduler.default_agent`. At dispatch time OMO checks the OpenCode runtime agent registry; if the preferred role is not callable in that environment, it runs the background session through an available runtime agent such as `general` and records the requested role separately.
 
-Per-seat worktrees, automatic merge orchestration, and true live agent-to-agent streaming remain future work.
+True mid-token live agent-to-agent streaming remains future work. Per-workgroup worktrees, integration-branch sync, semantic evaluator prompts, active-state GC, and automatic escalation are now scriptable CLI capabilities.
 
 For the larger engineering-organization design, see [OMO Republic Engineering Organization](../architecture/republic-engineering-organization.md).
 
