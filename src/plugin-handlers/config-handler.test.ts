@@ -228,7 +228,7 @@ describe("MCP env allowlist initialization", () => {
 })
 
 describe("Plan agent demote behavior", () => {
-  test("orders core agents as sisyphus -> republic -> hephaestus -> prometheus -> atlas", async () => {
+  test("orders core agents as sisyphus -> Republic presets -> hephaestus -> prometheus -> atlas", async () => {
     // #given
     const createBuiltinAgentsMock = agents.createBuiltinAgents as unknown as {
       mockResolvedValue: (value: Record<string, unknown>) => void
@@ -237,6 +237,8 @@ describe("Plan agent demote behavior", () => {
     createBuiltinAgentsMock.mockResolvedValue({
       sisyphus: { name: "sisyphus", prompt: "test", mode: "primary" },
       republic: { name: "republic", prompt: "test", mode: "primary" },
+      "republic-large": { name: "republic-large", prompt: "test", mode: "primary" },
+      "republic-extreme": { name: "republic-extreme", prompt: "test", mode: "primary" },
       hephaestus: { name: "hephaestus", prompt: "test", mode: "primary" },
       oracle: { name: "oracle", prompt: "test", mode: "subagent" },
       atlas: { name: "atlas", prompt: "test", mode: "primary" },
@@ -267,6 +269,8 @@ describe("Plan agent demote behavior", () => {
     const coreAgents = [
       getAgentListDisplayName("sisyphus"),
       getAgentListDisplayName("republic"),
+      getAgentListDisplayName("republic-large"),
+      getAgentListDisplayName("republic-extreme"),
       getAgentListDisplayName("hephaestus"),
       getAgentListDisplayName("prometheus"),
       getAgentListDisplayName("atlas"),
@@ -284,6 +288,8 @@ describe("Plan agent demote behavior", () => {
     createBuiltinAgentsMock.mockResolvedValue({
       sisyphus: { name: "sisyphus", prompt: "test", mode: "primary" },
       republic: { name: "republic", prompt: "test", mode: "primary" },
+      "republic-large": { name: "republic-large", prompt: "test", mode: "primary" },
+      "republic-extreme": { name: "republic-extreme", prompt: "test", mode: "primary" },
       hephaestus: { name: "hephaestus", prompt: "test", mode: "primary" },
       oracle: { name: "oracle", prompt: "test", mode: "subagent" },
       atlas: { name: "atlas", prompt: "test", mode: "primary" },
@@ -314,9 +320,11 @@ describe("Plan agent demote behavior", () => {
     const assembledAgentKeys = Object.keys(
       reorderSpy.mock.calls.at(0)?.[0] as Record<string, unknown>
     )
-    expect(assembledAgentKeys.slice(0, 5)).toEqual([
+    expect(assembledAgentKeys.slice(0, 7)).toEqual([
       getAgentListDisplayName("sisyphus"),
       getAgentListDisplayName("republic"),
+      getAgentListDisplayName("republic-large"),
+      getAgentListDisplayName("republic-extreme"),
       getAgentListDisplayName("hephaestus"),
       getAgentListDisplayName("prometheus"),
       getAgentListDisplayName("atlas"),
@@ -331,6 +339,8 @@ describe("Plan agent demote behavior", () => {
     createBuiltinAgentsMock.mockResolvedValue({
       sisyphus: { prompt: "test", mode: "primary" },
       republic: { prompt: "test", mode: "primary" },
+      "republic-large": { prompt: "test", mode: "primary" },
+      "republic-extreme": { prompt: "test", mode: "primary" },
       hephaestus: { prompt: "test", mode: "primary" },
       oracle: { prompt: "test", mode: "subagent" },
       atlas: { prompt: "test", mode: "primary" },
@@ -359,7 +369,7 @@ describe("Plan agent demote behavior", () => {
     // #then
     const emittedCoreEntries = Object.entries(
       config.agent as Record<string, { name?: string }>,
-    ).slice(0, 5)
+    ).slice(0, 7)
 
     expect(emittedCoreEntries).toEqual([
       [
@@ -369,6 +379,14 @@ describe("Plan agent demote behavior", () => {
       [
         getAgentListDisplayName("republic"),
         expect.objectContaining({ name: getAgentListDisplayName("republic") }),
+      ],
+      [
+        getAgentListDisplayName("republic-large"),
+        expect.objectContaining({ name: getAgentListDisplayName("republic-large") }),
+      ],
+      [
+        getAgentListDisplayName("republic-extreme"),
+        expect.objectContaining({ name: getAgentListDisplayName("republic-extreme") }),
       ],
       [
         getAgentListDisplayName("hephaestus"),

@@ -177,6 +177,8 @@ describe("getAgentConfigKey", () => {
     // when/then each resolves to its config key
     expect(getAgentConfigKey("Hephaestus - Deep Agent")).toBe("hephaestus")
     expect(getAgentConfigKey("Republic - Team Orchestrator")).toBe("republic")
+    expect(getAgentConfigKey("Republic - Large Team")).toBe("republic-large")
+    expect(getAgentConfigKey("Republic - Extreme Team")).toBe("republic-extreme")
     expect(getAgentConfigKey("Prometheus - Plan Builder")).toBe("prometheus")
     expect(getAgentConfigKey("Atlas - Plan Executor")).toBe("atlas")
     expect(getAgentConfigKey("Metis - Plan Consultant")).toBe("metis")
@@ -198,6 +200,8 @@ describe("getAgentListDisplayName", () => {
   it("returns the canonical display name for the core agent list", () => {
     expect(getAgentListDisplayName("sisyphus")).toBe("Sisyphus - Ultraworker")
     expect(getAgentListDisplayName("republic")).toBe("Republic - Team Orchestrator")
+    expect(getAgentListDisplayName("republic-large")).toBe("Republic - Large Team")
+    expect(getAgentListDisplayName("republic-extreme")).toBe("Republic - Extreme Team")
     expect(getAgentListDisplayName("hephaestus")).toBe("Hephaestus - Deep Agent")
     expect(getAgentListDisplayName("prometheus")).toBe("Prometheus - Plan Builder")
     expect(getAgentListDisplayName("atlas")).toBe("Atlas - Plan Executor")
@@ -222,6 +226,8 @@ describe("normalizeAgentForPrompt", () => {
   it("strips core UI ordering prefixes back to canonical display names", () => {
     expect(normalizeAgentForPrompt(getAgentListDisplayName("sisyphus"))).toBe("Sisyphus - Ultraworker")
     expect(normalizeAgentForPrompt(getAgentListDisplayName("republic"))).toBe("Republic - Team Orchestrator")
+    expect(normalizeAgentForPrompt(getAgentListDisplayName("republic-large"))).toBe("Republic - Large Team")
+    expect(normalizeAgentForPrompt(getAgentListDisplayName("republic-extreme"))).toBe("Republic - Extreme Team")
     expect(normalizeAgentForPrompt(getAgentListDisplayName("hephaestus"))).toBe("Hephaestus - Deep Agent")
     expect(normalizeAgentForPrompt(getAgentListDisplayName("prometheus"))).toBe("Prometheus - Plan Builder")
     expect(normalizeAgentForPrompt(getAgentListDisplayName("atlas"))).toBe("Atlas - Plan Executor")
@@ -256,6 +262,8 @@ describe("AGENT_DISPLAY_NAMES", () => {
     const expectedMappings = {
       sisyphus: "Sisyphus - Ultraworker",
       republic: "Republic - Team Orchestrator",
+      "republic-large": "Republic - Large Team",
+      "republic-extreme": "Republic - Extreme Team",
       hephaestus: "Hephaestus - Deep Agent",
       prometheus: "Prometheus - Plan Builder",
       atlas: "Atlas - Plan Executor",

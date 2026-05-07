@@ -901,6 +901,7 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
       planner_seat_count: tool.schema.number().optional().describe("Optional planner seat count"),
       executor_seat_count: tool.schema.number().optional().describe("Optional executor seat count"),
       reviewer_seat_count: tool.schema.number().optional().describe("Optional reviewer seat count"),
+      max_parallel_seats: tool.schema.number().optional().describe("Optional max parallel seat dispatch limit"),
     },
     execute: async (args, context) => {
       const repository = getToolRepository(ctx, context as ToolContextLike)
@@ -924,6 +925,7 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
         plannerSeatCount: typeof args.planner_seat_count === "number" ? args.planner_seat_count : undefined,
         executorSeatCount: typeof args.executor_seat_count === "number" ? args.executor_seat_count : undefined,
         reviewerSeatCount: typeof args.reviewer_seat_count === "number" ? args.reviewer_seat_count : undefined,
+        maxParallelSeats: typeof args.max_parallel_seats === "number" ? args.max_parallel_seats : undefined,
       })
 
       initializeRepublicTeam(repository, {

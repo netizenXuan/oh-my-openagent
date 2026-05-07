@@ -173,6 +173,7 @@ describe("republic tools", () => {
       deliberation_id: "order-system-team",
       team_model: "parliament_squad",
       seat_allocation: "auto",
+      max_parallel_seats: 8,
     }, context)
 
     const parsed = JSON.parse(String(result))
@@ -188,6 +189,7 @@ describe("republic tools", () => {
     expect(parsed.dashboard.opened).toBe(true)
     expect(parsed.dashboard.reason).toBe("started")
     expect(parsed.seats.length).toBeGreaterThan(3)
+    expect(manifest.maxParallelSeats).toBe(8)
     expect(manifest.seats.map((seat) => seat.seatID)).toContain("api-planner-seat")
     expect(phase.phase).toBe("planning")
     expect(phase.deliberationID).toBe("order-system-team")

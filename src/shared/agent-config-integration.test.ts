@@ -86,13 +86,16 @@ describe("Agent Config Integration", () => {
   describe("Display name resolution", () => {
     test("returns correct display names for all builtin agents", () => {
       // given - lowercase config keys
-      const agents = ["sisyphus", "hephaestus", "prometheus", "atlas", "metis", "momus", "oracle", "librarian", "explore", "multimodal-looker"]
+      const agents = ["sisyphus", "republic", "republic-large", "republic-extreme", "hephaestus", "prometheus", "atlas", "metis", "momus", "oracle", "librarian", "explore", "multimodal-looker"]
 
       // when - display names are requested
       const displayNames = agents.map((agent) => getAgentDisplayName(agent))
 
       // then - display names are correct
       expect(displayNames).toContain("Sisyphus - Ultraworker")
+      expect(displayNames).toContain("Republic - Team Orchestrator")
+      expect(displayNames).toContain("Republic - Large Team")
+      expect(displayNames).toContain("Republic - Extreme Team")
       expect(displayNames).toContain("Hephaestus - Deep Agent")
       expect(displayNames).toContain("Prometheus - Plan Builder")
       expect(displayNames).toContain("Atlas - Plan Executor")
@@ -146,7 +149,7 @@ describe("Agent Config Integration", () => {
 
     test("model requirements include all builtin agents", () => {
       // given - expected builtin agents
-      const expectedAgents = ["sisyphus", "republic", "hephaestus", "prometheus", "atlas", "metis", "momus", "oracle", "librarian", "explore", "multimodal-looker"]
+      const expectedAgents = ["sisyphus", "republic", "republic-large", "republic-extreme", "hephaestus", "prometheus", "atlas", "metis", "momus", "oracle", "librarian", "explore", "multimodal-looker"]
 
       // when - checking AGENT_MODEL_REQUIREMENTS
       const agentKeys = Object.keys(AGENT_MODEL_REQUIREMENTS)

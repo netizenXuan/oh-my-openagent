@@ -4,9 +4,17 @@ import type { CategoryConfig } from "../../config/schema"
 import { AGENT_MODEL_REQUIREMENTS } from "../../shared"
 import { applyOverrides } from "./agent-overrides"
 import { applyModelResolution, getFirstFallbackModel } from "./model-resolution"
-import { createRepublicAgent } from "../republic"
+import { createRepublicAgent, type RepublicAgentPreset } from "../republic"
 
-export function maybeCreateRepublicConfig(input: {
+type RepublicAgentKey = "republic" | "republic-large" | "republic-extreme"
+
+const REPUBLIC_AGENT_KEYS: Array<{ key: RepublicAgentKey; preset: RepublicAgentPreset }> = [
+  { key: "republic", preset: "standard" },
+  { key: "republic-large", preset: "large" },
+  { key: "republic-extreme", preset: "extreme" },
+]
+
+export function maybeCreateRepublicConfigs(input: {
   disabledAgents: string[]
   agentOverrides: AgentOverrides
   uiSelectedModel?: string
@@ -15,7 +23,7 @@ export function maybeCreateRepublicConfig(input: {
   isFirstRunNoCache: boolean
   mergedCategories: Record<string, CategoryConfig>
   directory?: string
-}): AgentConfig | undefined {
+}): Partial<Record<RepublicAgentKey, AgentConfig>> {
   const {
     disabledAgents,
     agentOverrides,
@@ -27,29 +35,41 @@ export function maybeCreateRepublicConfig(input: {
     directory,
   } = input
 
-  if (disabledAgents.includes("republic")) return undefined
+  const result: Partial<Record<RepublicAgentKey, AgentConfig>> = {}
+  const disabled = new Set(disabledAgents.map((agent) => agent.toLowerCase()))
+  const baseDisabled = disabled.has("republic")
 
-  const republicOverride = agentOverrides.republic
-  const republicRequirement = AGENT_MODEL_REQUIREMENTS.republic
-  let republicResolution = applyModelResolution({
-    uiSelectedModel: republicOverride?.model !== undefined ? undefined : uiSelectedModel,
-    userModel: republicOverride?.model,
-    requirement: republicRequirement,
-    availableModels,
-    systemDefaultModel,
-  })
+  for (const { key, preset } of REPUBLIC_AGENT_KEYS) {
+    if (baseDisabled || disabled.has(key)) continue
 
-  if (isFirstRunNoCache && !republicOverride?.model && !uiSelectedModel) {
-    republicResolution = getFirstFallbackModel(republicRequirement)
+    const republicOverride = agentOverrides[key]
+    const republicRequirement = AGENT_MODEL_REQUIREMENTS[key] ?? AGENT_MODEL_REQUIREMENTS.republic
+    let republicResolution = applyModelResolution({
+      uiSelectedModel: republicOverride?.model !== undefined ? undefined : uiSelectedModel,
+      userModel: republicOverride?.model,
+      requirement: republicRequirement,
+      availableModels,
+      systemDefaultModel,
+    })
+
+    if (isFirstRunNoCache && !republicOverride?.model && !uiSelectedModel) {
+      republicResolution = getFirstFallbackModel(republicRequirement)
+    }
+
+    if (!republicResolution) continue
+    const { model, variant } = republicResolution
+
+    let republicConfig = createRepublicAgent(model, preset)
+    if (variant) {
+      republicConfig = { ...republicConfig, variant }
+    }
+
+    result[key] = applyOverrides(republicConfig, republicOverride, mergedCategories, directory)
   }
 
-  if (!republicResolution) return undefined
-  const { model, variant } = republicResolution
+  return result
+}
 
-  let republicConfig = createRepublicAgent(model)
-  if (variant) {
-    republicConfig = { ...republicConfig, variant }
-  }
-
-  return applyOverrides(republicConfig, republicOverride, mergedCategories, directory)
+export function maybeCreateRepublicConfig(input: Parameters<typeof maybeCreateRepublicConfigs>[0]): AgentConfig | undefined {
+  return maybeCreateRepublicConfigs(input).republic
 }

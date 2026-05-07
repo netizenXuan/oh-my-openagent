@@ -25,15 +25,26 @@ import { mergeCategories } from "../shared/merge-categories"
 import { buildAvailableSkills } from "./builtin-agents/available-skills"
 import { collectPendingBuiltinAgents } from "./builtin-agents/general-agents"
 import { maybeCreateSisyphusConfig } from "./builtin-agents/sisyphus-agent"
-import { maybeCreateRepublicConfig } from "./builtin-agents/republic-agent"
+import { maybeCreateRepublicConfigs } from "./builtin-agents/republic-agent"
 import { maybeCreateHephaestusConfig } from "./builtin-agents/hephaestus-agent"
 import { maybeCreateAtlasConfig } from "./builtin-agents/atlas-agent"
 
 type AgentSource = AgentFactory | AgentConfig
 
+const createRepublicLargeAgent = Object.assign(
+  (model: string) => createRepublicAgent(model, "large"),
+  { mode: "primary" as const },
+)
+const createRepublicExtremeAgent = Object.assign(
+  (model: string) => createRepublicAgent(model, "extreme"),
+  { mode: "primary" as const },
+)
+
 const agentSources: Record<BuiltinAgentName, AgentSource> = {
   sisyphus: createSisyphusAgent,
   republic: createRepublicAgent,
+  "republic-large": createRepublicLargeAgent,
+  "republic-extreme": createRepublicExtremeAgent,
   hephaestus: createHephaestusAgent,
   oracle: createOracleAgent,
   librarian: createLibrarianAgent,
@@ -142,7 +153,7 @@ export async function createBuiltinAgents(
     result["sisyphus"] = sisyphusConfig
   }
 
-  const republicConfig = maybeCreateRepublicConfig({
+  const republicConfigs = maybeCreateRepublicConfigs({
     disabledAgents,
     agentOverrides,
     uiSelectedModel,
@@ -152,8 +163,10 @@ export async function createBuiltinAgents(
     mergedCategories,
     directory,
   })
-  if (republicConfig) {
-    result["republic"] = republicConfig
+  for (const [name, config] of Object.entries(republicConfigs)) {
+    if (config) {
+      result[name] = config
+    }
   }
 
   const hephaestusConfig = maybeCreateHephaestusConfig({

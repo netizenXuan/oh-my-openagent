@@ -98,6 +98,7 @@ describe("republic seat allocator", () => {
     const manifest = allocateRepublicTeam({
       goal: "Create a dashboard UI and CLI command",
       files: ["src/cli/dashboard.ts", "src/ui/Dashboard.tsx"],
+      maxParallelSeats: 8,
       config: createConfig({
         team: {
           seat_allocation: "count",
@@ -113,6 +114,7 @@ describe("republic seat allocator", () => {
     })
 
     expect(manifest.seatAllocation).toBe("count")
+    expect(manifest.maxParallelSeats).toBe(8)
     expect(manifest.seats.filter((seat) => seat.phase === "planning")).toHaveLength(5)
     expect(manifest.seats.filter((seat) => seat.phase === "execution")).toHaveLength(3)
     expect(manifest.seats.filter((seat) => seat.phase === "review")).toHaveLength(1)

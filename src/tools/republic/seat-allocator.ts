@@ -22,6 +22,7 @@ export interface RepublicSeatAllocationInput {
   plannerSeatCount?: number | "auto"
   executorSeatCount?: number | "auto"
   reviewerSeatCount?: number | "auto"
+  maxParallelSeats?: number
 }
 
 const DOMAINS: RepublicDomain[] = [
@@ -207,12 +208,13 @@ export function allocateRepublicTeam(input: RepublicSeatAllocationInput): Republ
   const runtimeAgent = config.team.default_runtime_agent
   const seatAllocation = input.seatAllocation ?? config.team.seat_allocation
   const teamModel = input.teamModel ?? config.team_model
+  const maxParallelSeats = normalizeCount(input.maxParallelSeats, config.team.max_parallel_seats, 20)
 
   if (seatAllocation === "explicit") {
     return {
       teamModel,
       seatAllocation,
-      maxParallelSeats: config.team.max_parallel_seats,
+      maxParallelSeats,
       defaultRuntimeAgent: runtimeAgent,
       seats: explicitSeats(config, runtimeAgent),
     }
@@ -275,7 +277,7 @@ export function allocateRepublicTeam(input: RepublicSeatAllocationInput): Republ
   return {
     teamModel,
     seatAllocation,
-    maxParallelSeats: config.team.max_parallel_seats,
+    maxParallelSeats,
     defaultRuntimeAgent: runtimeAgent,
     seats: uniqueSeats(seats),
   }

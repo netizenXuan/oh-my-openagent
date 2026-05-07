@@ -2,7 +2,8 @@ import { getAgentListDisplayName } from "../shared/agent-display-names"
 
 /**
  * The only source of truth for core agent ordering:
- * sisyphus -> republic -> hephaestus -> prometheus -> atlas.
+ * sisyphus -> republic -> republic-large -> republic-extreme -> hephaestus
+ * -> prometheus -> atlas.
  *
  * Keep this centralized. Do not reintroduce invisible prefixes, alternate
  * ordering constants, or ad hoc string comparisons elsewhere.
@@ -10,6 +11,8 @@ import { getAgentListDisplayName } from "../shared/agent-display-names"
 export const CANONICAL_CORE_AGENT_ORDER = [
   "sisyphus",
   "republic",
+  "republic-large",
+  "republic-extreme",
   "hephaestus",
   "prometheus",
   "atlas",
