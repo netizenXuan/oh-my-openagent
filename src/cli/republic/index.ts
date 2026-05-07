@@ -9,6 +9,7 @@ import { collectCapabilityContentTerm, republicCapabilityCheck } from "./capabil
 import { republicContractCheck } from "./contract-check"
 import { republicDashboard } from "./dashboard"
 import { republicDoctor } from "./doctor"
+import { republicEscalate } from "./escalate"
 import { republicEvaluate } from "./evaluate"
 import { republicGC } from "./gc"
 import { republicIntent } from "./intent"
@@ -20,6 +21,36 @@ import { republicWorktrees } from "./worktrees"
 export function createRepublicCommand(): Command {
   const command = new Command("republic")
     .description("Inspect OMO Republic deliberation and native Git audit state")
+
+  command
+    .command("escalate")
+    .description("Queue or dispatch escalated Republic work for failed or stale scheduler records")
+    .option("-d, --directory <path>", "Working directory to inspect")
+    .option("--deliberation-id <id>", "Filter to one deliberation id")
+    .option("--max-failed-per-source <n>", "Escalate sources with more failed dispatches than this", (value) => Number.parseInt(value, 10))
+    .option("--max-pending-age-ms <ms>", "Escalate queued dispatches older than this", (value) => Number.parseInt(value, 10))
+    .option("--escalation-agent <agent>", "Agent to request for escalated dispatches", "hephaestus")
+    .option("--apply", "Append supervisor intervention and queued escalation records")
+    .option(
+      "--command-template <template>",
+      "After --apply, immediately run the scheduler with this command template for queued escalations",
+    )
+    .option("-o, --output <path>", "Write the report to a file instead of stdout")
+    .option("--json", "Output structured JSON")
+    .action(async (options) => {
+      const exitCode = await republicEscalate({
+        directory: options.directory,
+        deliberationId: options.deliberationId,
+        maxFailedPerSource: options.maxFailedPerSource,
+        maxPendingAgeMs: options.maxPendingAgeMs,
+        escalationAgent: options.escalationAgent,
+        apply: options.apply ?? false,
+        commandTemplate: options.commandTemplate,
+        output: options.output,
+        json: options.json ?? false,
+      })
+      process.exit(exitCode)
+    })
 
   command
     .command("evaluate")
