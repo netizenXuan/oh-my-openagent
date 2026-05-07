@@ -5,6 +5,7 @@ import type { RepublicConfig } from "../../config"
 import { RepublicConfigSchema } from "../../config/schema"
 import type { BackgroundManager } from "../../features/background-agent"
 import { getSessionAgent } from "../../features/claude-code-session-state"
+import { maybeOpenRepublicDashboard } from "../../republic/dashboard-launcher"
 import { normalizeSDKResponse } from "../../shared"
 import { getAgentConfigKey } from "../../shared/agent-display-names"
 import {
@@ -579,6 +580,7 @@ function buildRoundPrompt(args: {
     "2. Preserve exact field names, type names, file paths, and environment variable names from the objective/contracts.",
     "3. If you need a new name or shape not present in the objective/contracts, publish it as a proposal or targeted question; do not lock it as consensus silently.",
     "4. Before writing or revising a contract, quote the exact objective/contract terms that justify it.",
+    "5. You are executing as this Republic seat. Do not create a separate OMO subagent plan or delegate this seat's responsibility through task/call_omo_agent; coordinate through Republic Commons and ask the supervisor or adjacent seats when needed.",
     "",
     ...buildConstrainedOperatingRules({ phase, seat, labeledContext }),
     "",
@@ -925,11 +927,19 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
         summary,
       })
 
+      const dashboard = maybeOpenRepublicDashboard({
+        repository,
+        config,
+        event: "team_init",
+        deliberationID,
+      })
+
       return JSON.stringify({
         ok: true,
         deliberation_id: deliberationID,
         team_model: manifest.teamModel,
         seat_allocation: manifest.seatAllocation,
+        dashboard,
         seats: manifest.seats.map((seat) => ({
           seat_id: seat.seatID,
           role: seat.role,
@@ -1381,11 +1391,19 @@ export function createRepublicTools(ctx: PluginInput, options: RepublicToolOptio
         })
       }
 
+      const dashboard = maybeOpenRepublicDashboard({
+        repository,
+        config: options.config,
+        event: "round_start",
+        deliberationID,
+      })
+
       return JSON.stringify({
         ok: true,
         deliberation_id: deliberationID,
         phase,
         round,
+        dashboard,
         dispatches,
       })
     },

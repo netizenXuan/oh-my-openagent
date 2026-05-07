@@ -58,6 +58,7 @@ const pluginConfig = {
       seat_allocation: "auto",
       seat_memory: true,
       persistent_sessions: true,
+      exclusive_seat_orchestration: true,
       planner_seat_count: "auto",
       executor_seat_count: "auto",
       reviewer_seat_count: 2,
@@ -112,6 +113,12 @@ const pluginConfig = {
       supervisor_agent: "hephaestus",
       seat_agents: {},
       prompt_max_messages: 8,
+    },
+    dashboard: {
+      auto_open: false,
+      auto_open_events: ["team_init"],
+      port: 4097,
+      refresh_ms: 2000,
     },
   },
 } satisfies OhMyOpenCodeConfig

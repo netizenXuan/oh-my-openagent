@@ -1104,7 +1104,12 @@ describe("RepublicConfigSchema", () => {
       expect(result.data.team.reviewer_seat_count).toBe(2)
       expect(result.data.team.max_parallel_seats).toBe(4)
       expect(result.data.team.default_runtime_agent).toBe("general")
+      expect(result.data.team.exclusive_seat_orchestration).toBe(true)
       expect(result.data.seats.supervisors).toEqual(["republic-supervisor"])
+      expect(result.data.dashboard.auto_open).toBe(false)
+      expect(result.data.dashboard.auto_open_events).toEqual(["team_init"])
+      expect(result.data.dashboard.port).toBe(4097)
+      expect(result.data.dashboard.refresh_ms).toBe(2000)
       expect(result.data.commons.auto_publish).toBe(true)
       expect(result.data.supervisor.intervention).toBe(true)
       expect(result.data.supervisor.file_threshold).toBe(5)
@@ -1154,6 +1159,9 @@ describe("RepublicConfigSchema", () => {
     expect(RepublicConfigSchema.safeParse({ team: { planner_seat_count: 0 } }).success).toBe(false)
     expect(RepublicConfigSchema.safeParse({ team: { executor_seat_count: 21 } }).success).toBe(false)
     expect(RepublicConfigSchema.safeParse({ team: { max_parallel_seats: 0 } }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ dashboard: { auto_open_events: ["team"] } }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ dashboard: { port: 0 } }).success).toBe(false)
+    expect(RepublicConfigSchema.safeParse({ dashboard: { refresh_ms: 100 } }).success).toBe(false)
   })
 
   test("accepts scheduler seat agent mapping", () => {
@@ -1203,6 +1211,13 @@ describe("RepublicConfigSchema", () => {
         reviewer_seat_count: "auto",
         max_parallel_seats: 5,
         default_runtime_agent: "general",
+        exclusive_seat_orchestration: false,
+      },
+      dashboard: {
+        auto_open: true,
+        auto_open_events: ["team_init", "round_start"],
+        port: 4101,
+        refresh_ms: 1000,
       },
       seats: {
         planners: ["protocol-seat"],
@@ -1220,6 +1235,11 @@ describe("RepublicConfigSchema", () => {
       expect(result.data.team.planner_seat_count).toBe(6)
       expect(result.data.team.executor_seat_count).toBe(4)
       expect(result.data.team.reviewer_seat_count).toBe("auto")
+      expect(result.data.team.exclusive_seat_orchestration).toBe(false)
+      expect(result.data.dashboard.auto_open).toBe(true)
+      expect(result.data.dashboard.auto_open_events).toEqual(["team_init", "round_start"])
+      expect(result.data.dashboard.port).toBe(4101)
+      expect(result.data.dashboard.refresh_ms).toBe(1000)
       expect(result.data.seats.planners).toEqual(["protocol-seat"])
       expect(result.data.seats.supervisors).toEqual(["chief-supervisor"])
     }
@@ -1239,6 +1259,8 @@ describe("OhMyOpenCodeConfigSchema - republic defaults", () => {
       expect(result.data.republic.ledger).toBe(true)
       expect(result.data.republic.scheduler.enabled).toBe(true)
       expect(result.data.republic.team.seat_allocation).toBe("auto")
+      expect(result.data.republic.team.exclusive_seat_orchestration).toBe(true)
+      expect(result.data.republic.dashboard.auto_open).toBe(false)
     }
   })
 })

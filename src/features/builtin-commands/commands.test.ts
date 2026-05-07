@@ -272,6 +272,9 @@ describe("loadBuiltinCommands - republic-dashboard", () => {
     expect(commands["republic-dashboard"].template).toContain("oh-my-opencode republic dashboard")
     expect(commands["republic-dashboard"].template).toContain(".git/omo/republic/dashboard.html")
     expect(commands["republic-dashboard"].template).toContain("workgroup")
+    expect(commands["republic-dashboard"].template).toContain("--open")
+    expect(commands["republic-dashboard"].template).toContain("click-to-inspect seat detail panel")
+    expect(commands["republic-dashboard"].template).toContain("republic.dashboard.auto_open=true")
   })
 })
 

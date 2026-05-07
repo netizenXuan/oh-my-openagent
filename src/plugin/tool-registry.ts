@@ -33,6 +33,7 @@ import {
 import { getMainSessionID } from "../features/claude-code-session-state"
 import { filterDisabledTools } from "../shared/disabled-tools"
 import { isTaskSystemEnabled, log } from "../shared"
+import { isRepublicSeatOrchestrationExclusive } from "../republic/exclusive-seat-orchestration"
 
 import type { Managers } from "../create-managers"
 import type { SkillContext } from "./skill-context"
@@ -297,6 +298,10 @@ export function createToolRegistry(args: {
   }
 
   const filteredTools: ToolsRecord = filterDisabledTools(allTools, pluginConfig.disabled_tools)
+  if (isRepublicSeatOrchestrationExclusive(pluginConfig)) {
+    delete filteredTools.task
+    delete filteredTools.call_omo_agent
+  }
 
   const maxTools = pluginConfig.experimental?.max_tools
   if (maxTools) {

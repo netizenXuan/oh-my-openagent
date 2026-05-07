@@ -1,4 +1,5 @@
 import type { PluginContext } from "./types"
+import type { OhMyOpenCodeConfig } from "../config"
 import { randomUUID } from "node:crypto"
 
 import { getMainSessionID } from "../features/claude-code-session-state"
@@ -9,6 +10,7 @@ import { resolveSessionAgent } from "./session-agent-resolver"
 import { parseRalphLoopArguments } from "../hooks/ralph-loop/command-arguments"
 import { ULTRAWORK_VERIFICATION_PROMISE } from "../hooks/ralph-loop/constants"
 import { readState, writeState } from "../hooks/ralph-loop/storage"
+import { getRepublicExclusiveSeatDelegationError } from "../republic/exclusive-seat-orchestration"
 
 import type { CreatedHooks } from "../create-hooks"
 
@@ -25,11 +27,12 @@ function getLoopCommandArguments(args: Record<string, unknown>, command: "ralph-
 export function createToolExecuteBeforeHandler(args: {
   ctx: PluginContext
   hooks: CreatedHooks
+  pluginConfig?: Pick<OhMyOpenCodeConfig, "republic">
 }): (
   input: { tool: string; sessionID: string; callID: string },
   output: { args: Record<string, unknown> },
 ) => Promise<void> {
-  const { ctx, hooks } = args
+  const { ctx, hooks, pluginConfig } = args
 
   function buildUltraworkOracleVerificationPrompt(prompt: string, originalTask: string, verificationAttemptId: string): string {
     const verificationPrompt = [
@@ -98,6 +101,11 @@ export function createToolExecuteBeforeHandler(args: {
     }
 
     if (input.tool === "task") {
+      const errorMessage = getRepublicExclusiveSeatDelegationError(pluginConfig)
+      if (errorMessage) {
+        throw new Error(errorMessage)
+      }
+
       const argsObject = output.args
       const category = typeof argsObject.category === "string" ? argsObject.category : undefined
       const subagentType = typeof argsObject.subagent_type === "string" ? argsObject.subagent_type : undefined
@@ -140,6 +148,13 @@ export function createToolExecuteBeforeHandler(args: {
           loopState.prompt,
           verificationAttemptId,
         )
+      }
+    }
+
+    if (input.tool === "call_omo_agent") {
+      const errorMessage = getRepublicExclusiveSeatDelegationError(pluginConfig)
+      if (errorMessage) {
+        throw new Error(errorMessage)
       }
     }
 

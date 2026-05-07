@@ -16,7 +16,9 @@ import {
 } from "../../shared/git-worktree"
 import {
   buildRepublicDashboardData,
+  getDashboardOpenCommand,
   renderRepublicDashboardHtml,
+  startRepublicDashboardServer,
   writeRepublicDashboardFile,
 } from "./dashboard"
 
@@ -226,6 +228,12 @@ describe("republic dashboard", () => {
     expect(html).toContain('id="timeline"')
     expect(html).toContain("renderTimeline(data)")
     expect(html).toContain("Seat Inspector")
+    expect(html).toContain("Seat Definition")
+    expect(html).toContain("Current State")
+    expect(html).toContain("Runtime Mapping")
+    expect(html).toContain("allocation")
+    expect(html).toContain("max parallel")
+    expect(html).toContain("renderMessageDetails")
     expect(html).toContain("Contract Traceability")
     expect(html).toContain("Scheduler Queue")
     expect(html).not.toContain('id="graph"')
@@ -241,5 +249,38 @@ describe("republic dashboard", () => {
 
     expect(html).toContain('fetch("/data.json"')
     expect(html).toContain("setInterval(render, 500)")
+  })
+
+  test("starts a live dashboard server for an existing git repository", async () => {
+    git(directory, ["init"])
+    writeFileSync(join(directory, "README.md"), "hello\n", "utf-8")
+    commitAll(directory, "init")
+
+    const server = startRepublicDashboardServer({ directory, port: 0, refreshMs: 500 })
+    expect(server).not.toBeNull()
+    try {
+      const response = await fetch(`${server!.url}/data.json`)
+      const data = await response.json()
+      expect(response.ok).toBe(true)
+      expect(data.repository.repoRoot).toBe(directory.replace(/\\/g, "/"))
+    } finally {
+      server?.stop()
+    }
+  })
+
+  test("resolves OS dashboard open commands", () => {
+    expect(getDashboardOpenCommand("file.html", "win32")).toEqual({
+      command: "cmd.exe",
+      args: ["/c", "start", "", "file.html"],
+    })
+    expect(getDashboardOpenCommand("file.html", "darwin")).toEqual({
+      command: "open",
+      args: ["file.html"],
+    })
+    expect(getDashboardOpenCommand("file.html", "linux")).toEqual({
+      command: "xdg-open",
+      args: ["file.html"],
+    })
+    expect(getDashboardOpenCommand("file.html", "sunos")).toBeNull()
   })
 })

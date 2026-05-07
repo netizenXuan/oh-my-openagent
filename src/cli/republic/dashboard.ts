@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process"
 import { mkdirSync, writeFileSync } from "node:fs"
 import { dirname, join, resolve } from "node:path"
 import {
@@ -27,6 +28,7 @@ export interface RepublicDashboardOptions {
   output?: string
   json?: boolean
   serve?: boolean
+  open?: boolean
   port?: number
   refreshMs?: number
 }
@@ -661,6 +663,43 @@ function defaultDashboardPath(repository: NativeGitRepository, output?: string):
   return output ? resolve(output) : join(repository.gitCommonDir, "omo", "republic", "dashboard.html")
 }
 
+export interface DashboardOpenCommand {
+  command: string
+  args: string[]
+}
+
+export function getDashboardOpenCommand(target: string, platform: string = process.platform): DashboardOpenCommand | null {
+  if (platform === "win32") {
+    return { command: "cmd.exe", args: ["/c", "start", "", target] }
+  }
+  if (platform === "darwin") {
+    return { command: "open", args: [target] }
+  }
+  if (["linux", "freebsd", "openbsd"].includes(platform)) {
+    return { command: "xdg-open", args: [target] }
+  }
+  return null
+}
+
+export function openDashboardTarget(target: string, platform: string = process.platform): boolean {
+  const command = getDashboardOpenCommand(target, platform)
+  if (!command) {
+    return false
+  }
+
+  try {
+    const child = spawn(command.command, command.args, {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    })
+    child.unref()
+    return true
+  } catch {
+    return false
+  }
+}
+
 function escapeJsonForScript(data: RepublicDashboardData): string {
   return JSON.stringify(data).replace(/</g, "\\u003c")
 }
@@ -759,6 +798,16 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
     .inspector-title strong { display:block; font-size:16px; margin-bottom:6px; overflow-wrap:anywhere; }
     .progress { height:8px; border-radius:999px; overflow:hidden; background:#232b36; }
     .progress div { height:100%; background:var(--green); width:0; }
+    .detail-block { border:1px solid var(--soft-line); border-radius:8px; background:#0d1117; overflow:hidden; }
+    details.detail-block summary { cursor:pointer; list-style:none; padding:10px 12px; color:var(--text); font-weight:700; border-bottom:1px solid var(--soft-line); }
+    details.detail-block summary::-webkit-details-marker { display:none; }
+    details.detail-block summary::after { content:"expand"; float:right; color:var(--muted); font-weight:400; font-size:11px; text-transform:uppercase; }
+    details.detail-block[open] summary::after { content:"collapse"; }
+    .detail-body { padding:10px 12px; color:var(--muted); overflow-wrap:anywhere; }
+    .detail-body p { margin-bottom:8px; }
+    .raw-json { margin:0; max-height:320px; overflow:auto; white-space:pre-wrap; color:#cbd5e1; font:12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .item-meta { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+    .summary-line { display:flex; justify-content:space-between; gap:10px; align-items:center; }
     .empty { border:1px dashed var(--line); border-radius:8px; padding:14px; color:var(--muted); background:#0d1117; }
     .muted { color:var(--muted); }
     .status-approved { color:var(--green); }
@@ -810,6 +859,70 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       return String(value ?? "").replace(/[&<>"']/g, (ch) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch]));
     }
 
+    function safeJson(value) {
+      return safe(JSON.stringify(value ?? null, null, 2));
+    }
+
+    function detailBlock(title, body, raw) {
+      return '<details class="detail-block"><summary>' + safe(title) + '</summary><div class="detail-body">' + body + (raw === undefined ? '' : '<pre class="raw-json">' + safeJson(raw) + '</pre>') + '</div></details>';
+    }
+
+    function fieldPill(label, value) {
+      if (value === undefined || value === null || value === "") return "";
+      return '<span class="pill">' + safe(label) + ': ' + safe(value) + '</span>';
+    }
+
+    function renderMessageDetails(message) {
+      const target = message.targetSeatID ? ' -> ' + message.targetSeatID : '';
+      const refs = (message.references ?? []).join(", ") || "none";
+      const files = (message.files ?? []).join(", ") || "none";
+      const meta = [
+        fieldPill("channel", message.channel),
+        fieldPill("phase", message.phase),
+        fieldPill("round", message.round ?? "n/a"),
+        fieldPill("status", message.status ?? "n/a"),
+        fieldPill("task", message.taskID),
+        fieldPill("module", message.module),
+        fieldPill("refs", refs),
+        fieldPill("files", files),
+      ].filter(Boolean).join("");
+      return detailBlock(
+        message.authorSeatID + target + ' / ' + message.messageType,
+        '<p>' + safe(message.content) + '</p><div class="item-meta">' + meta + '</div>',
+        message,
+      );
+    }
+
+    function renderQueueDetails(record) {
+      const meta = [
+        fieldPill("queue", record.queueType),
+        fieldPill("status", record.status),
+        fieldPill("target", record.targetSeatID),
+        fieldPill("requested", record.requestedAgent),
+        fieldPill("runtime", record.runtimeAgent),
+        fieldPill("task", record.taskID),
+      ].filter(Boolean).join("");
+      return detailBlock(
+        (record.status ?? "queue") + ' / ' + (record.queueType ?? "dispatch"),
+        '<p>' + safe(record.summary ?? record.reason ?? "") + '</p><div class="item-meta">' + meta + '</div>',
+        record,
+      );
+    }
+
+    function renderContractDetails(contract) {
+      const terms = (contract.uncoveredTerms ?? []).length
+        ? 'Uncovered terms: ' + contract.uncoveredTerms.join(", ")
+        : "All extracted hard terms are covered.";
+      const meta = [
+        fieldPill("status", contract.status),
+        fieldPill("files", (contract.files ?? []).join(", ") || "none"),
+      ].filter(Boolean).join("");
+      return detailBlock(
+        contract.contractID + ' / ' + contract.status,
+        '<p>' + safe(terms) + '</p><div class="item-meta">' + meta + '</div>',
+        contract,
+      );
+    }
 
     function statusClass(status) {
       return "status status-" + safe(status || "standby");
@@ -934,6 +1047,8 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
         : "No active Republic team phase.";
       document.getElementById("board-pills").innerHTML = [
         '<span class="pill">' + safe(data.teamManifest?.teamModel ?? "no team") + '</span>',
+        '<span class="pill">allocation ' + safe(data.teamManifest?.seatAllocation ?? "none") + '</span>',
+        '<span class="pill">max parallel ' + safe(data.teamManifest?.maxParallelSeats ?? "n/a") + '</span>',
         '<span class="pill">seats ' + seats.length + '</span>',
         '<span class="' + pillClass(data.report.schedulerQueue?.pending ?? 0, true) + '">pending ' + safe(data.report.schedulerQueue?.pending ?? 0) + '</span>',
         '<span class="' + pillClass(data.report.contractTraceability?.warningCount ?? 0, true) + '">contract warnings ' + safe(data.report.contractTraceability?.warningCount ?? 0) + '</span>',
@@ -974,9 +1089,17 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
         '<div class="decision-card"><span class="muted">Decision</span><strong class="' + (colors[decision.status] ?? "") + '">' + safe(decision.status) + '</strong><p>' + safe(decision.reason) + '</p></div>'
         + '<div class="metric-group"><h3>Team</h3>' + [
           metric("Model", safe(data.teamManifest?.teamModel ?? "none")),
+          metric("Allocation", safe(data.teamManifest?.seatAllocation ?? "none")),
           metric("Phase", safe(data.teamPhase ? data.teamPhase.phase + "/" + data.teamPhase.status : "none")),
           metric("Workgroups", workgroupCount),
           metric("Seats", seats.length),
+        ].join("") + '</div>'
+        + '<div class="metric-group"><h3>Runtime Mapping</h3>' + [
+          metric("Default runtime agent", safe(data.teamManifest?.defaultRuntimeAgent ?? "none")),
+          metric("Max parallel seats", safe(data.teamManifest?.maxParallelSeats ?? "n/a")),
+          metric("Planning seats", seats.filter((seat) => seat.phase === "planning").length),
+          metric("Execution seats", seats.filter((seat) => seat.phase === "execution").length),
+          metric("Review seats", seats.filter((seat) => seat.phase === "review").length),
         ].join("") + '</div>'
         + '<div class="metric-group"><h3>Seat State</h3>' + [
           metric("Running", counts.running),
@@ -1019,6 +1142,8 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       const queueRecords = schedulerRecordsForSeat(data, seat.seatID).sort((left, right) => String(right.timestamp ?? "").localeCompare(String(left.timestamp ?? "")));
       inspector.innerHTML = '<h2>Seat Inspector</h2>'
         + '<div class="inspector-title"><strong>' + safe(seat.seatID) + '</strong><span class="' + statusClass(state?.status ?? "standby") + '">' + safe(state?.status ?? "standby") + '</span><p class="muted">' + safe(seat.role) + '</p></div>'
+        + detailBlock("Seat Definition", '<p>' + safe(seat.reason ?? "No allocation reason recorded.") + '</p>', seat)
+        + detailBlock("Current State", '<p>' + safe(state?.memory ?? "No live state memory recorded.") + '</p>', state ?? null)
         + '<div>' + [
           metric("Phase", safe(state?.phase ?? seat.phase ?? "none")),
           metric("Workgroup", safe(state?.workgroupID ?? seat.workgroupID ?? "none")),
@@ -1029,9 +1154,9 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
           metric("Task", safe(state?.taskID ?? seat.taskID ?? "none")),
         ].join("") + '</div>'
         + '<div><h3>Interaction Completion</h3><div class="progress"><div style="width:' + completion.percent + '%"></div></div><p class="muted">' + completion.done + ' / ' + completion.total + ' question threads completed. Authored questions: ' + completion.authoredQuestions + '. Inbound questions: ' + completion.inboundQuestions + '.</p></div>'
-        + '<div><h3>Scheduler Queue</h3><div class="inspector-list">' + (queueRecords.length ? queueRecords.slice(0, 8).map((record) => '<div class="item"><strong>' + safe(record.status) + ' / ' + safe(record.queueType) + '</strong><p>' + safe(record.summary ?? record.reason ?? "") + '</p><small>' + safe(record.requestedAgent ?? "no requested agent") + (record.runtimeAgent ? ' -> ' + safe(record.runtimeAgent) : '') + (record.taskID ? ' / task ' + safe(record.taskID) : '') + '</small></div>').join("") : '<div class="empty">No queued or dispatched scheduler work for this seat.</div>') + '</div></div>'
-        + '<div><h3>Contract Traceability</h3><div class="inspector-list">' + (contracts.length ? contracts.map((contract) => '<div class="item"><strong>' + safe(contract.contractID) + ' / ' + safe(contract.status) + '</strong><p>' + safe((contract.uncoveredTerms ?? []).length ? 'Uncovered terms: ' + contract.uncoveredTerms.join(", ") : 'All extracted hard terms are covered.') + '</p><small>' + safe((contract.files ?? []).join(", ") || "no governed files") + '</small></div>').join("") : '<div class="empty">No contract linked to this seat yet.</div>') + '</div></div>'
-        + '<div><h3>Recent Seat Interactions</h3><div class="inspector-list">' + (related.length ? related.slice(0, 10).map((message) => '<div class="item"><strong>' + safe(message.messageType) + (message.targetSeatID ? ' to ' + safe(message.targetSeatID) : '') + '</strong><p>' + safe(message.content) + '</p><small>' + safe(message.channel) + ' / ' + safe(message.phase) + ' / round ' + safe(message.round ?? "n/a") + '</small></div>').join("") : '<div class="empty">No direct interactions for this seat yet.</div>') + '</div></div>';
+        + '<div><h3>Scheduler Queue</h3><div class="inspector-list">' + (queueRecords.length ? queueRecords.slice(0, 8).map(renderQueueDetails).join("") : '<div class="empty">No queued or dispatched scheduler work for this seat.</div>') + '</div></div>'
+        + '<div><h3>Contract Traceability</h3><div class="inspector-list">' + (contracts.length ? contracts.map(renderContractDetails).join("") : '<div class="empty">No contract linked to this seat yet.</div>') + '</div></div>'
+        + '<div><h3>Recent Seat Interactions</h3><div class="inspector-list">' + (related.length ? related.slice(0, 10).map(renderMessageDetails).join("") : '<div class="empty">No direct interactions for this seat yet.</div>') + '</div></div>';
     }
 
     function renderTimeline(data) {
@@ -1039,11 +1164,7 @@ export function renderRepublicDashboardHtml(data: RepublicDashboardData, options
       if (!timeline) return;
       const messages = [...(data.commonsMessages ?? [])].sort((left, right) => String(left.timestamp ?? "").localeCompare(String(right.timestamp ?? ""))).slice(-30).reverse();
       timeline.innerHTML = messages.length
-        ? messages.map((message) => {
-          const target = message.targetSeatID ? ' -> ' + safe(message.targetSeatID) : '';
-          const refs = (message.references ?? []).length ? ' / refs ' + safe((message.references ?? []).length) : '';
-          return '<div class="item"><strong>' + safe(message.authorSeatID) + target + ' / ' + safe(message.messageType) + '</strong><p>' + safe(message.content) + '</p><small>' + safe(message.channel) + ' / ' + safe(message.phase) + ' / round ' + safe(message.round ?? "n/a") + refs + '</small></div>';
-        }).join("")
+        ? messages.map(renderMessageDetails).join("")
         : '<div class="empty">No commons messages yet.</div>';
     }
 
@@ -1074,12 +1195,16 @@ export function writeRepublicDashboardFile(options: RepublicDashboardOptions = {
   return outputPath
 }
 
-async function serveRepublicDashboard(options: RepublicDashboardOptions): Promise<number> {
+export interface RepublicDashboardServerHandle {
+  url: string
+  stop: () => void
+}
+
+export function startRepublicDashboardServer(options: RepublicDashboardOptions): RepublicDashboardServerHandle | null {
   const port = options.port ?? 4097
   const initialData = buildRepublicDashboardData(options)
   if (!initialData.repository) {
-    console.error("Not inside a git repository. Cannot serve Republic dashboard.")
-    return 1
+    return null
   }
 
   const server = Bun.serve({
@@ -1099,7 +1224,24 @@ async function serveRepublicDashboard(options: RepublicDashboardOptions): Promis
     },
   })
 
-  console.log(`OMO Republic dashboard serving at http://127.0.0.1:${server.port}`)
+  const url = `http://127.0.0.1:${server.port}`
+  return {
+    url,
+    stop: () => server.stop(true),
+  }
+}
+
+async function serveRepublicDashboard(options: RepublicDashboardOptions): Promise<number> {
+  const server = startRepublicDashboardServer(options)
+  if (!server) {
+    console.error("Not inside a git repository. Cannot serve Republic dashboard.")
+    return 1
+  }
+
+  if (options.open) {
+    openDashboardTarget(server.url)
+  }
+  console.log(`OMO Republic dashboard serving at ${server.url}`)
   await new Promise(() => {})
   return 0
 }
@@ -1121,6 +1263,9 @@ export async function republicDashboard(options: RepublicDashboardOptions = {}):
   }
 
   const outputPath = writeRepublicDashboardFile(options)
+  if (options.open) {
+    openDashboardTarget(outputPath)
+  }
   console.log(`OMO Republic dashboard written to ${outputPath}`)
   return 0
 }

@@ -603,6 +603,18 @@ Configure the deliberative multi-agent workflow and ledger:
     "supermajority": 0.67,
     "veto_on_blocker": true,
     "git_summary": true,
+    "team_model": "advisory",
+    "team": {
+      "seat_allocation": "auto",
+      "seat_memory": true,
+      "persistent_sessions": true,
+      "exclusive_seat_orchestration": true,
+      "planner_seat_count": "auto",
+      "executor_seat_count": "auto",
+      "reviewer_seat_count": 2,
+      "max_parallel_seats": 4,
+      "default_runtime_agent": "general"
+    },
     "commons": {
       "auto_publish": true,
       "inbox": true,
@@ -645,6 +657,12 @@ Configure the deliberative multi-agent workflow and ledger:
       "supervisor_agent": "hephaestus",
       "seat_agents": {},
       "prompt_max_messages": 8
+    },
+    "dashboard": {
+      "auto_open": false,
+      "auto_open_events": ["team_init"],
+      "port": 4097,
+      "refresh_ms": 2000
     }
   }
 }
@@ -662,6 +680,11 @@ Configure the deliberative multi-agent workflow and ledger:
 | `supermajority`                          | `0.67`       | Approval ratio used for high-confidence execution recommendations           |
 | `veto_on_blocker`                        | `true`       | Treat reject/blocker review votes as final-plan blockers                    |
 | `git_summary`                            | `true`       | Include native-git audit information in Republic status reports             |
+| `team_model`                             | `"advisory"` | `"single"` and `"advisory"` keep OMO's normal agent flow; `"parliament"`, `"squad"`, and `"parliament_squad"` enable Republic seat orchestration |
+| `team.seat_allocation`                   | `"auto"`     | Allocate seats from task goal/files, by user-provided counts, or from explicit lists |
+| `team.exclusive_seat_orchestration`      | `true`       | When a real seat team is active, Republic owns multi-agent planning/execution and blocks legacy ad hoc `task` / `call_omo_agent` delegation |
+| `team.max_parallel_seats`                | `4`          | Maximum seats launched by one `republic_round_start` call                   |
+| `team.default_runtime_agent`             | `"general"`  | Runtime OpenCode agent used to execute seats unless overridden              |
 | `commons.auto_publish`                   | `true`       | Publish native-git tool-change events to Republic Commons automatically     |
 | `commons.inbox`                          | `true`       | Inject relevant Commons inbox messages into the next seat turn              |
 | `commons.inject_max_messages`            | `6`          | Maximum Commons inbox messages injected into a chat turn                    |
@@ -686,10 +709,18 @@ Configure the deliberative multi-agent workflow and ledger:
 | `scheduler.supervisor_agent`             | `"hephaestus"` | Preferred OMO/runtime agent for supervisor-targeted dispatch               |
 | `scheduler.seat_agents`                  | `{}`         | Map conceptual seat IDs such as `api-seat` to preferred OMO/runtime agents  |
 | `scheduler.prompt_max_messages`          | `8`          | Context budget hint included in dispatched response prompts                  |
+| `dashboard.auto_open`                    | `false`      | Start and open a local live Republic dashboard when configured events occur |
+| `dashboard.auto_open_events`             | `["team_init"]` | Events that can open the dashboard: `team_init`, `round_start`          |
+| `dashboard.port`                         | `4097`       | Port for the local live dashboard                                           |
+| `dashboard.refresh_ms`                   | `2000`       | Browser polling interval for live `.git/omo` state                          |
 
 Deliberation ledgers live under the Git common dir at `.git/omo/republic/ledger.jsonl`. Agent-to-agent Commons messages live beside them at `.git/omo/republic/commons.jsonl`, so parallel seats can publish proposals, questions, objections, answers, revisions, handoffs, status updates, dependency-gate events, and supervisor interventions without dirtying the worktree. Persistent team state lives under `.git/omo/republic/team/` with `manifest.json`, `phase.json`, and per-seat `state.json` / `memory.md`. Per-seat working docs live at `.git/omo/republic/agents/<seat-id>.md`; workgroup contracts live at `.git/omo/republic/contracts/<workgroup-id>.md`. Tool-caused dirty Git changes are audited separately at `.git/omo/native-git/audit.jsonl`. Use `/republic-status` or `oh-my-opencode republic status` to combine these views.
 
 The interactive Republic tools are `republic_team_init`, `republic_team_status`, `republic_seat_update`, `republic_phase_update`, `republic_round_start`, `republic_publish`, `republic_inbox`, `republic_wait`, and `republic_contract`. They are available to agents as normal tools and store their records under the Git common dir. `republic_team_init` can allocate seats automatically from task goals/files, by user-provided counts, or from explicit config. `republic_round_start` actively launches selected seats for a planning, execution, review, or idle round while respecting `team.max_parallel_seats`. `republic_seat_update` records each seat's current running/waiting/blocked/done status, blockers, task metadata, and durable memory; `republic_team_status` reads that state back for supervisor review and dashboard views. `republic_phase_update` records planning/execution/review transitions and can lock contracts or blockers into `phase.json`. When the scheduler is enabled, targeted `question`, `handoff`, and `objection` messages also create background response sessions for the target seat and write `channel: "scheduler"` dispatch records. The sender can call `republic_wait` on the published `message_id` to wait for a referenced response. Objections and messages marked `blocked` or `review-required` additionally create supervisor review dispatch records. Weak-model guardrails add deterministic enforcement around this loop: execution-phase writes with locked contracts require either injected Republic context or, when configured, an explicit `republic_inbox` / `republic_team_status` read before mutating tools are allowed. Dispatch validates the preferred agent against the current OpenCode runtime registry; when the preferred OMO role is unavailable, OMO falls back to an available runtime agent such as `general` and records the requested role in the prompt/output.
+
+When `team_model` is `parliament`, `squad`, or `parliament_squad` and `team.exclusive_seat_orchestration` remains `true`, seats become the product's only multi-agent organization layer. The plugin injects a system instruction that tells primary agents to use Republic tools instead of creating a second OMO subagent plan, and the pre-tool hook blocks direct `task` / `call_omo_agent` delegation from the main agent. Republic may still use OpenCode runtime agents internally as the execution transport for a seat, but responsibility, memory, communication, contracts, and supervision belong to the seat.
+
+OpenCode's current server plugin API does not expose a stable custom Desktop App panel slot. For a practical App workflow, set `dashboard.auto_open` to `true`; `republic_team_init` and/or `republic_round_start` will open a local live browser dashboard at `http://127.0.0.1:<port>` while the App continues running the session. This gives the user a separate real-time command board without writing dashboard files into the worktree.
 
 ### Git Master
 

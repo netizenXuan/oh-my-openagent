@@ -6,6 +6,7 @@ export const RepublicGuardrailGateModeSchema = z.enum(["advisory", "block"])
 export const RepublicSchedulerMessageTypeSchema = z.enum(["question", "handoff", "objection"])
 export const RepublicTeamModelSchema = z.enum(["single", "advisory", "parliament", "squad", "parliament_squad"])
 export const RepublicSeatAllocationSchema = z.enum(["auto", "count", "explicit"])
+export const RepublicDashboardAutoOpenEventSchema = z.enum(["team_init", "round_start"])
 export const RepublicSeatCountSchema = z.union([
   z.literal("auto"),
   z.number().int().min(1).max(20),
@@ -48,6 +49,7 @@ export const RepublicConfigSchema = z.object({
     seat_allocation: RepublicSeatAllocationSchema.default("auto"),
     seat_memory: z.boolean().default(true),
     persistent_sessions: z.boolean().default(true),
+    exclusive_seat_orchestration: z.boolean().default(true),
     planner_seat_count: RepublicSeatCountSchema.default("auto"),
     executor_seat_count: RepublicSeatCountSchema.default("auto"),
     reviewer_seat_count: RepublicSeatCountSchema.default(2),
@@ -57,6 +59,7 @@ export const RepublicConfigSchema = z.object({
     seat_allocation: "auto",
     seat_memory: true,
     persistent_sessions: true,
+    exclusive_seat_orchestration: true,
     planner_seat_count: "auto",
     executor_seat_count: "auto",
     reviewer_seat_count: 2,
@@ -147,6 +150,18 @@ export const RepublicConfigSchema = z.object({
     seat_agents: {},
     prompt_max_messages: 8,
   }),
+  /** Optional local dashboard that can pop open when a Republic team starts. */
+  dashboard: z.object({
+    auto_open: z.boolean().default(false),
+    auto_open_events: z.array(RepublicDashboardAutoOpenEventSchema).default(["team_init"]),
+    port: z.number().int().min(1).max(65535).default(4097),
+    refresh_ms: z.number().int().min(500).max(60000).default(2000),
+  }).default({
+    auto_open: false,
+    auto_open_events: ["team_init"],
+    port: 4097,
+    refresh_ms: 2000,
+  }),
 })
 
 export type RepublicMode = z.infer<typeof RepublicModeSchema>
@@ -155,5 +170,6 @@ export type RepublicGuardrailGateMode = z.infer<typeof RepublicGuardrailGateMode
 export type RepublicSchedulerMessageType = z.infer<typeof RepublicSchedulerMessageTypeSchema>
 export type RepublicTeamModel = z.infer<typeof RepublicTeamModelSchema>
 export type RepublicSeatAllocation = z.infer<typeof RepublicSeatAllocationSchema>
+export type RepublicDashboardAutoOpenEvent = z.infer<typeof RepublicDashboardAutoOpenEventSchema>
 export type RepublicSeatCount = z.infer<typeof RepublicSeatCountSchema>
 export type RepublicConfig = z.infer<typeof RepublicConfigSchema>

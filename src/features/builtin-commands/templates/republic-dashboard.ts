@@ -1,10 +1,11 @@
-export const REPUBLIC_DASHBOARD_TEMPLATE = `You are helping the user inspect the OMO Republic collaboration graph.
+export const REPUBLIC_DASHBOARD_TEMPLATE = `You are helping the user inspect the OMO Republic collaboration command board.
 
 ## ARGUMENTS
 
-- \`/republic-dashboard [deliberation-id] [--serve] [--port=4097]\`
-  - \`deliberation-id\` (optional): filter graph data to one deliberation.
+- \`/republic-dashboard [deliberation-id] [--serve] [--open] [--port=4097]\`
+  - \`deliberation-id\` (optional): filter dashboard data to one deliberation.
   - \`--serve\` (optional): start a live local dashboard.
+  - \`--open\` (optional): open the rendered or served dashboard with the OS default browser.
   - \`--port\` (optional): local dashboard port.
 
 ## WHAT TO DO
@@ -23,13 +24,14 @@ export const REPUBLIC_DASHBOARD_TEMPLATE = `You are helping the user inspect the
 - Do not modify project source files.
 - Do not run commits, branch mutations, reset, checkout, or stash.
 - The dashboard output defaults to \`.git/omo/republic/dashboard.html\`, so it does not dirty the worktree.
+- For Desktop App workflows, users can set \`republic.dashboard.auto_open=true\` so Republic team or round startup opens the live dashboard automatically.
 
 ## DASHBOARD MEANING
 
-Explain that the graph shows:
+Explain that the command board shows:
 
-- repository, deliberation, team phase, chamber, workgroup, seat, agent, task, message, module, file, tool, and decision nodes
-- assignment, team phase, supervision, dependency, publication, targeting, references, discussed files, and code-change edges
+- phase, workgroup, supervisor, seat status, scheduler queue, contract traceability, and native-git record counts
+- a click-to-inspect seat detail panel with live state, runtime agent mapping, queue records, contracts, recent interactions, and expandable raw JSON
 - a Commons timeline for cross-seat communication
 
 If no Republic records exist, suggest running \`/deliberate <problem-or-plan>\` first.`

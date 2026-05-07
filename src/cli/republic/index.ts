@@ -355,6 +355,7 @@ export function createRepublicCommand(): Command {
     .option("-o, --output <path>", "HTML output path; defaults to .git/omo/republic/dashboard.html")
     .option("--json", "Output structured graph data instead of HTML")
     .option("--serve", "Serve a live dashboard that polls repository state")
+    .option("--open", "Open the rendered or served dashboard with the OS default browser")
     .option("--port <port>", "Port for --serve", (value) => Number.parseInt(value, 10))
     .option("--refresh-ms <ms>", "Refresh interval for --serve", (value) => Number.parseInt(value, 10))
     .action(async (options) => {
@@ -364,6 +365,7 @@ export function createRepublicCommand(): Command {
         output: options.output,
         json: options.json ?? false,
         serve: options.serve ?? false,
+        open: options.open ?? false,
         port: options.port,
         refreshMs: options.refreshMs,
       })

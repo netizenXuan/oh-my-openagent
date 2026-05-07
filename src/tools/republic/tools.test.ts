@@ -155,6 +155,7 @@ describe("republic tools", () => {
 
     expect(parsed.ok).toBe(true)
     expect(parsed.team_model).toBe("parliament_squad")
+    expect(parsed.dashboard).toEqual({ opened: false, reason: "disabled" })
     expect(parsed.seats.length).toBeGreaterThan(3)
     expect(manifest.seats.map((seat) => seat.seatID)).toContain("api-planner-seat")
     expect(phase.phase).toBe("planning")
@@ -290,6 +291,7 @@ describe("republic tools", () => {
     expect(parsed.ok).toBe(true)
     expect(parsed.phase).toBe("planning")
     expect(parsed.round).toBe(1)
+    expect(parsed.dashboard).toEqual({ opened: false, reason: "disabled" })
     expect(parsed.dispatches.length).toBeGreaterThan(1)
     expect(launched.length).toBe(parsed.dispatches.length)
     expect(launched[0]?.description).toContain("Republic planning round 1")

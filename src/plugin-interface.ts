@@ -58,7 +58,9 @@ export function createPluginInterface(args: {
       hooks,
     }),
 
-    "experimental.chat.system.transform": createSystemTransformHandler(),
+    "experimental.chat.system.transform": createSystemTransformHandler({
+      pluginConfig,
+    }),
 
     config: managers.configHandler,
 
@@ -73,6 +75,7 @@ export function createPluginInterface(args: {
     "tool.execute.before": createToolExecuteBeforeHandler({
       ctx,
       hooks,
+      pluginConfig,
     }),
 
     "tool.execute.after": createToolExecuteAfterHandler({

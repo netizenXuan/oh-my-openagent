@@ -22,7 +22,7 @@ npx oh-my-opencode
 | `get-local-version`           | Display local version information and update check     |
 | `refresh-model-capabilities`  | Refresh the cached models.dev-based model capabilities |
 | `republic status`             | Summarize OMO Republic ledger and native Git audit state |
-| `republic dashboard`          | Render or serve an OMO Republic collaboration graph      |
+| `republic dashboard`          | Render or serve an OMO Republic command board            |
 | `version`                     | Show version information                               |
 | `mcp oauth`                   | MCP OAuth authentication management                    |
 
@@ -210,7 +210,7 @@ The report includes a decision gate: `no-records`, `needs-quorum`, `blocked`, `a
 
 ## republic dashboard
 
-Renders the OMO Republic collaboration state as a network graph. By default it writes a static HTML file under the Git common dir at `.git/omo/republic/dashboard.html`, so it does not dirty the worktree.
+Renders the OMO Republic collaboration state as a command board with phase, workgroup, seat, scheduler, contract, Commons, and native-git views. By default it writes a static HTML file under the Git common dir at `.git/omo/republic/dashboard.html`, so it does not dirty the worktree.
 
 ### Usage
 
@@ -218,6 +218,7 @@ Renders the OMO Republic collaboration state as a network graph. By default it w
 bunx oh-my-opencode republic dashboard
 bunx oh-my-opencode republic dashboard --directory /path/to/repo
 bunx oh-my-opencode republic dashboard --directory /path/to/repo --serve --port 4097
+bunx oh-my-opencode republic dashboard --directory /path/to/repo --open
 bunx oh-my-opencode republic dashboard --directory /path/to/repo --json
 ```
 
@@ -230,10 +231,13 @@ bunx oh-my-opencode republic dashboard --directory /path/to/repo --json
 | `-o, --output <path>`  | Static HTML output path                               |
 | `--json`               | Output graph data instead of HTML                     |
 | `--serve`              | Serve a live dashboard that polls `.git/omo` records  |
+| `--open`               | Open the rendered or served dashboard in the default browser |
 | `--port <port>`        | Port for `--serve`                                    |
 | `--refresh-ms <ms>`    | Polling interval for `--serve`                        |
 
-The graph includes repository, deliberation, chamber, workgroup, seat, agent, task, message, module, file, tool, and decision nodes, with edges for assignment, supervision, dependency, publication, targeting, references, discussed files, and code changes.
+The command board groups seats by phase and workgroup instead of showing every edge by default. Click a seat to inspect its live state, allocation reason, runtime agent, queue records, contract traceability, and expandable raw Commons/scheduler/contract JSON. The underlying JSON still includes repository, deliberation, chamber, workgroup, seat, agent, task, message, module, file, tool, and decision nodes for downstream visualizers.
+
+For OpenCode Desktop App usage, enable `republic.dashboard.auto_open` in config. When `republic_team_init` or a configured `republic_round_start` event runs, OMO starts the same live local dashboard and opens it in the browser automatically.
 
 ---
 

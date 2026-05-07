@@ -451,7 +451,7 @@ Commands are slash-triggered workflows that execute predefined templates.
 | `/refactor`          | Intelligent refactoring with LSP, AST-grep, architecture analysis, and TDD verification    |
 | `/deliberate`        | Run multi-seat OMO Republic deliberation and write Git common-dir ledger/commons records    |
 | `/republic-status`   | Summarize OMO Republic ledger, commons, and native Git audit state                          |
-| `/republic-dashboard` | Render or serve the OMO Republic collaboration graph                                       |
+| `/republic-dashboard` | Render or serve the OMO Republic command board                                             |
 | `/start-work`        | Start Sisyphus work session from Prometheus plan                                           |
 | `/stop-continuation` | Stop all continuation mechanisms (ralph loop, todo continuation, boulder) for this session |
 | `/handoff`           | Create a detailed context summary for continuing work in a new session                     |
@@ -554,7 +554,7 @@ When run inside a Git repository, deliberation records are written under the Git
 
 Reads `.git/omo/republic/ledger.jsonl`, `.git/omo/republic/commons.jsonl`, and `.git/omo/native-git/audit.jsonl`, then reports deliberation IDs, phase counts, chamber counts, workgroups, modules, task IDs, commons message counts, targeted/referenced message counts, seat votes, visible agent/model participation, blocker status, touched files, and the recommended next action. This is read-only and does not create new ledger entries.
 
-The CLI also provides `oh-my-opencode republic dashboard`, which renders the same state as a network graph, including persistent team manifest, team phase, and per-seat state when present. Static output defaults to `.git/omo/republic/dashboard.html`; `--serve` starts a local live dashboard that polls Git common-dir records.
+The CLI also provides `oh-my-opencode republic dashboard`, which renders the same state as a click-to-inspect command board, including persistent team manifest, team phase, per-seat state, queue records, contracts, and expandable raw Commons details. Static output defaults to `.git/omo/republic/dashboard.html`; `--serve` starts a local live dashboard that polls Git common-dir records. In Desktop App workflows, `republic.dashboard.auto_open` can open this live board automatically when a team or round starts.
 
 Interactive Republic collaboration is available through nine tools:
 
@@ -569,6 +569,8 @@ Interactive Republic collaboration is available through nine tools:
 - `republic_contract`: record shared API, schema, test, or handoff contracts before adjacent modules implement against each other.
 
 `republic_team_init` writes team manifest, phase state, per-seat state, and per-seat memory under the Git common dir. It can infer seats from the goal/files, honor user-provided seat counts, or use explicit seat lists from config. `republic_round_start` then selects seats by phase, workgroup, or explicit ID, respects `team.max_parallel_seats`, and launches those seats as active background sessions. Seats can call `republic_seat_update` to record whether they are running, waiting, blocked, done, or in error, and `republic_team_status` provides the stable read model needed by supervisor review and dashboard views. `republic_phase_update` records the boundary between planning, execution, review, and idle, including locked contracts and blockers. When enabled, targeted `question`, `handoff`, and `objection` messages published with `republic_publish` are actively dispatched to a background response seat. The publishing seat can then call `republic_wait` to block until an `answer`, `revision`, `objection`, `consensus`, `contract`, or `handoff` references the original message. Objections and Commons messages marked `blocked` or `review-required` also dispatch a supervisor review seat. The scheduler records each dispatch in Commons and the ledger, then background seats can answer, revise, object, hand off, publish supervisor decisions, update their persistent seat state, transition team phase, start additional rounds, or write contracts through the same Republic tools. Preferred seat agents are checked against the current OpenCode runtime registry; unavailable OMO roles fall back to an available runtime agent while preserving the requested role in the dispatch prompt/output. The native-git hook injects relevant inbox messages into the next chat turn as `<republic-commons-inbox>` and can warn or block weak-model execution writes until locked contract context has been received. The supervisor policy loop records `supervisor-policy` messages on idle when questions, objections, or governance warnings remain unresolved.
+
+In `team_model: "parliament"`, `"squad"`, or `"parliament_squad"`, Republic seats are not a decorative wrapper around Sisyphus-style delegation. With `team.exclusive_seat_orchestration: true` they are the orchestration layer: OMO runtime agents may execute a seat, but the main agent is blocked from opening an independent `task` or `call_omo_agent` decomposition. Add capacity by allocating more seats or starting another Republic round, not by mixing in the legacy automatic subagent plan.
 
 ### /start-work
 

@@ -2,6 +2,7 @@ const { afterEach, describe, expect, test } = require("bun:test")
 const { createToolExecuteBeforeHandler } = require("./tool-execute-before")
 const { createToolRegistry } = require("./tool-registry")
 const { builtinTools } = require("../tools")
+const { RepublicConfigSchema } = require("../config/schema")
 const { resetStorageClient } = require("../tools/session-manager/storage")
 
 describe("createToolExecuteBeforeHandler", () => {
@@ -264,6 +265,73 @@ describe("createToolExecuteBeforeHandler", () => {
       //#then
       expect(output.args.subagent_type).toBe("oracle")
     })
+
+    test("blocks legacy task delegation when Republic exclusive seat orchestration is active", async () => {
+      //#given
+      const ctx = createCtxWithSessionMessages()
+      const handler = createToolExecuteBeforeHandler({
+        ctx,
+        hooks: emptyHooks,
+        pluginConfig: {
+          republic: RepublicConfigSchema.parse({
+            team_model: "parliament_squad",
+          }),
+        },
+      })
+      const input = { tool: "task", sessionID: "ses_123", callID: "call_1" }
+      const output = { args: { category: "quick", description: "Test" } as Record<string, unknown> }
+
+      //#when
+      const run = handler(input, output)
+
+      //#then
+      await expect(run).rejects.toThrow("Republic seat orchestration is active and exclusive")
+    })
+
+    test("keeps legacy task delegation available in Republic advisory mode", async () => {
+      //#given
+      const ctx = createCtxWithSessionMessages()
+      const handler = createToolExecuteBeforeHandler({
+        ctx,
+        hooks: emptyHooks,
+        pluginConfig: {
+          republic: RepublicConfigSchema.parse({
+            team_model: "advisory",
+          }),
+        },
+      })
+      const input = { tool: "task", sessionID: "ses_123", callID: "call_1" }
+      const output = { args: { category: "quick", description: "Test" } as Record<string, unknown> }
+
+      //#when
+      await handler(input, output)
+
+      //#then
+      expect(output.args.subagent_type).toBe("sisyphus-junior")
+    })
+
+    test("blocks call_omo_agent when Republic exclusive seat orchestration is active", async () => {
+      //#given
+      const ctx = createCtxWithSessionMessages()
+      const handler = createToolExecuteBeforeHandler({
+        ctx,
+        hooks: emptyHooks,
+        pluginConfig: {
+          republic: RepublicConfigSchema.parse({
+            team_model: "squad",
+          }),
+        },
+      })
+
+      //#when
+      const run = handler(
+        { tool: "call_omo_agent", sessionID: "ses_123", callID: "call_1" },
+        { args: { agent_name: "sisyphus", prompt: "implement" } as Record<string, unknown> },
+      )
+
+      //#then
+      await expect(run).rejects.toThrow("Republic seat orchestration is active and exclusive")
+    })
   })
 })
 
@@ -359,6 +427,24 @@ describe("createToolRegistry", () => {
 
         expect(result.filteredTools.task).toBeDefined()
       })
+    })
+  })
+
+  describe("#given Republic exclusive seat orchestration is active", () => {
+    test("#then legacy OMO delegation tools are hidden", () => {
+      const result = createToolRegistry(
+        createRegistryInput({
+          republic: RepublicConfigSchema.parse({
+            team_model: "parliament_squad",
+          }),
+        }),
+      )
+
+      expect(result.filteredTools.task).toBeUndefined()
+      expect(result.filteredTools.call_omo_agent).toBeUndefined()
+      expect(result.filteredTools.republic_team_init).toBeDefined()
+      expect(result.filteredTools.republic_round_start).toBeDefined()
+      expect(result.filteredTools.republic_publish).toBeDefined()
     })
   })
 })
